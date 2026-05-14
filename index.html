@@ -830,6 +830,10 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                 </table>
               </div>
               <div className="mob-cards" style={{flexDirection:"column",gap:10}}>
+                {filtered.length>0&&<button style={{...bBtn("secondary"),width:"100%",justifyContent:"center",padding:"10px",fontSize:14,marginBottom:4}} onClick={()=>downloadExcel(null,filtered)}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                  Excel İndir
+                </button>}
                 {filtered.length===0?<div style={{color:MUTED,fontSize:14,textAlign:"center",padding:"40px 0"}}>Sonuç bulunamadı.</div>
                 :filtered.map(s=>(
                   <div key={s.id} style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:"14px 16px",cursor:"pointer"}} onClick={()=>setViewS(s)}>
