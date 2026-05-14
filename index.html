@@ -378,11 +378,18 @@ function App(){
     setUserErr("");setUserMsg("");
     if(!newUser.name||!newUser.email||!newUser.password){setUserErr("Tüm alanları doldurun.");return;}
     if(newUser.password.length<6){setUserErr("Şifre en az 6 karakter olmalı.");return;}
-    const{data,error}=await sb.auth.signUp({email:newUser.email,password:newUser.password,options:{data:{name:newUser.name}}});
+    // Use separate client to avoid affecting admin session
+    const tempSb=supabase.createClient(
+      "https://etrmnfjaomrgbbpydvgq.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0cm1uZmphb21yZ2JicHlkdmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODgwNDAsImV4cCI6MjA5NDI2NDA0MH0.jWYGZYtfahRTzAAtIp5kdffNmVDCeEQM9YHEKMUiIX0",
+      {auth:{persistSession:false,autoRefreshToken:false,storageKey:"temp_user_create"}}
+    );
+    const{error}=await tempSb.auth.signUp({email:newUser.email,password:newUser.password,options:{data:{name:newUser.name}}});
+    await tempSb.auth.signOut();
     if(error){setUserErr(error.message);return;}
     setUserMsg(`${newUser.name} kullanıcısı oluşturuldu. E-posta onayı gönderildi.`);
     setNewUser({name:"",email:"",password:""});
-    setTimeout(()=>loadUsers(),1000);
+    setTimeout(()=>loadUsers(),1500);
   };
 
   const deleteUser=async(uid,name)=>{
