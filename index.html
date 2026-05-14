@@ -776,7 +776,7 @@ function App(){
                   {(fType||fStatus||searchQ)&&<button style={{...bBtn("ghost"),padding:"8px 12px",fontSize:13}} onClick={()=>{setFType("");setFStatus("");setSearchQ("");}}>Temizle ×</button>}
                   <span style={{marginLeft:"auto",fontSize:12,color:MUTED,fontWeight:600}}>{filtered.length} kayıt</span>
                   {filtered.length>0&&<button style={{...bBtn("secondary"),padding:"6px 12px",fontSize:13,display:"flex",alignItems:"center",gap:6}} onClick={()=>{
-                    const rows=filtered.map((s,i)=({"Sıra":i+1,"Ameliyat Türü":s.type,"Tarih":fmtTR(s.date),"Saat":s.time,"Hastane":s.hospital,"Doktor":s.doctor,"Durum":STATUS_CFG[s.status]?.label||s.status,"Adet":s.adet||1,"Notlar":s.notes||""}));
+                    const rows=filtered.map((s,i)=>({"Sıra":i+1,"Ameliyat Türü":s.type,"Tarih":fmtTR(s.date),"Saat":s.time,"Hastane":s.hospital,"Doktor":s.doctor,"Durum":STATUS_CFG[s.status]?.label||s.status,"Adet":s.adet||1,"Notlar":s.notes||""}));
                     const ws=XLSX.utils.json_to_sheet(rows);
                     ws["!cols"]=[{wch:6},{wch:20},{wch:14},{wch:10},{wch:25},{wch:25},{wch:14},{wch:6},{wch:30}];
                     const wb=XLSX.utils.book_new();
