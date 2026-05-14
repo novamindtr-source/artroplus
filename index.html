@@ -452,7 +452,7 @@ function App(){
     const s=surgeries.find(x=>x.id===id);
     await sb.from("surgeries").delete().eq("id",id);
     
-    if(s)await pushNotif(`${s.type} ameliyatı (${fmtTR(s.date)}) programdan kaldırıldı.`,"warning");
+    if(s)await pushNotif(`${s.type} ameliyatı programdan kaldırıldı.\n📅 ${fmtTR(s.date)} saat ${s.time}\n🏥 ${s.hospital}\n👨‍⚕️ ${s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}`,"warning");
     setViewS(null);setConfirmDel(null);
     await loadAll(session?.user?.id);
   };
