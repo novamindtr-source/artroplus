@@ -498,28 +498,36 @@ function App(){
     setInlineAdd(null);
   };
 
-  const downloadExcel = (dateStr) => {
+  const downloadExcel = (dateStr, customList) => {
     const target = dateStr || fmtDate(today);
-    const list = surgeries.filter(s => s.date === target).sort((a,b) => a.time.localeCompare(b.time));
-    if(list.length === 0) { alert("Bu tarihte ameliyat bulunamadı."); return; }
+    const list = customList || surgeries.filter(s => s.date === target).sort((a,b) => a.time.localeCompare(b.time));
+    if(list.length === 0) { alert("Ameliyat bulunamadı."); return; }
     const d = new Date(target + "T12:00:00");
-    const dateLabel = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-    const rows = list.map((s, i) => ({
-      "Sıra": i + 1,
-      "Ameliyat Türü": s.type,
-      "Tarih": fmtTR(s.date),
-      "Saat": s.time,
-      "Hastane": s.hospital,
-      "Doktor": s.doctor,
-      "Durum": STATUS_CFG[s.status]?.label || s.status,
-      "Adet": s.adet || 1,
-      "Notlar": s.notes || ""
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [{wch:6},{wch:20},{wch:14},{wch:10},{wch:25},{wch:25},{wch:14},{wch:6},{wch:30}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, dateLabel);
-    XLSX.writeFile(wb, `ARTROPLUS_${target}.xlsx`);
+    const dateLabel = customList ? "Ameliyat Listesi" : `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    const headers = ["Sıra","Ameliyat Türü","Tarih","Saat","Hastane","Doktor","Durum","Adet","Notlar"];
+    const rows = list.map((s,i) => [
+      i+1, s.type, fmtTR(s.date), s.time, s.hospital, s.doctor,
+      STATUS_CFG[s.status]?.label||s.status, s.adet||1, s.notes||""
+    ]);
+    const cellStyle = "border:1px solid #1a2f4d;padding:8px 12px;font-size:13px;font-family:Calibri,Arial,sans-serif;";
+    const headerStyle = "background:#0c1b33;color:white;font-weight:bold;border:1px solid #0c1b33;padding:8px 12px;font-size:13px;font-family:Calibri,Arial,sans-serif;text-align:center;";
+    const titleStyle = "background:#0c1b33;color:white;font-size:16px;font-weight:bold;padding:12px;font-family:Calibri,Arial,sans-serif;text-align:center;";
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="UTF-8"/></head>
+<body>
+<table border="0" cellspacing="0" cellpadding="0">
+<tr><td colspan="${headers.length}" style="${titleStyle}">ARTROPLUS — ${dateLabel}</td></tr>
+<tr>${headers.map(h=>`<td style="${headerStyle}">${h}</td>`).join("")}</tr>
+${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map(c=>`<td style="${cellStyle}">${c??""}</td>`).join("")}</tr>`).join("")}
+</table>
+</body></html>`;
+    const blob = new Blob([html], {type:"application/vnd.ms-excel;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ARTROPLUS_${target}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:types[0]?.name||"",hospital:hospitals[0]?.name||"",doctor:doctors[0]?.name||"",status:"planned",notes:"",adet:1});setEditS(null);setInlineAdd(null);setShowModal(true);};
@@ -784,12 +792,7 @@ function App(){
                   {(fType||fStatus||searchQ)&&<button style={{...bBtn("ghost"),padding:"8px 12px",fontSize:13}} onClick={()=>{setFType("");setFStatus("");setSearchQ("");}}>Temizle ×</button>}
                   <span style={{marginLeft:"auto",fontSize:12,color:MUTED,fontWeight:600}}>{filtered.length} kayıt</span>
                   {filtered.length>0&&<button style={{...bBtn("secondary"),padding:"6px 12px",fontSize:13,display:"flex",alignItems:"center",gap:6}} onClick={()=>{
-                    const rows=filtered.map((s,i)=>({"Sıra":i+1,"Ameliyat Türü":s.type,"Tarih":fmtTR(s.date),"Saat":s.time,"Hastane":s.hospital,"Doktor":s.doctor,"Durum":STATUS_CFG[s.status]?.label||s.status,"Adet":s.adet||1,"Notlar":s.notes||""}));
-                    const ws=XLSX.utils.json_to_sheet(rows);
-                    ws["!cols"]=[{wch:6},{wch:20},{wch:14},{wch:10},{wch:25},{wch:25},{wch:14},{wch:6},{wch:30}];
-                    const wb=XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb,ws,"Ameliyatlar");
-                    XLSX.writeFile(wb,`ARTROPLUS_Liste_${fmtDate(today)}.xlsx`);
+                    downloadExcel(null, filtered);
                   }}>
                     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                     Excel İndir
@@ -984,9 +987,14 @@ function App(){
                       </div>
                       <div style={{display:"flex",gap:6,alignItems:"center"}}>
                         <span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:10,background:u.role==="admin"?"#f5f3ff":"#eff6ff",color:u.role==="admin"?"#7c3aed":ACCENT}}>{u.role==="admin"?"Admin":"Kullanıcı"}</span>
-                        {u.id!==session?.user?.id&&(u.status==="disabled"
-                          ?<button onClick={()=>enableUser(u.id,u.name)} style={{...bBtn("secondary"),padding:"4px 8px",fontSize:11}}>Aktif Et</button>
-                          :<button onClick={()=>deleteUser(u.id,u.name)} style={{...bBtn("danger"),padding:"4px 8px",fontSize:11}}>Sil</button>
+                        {u.id!==session?.user?.id&&(
+                          <div style={{display:"flex",gap:6}}>
+                            {u.status==="disabled"
+                              ?<button onClick={()=>enableUser(u.id,u.name)} style={{...bBtn("secondary"),padding:"4px 8px",fontSize:11}}>Aktif Et</button>
+                              :<button onClick={()=>deleteUser(u.id,u.name)} style={{...bBtn("danger"),padding:"4px 8px",fontSize:11}}>Devre Dışı</button>
+                            }
+                            <a href={`https://supabase.com/dashboard/project/etrmnfjaomrgbbpydvgq/auth/users?search=${u.id}`} target="_blank" style={{...bBtn("danger"),padding:"4px 8px",fontSize:11,opacity:0.7,textDecoration:"none"}}>Sil</a>
+                          </div>
                         )}
                       </div>
                     </div>
