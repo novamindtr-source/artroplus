@@ -57,7 +57,7 @@ const sendTelegram = async (message) => {
     await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({chat_id: TG_CHAT, text: "🏥 ARTROPLUS\n" + message})
+      body: JSON.stringify({chat_id: TG_CHAT, text: message})
     });
   } catch(e) { console.error("Telegram:", e); }
 };
