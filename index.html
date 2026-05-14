@@ -421,15 +421,23 @@ function App(){
     if(!surgForm.date||!surgForm.type||!surgForm.hospital)return;
     const doc=surgForm.doctor||"Bilinmiyor";
     const tim=surgForm.time||"Bilinmiyor";
-    if(editS){
-      await sb.from("surgeries").update({...surgForm,doctor:doc,time:tim,updated_at:new Date().toISOString()}).eq("id",editS.id);
-      await pushNotif(buildMsg(editS,surgForm,doc,tim),surgForm.status==="cancelled"?"warning":surgForm.status==="completed"?"success":"info");
-    }else{
-      await sb.from("surgeries").insert({...surgForm,doctor:doc,time:tim,created_by:session?.user?.id});
-      await pushNotif(`Yeni ameliyat eklendi: ${surgForm.type} — ${fmtTR(surgForm.date)} saat ${tim} · ${surgForm.hospital}.`,"new");
+    try{
+      if(editS){
+        const{error}=await sb.from("surgeries").update({...surgForm,doctor:doc,time:tim,updated_at:new Date().toISOString()}).eq("id",editS.id);
+        if(error)throw error;
+        await pushNotif(buildMsg(editS,surgForm,doc,tim),surgForm.status==="cancelled"?"warning":surgForm.status==="completed"?"success":"info");
+      }else{
+        const payload={date:surgForm.date,time:tim,type:surgForm.type,hospital:surgForm.hospital,doctor:doc,status:surgForm.status,notes:surgForm.notes,adet:surgForm.adet||1,created_by:session?.user?.id};
+        const{error}=await sb.from("surgeries").insert(payload);
+        if(error)throw error;
+        await pushNotif(`Yeni ameliyat eklendi: ${surgForm.type} — ${fmtTR(surgForm.date)} saat ${tim} · ${surgForm.hospital}.`,"new");
+      }
+      setShowModal(false);setInlineAdd(null);
+      await loadAll(session?.user?.id);
+    }catch(e){
+      alert("Kayıt hatası: "+e.message);
+      console.error(e);
     }
-    setShowModal(false);setInlineAdd(null);
-    await loadAll(session?.user?.id);
   };
 
   const delSurg=async id=>{
