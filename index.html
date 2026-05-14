@@ -407,7 +407,12 @@ function App(){
       setUserMsg(`${name} kullanıcısı tekrar aktif edildi.`);
     }catch(e){setUserErr("Hata: "+e.message);}
   };
-  const showToast=(message,type="info")=>{
+  const recentToasts=React.useRef(new Set());
+  const showToast=(message,type="info",key)=>{
+    const dedupeKey=key||message.slice(0,30);
+    if(recentToasts.current.has(dedupeKey))return;
+    recentToasts.current.add(dedupeKey);
+    setTimeout(()=>recentToasts.current.delete(dedupeKey),10000);
     const id=Date.now();
     setToasts(p=>[...p,{id,message,type}]);
     setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),4000);
@@ -420,7 +425,7 @@ function App(){
     if(old.time!==tim)changes.push(`saat ${tim==="Bilinmiyor"?"bilinmiyor":tim} olarak değişti`);
     if(old.doctor!==doc)changes.push(`doktor ${doc==="Bilinmiyor"?"bilinmiyor":doc} olarak değişti`);
     if(old.hospital!==form.hospital)changes.push(`hastane ${form.hospital} olarak değişti`);
-    const detail=`\n📅 ${fmtTR(form.date)} saat ${tim}\n🏥 ${form.hospital}\n👨‍⚕️ ${doc==="Bilinmiyor"?"Doktor bilinmiyor":doc}`;
+    const detail=` - ${fmtTR(form.date)} saat ${tim} - ${form.hospital} - ${doc==="Bilinmiyor"?"Doktor bilinmiyor":doc}`;
     if(changes.length===0)return`${form.type} ameliyatı güncellendi.${detail}`;
     return`${form.type} ameliyatı: ${changes.join("; ")}.${detail}`;
   };
@@ -438,7 +443,7 @@ function App(){
         const payload={date:surgForm.date,time:tim,type:surgForm.type,hospital:surgForm.hospital,doctor:doc,status:surgForm.status,notes:surgForm.notes,adet:surgForm.adet||1,created_by:session?.user?.id};
         const{error}=await sb.from("surgeries").insert(payload);
         if(error)throw error;
-        await pushNotif(`Yeni ameliyat eklendi: ${surgForm.type}\n📅 ${fmtTR(surgForm.date)} saat ${tim}\n🏥 ${surgForm.hospital}\n👨‍⚕️ ${doc==="Bilinmiyor"?"Doktor bilinmiyor":doc}`,"new");
+        await pushNotif(`Yeni ameliyat eklendi: ${surgForm.type} - ${fmtTR(surgForm.date)} saat ${tim} - ${surgForm.hospital} - ${doc==="Bilinmiyor"?"Doktor bilinmiyor":doc}`,"new");
       }
       setShowModal(false);setInlineAdd(null);
       await loadAll(session?.user?.id);
@@ -452,7 +457,7 @@ function App(){
     const s=surgeries.find(x=>x.id===id);
     await sb.from("surgeries").delete().eq("id",id);
     
-    if(s)await pushNotif(`${s.type} ameliyatı programdan kaldırıldı.\n📅 ${fmtTR(s.date)} saat ${s.time}\n🏥 ${s.hospital}\n👨‍⚕️ ${s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}`,"warning");
+    if(s)await pushNotif(`${s.type} ameliyatı programdan kaldırıldı. - ${fmtTR(s.date)} saat ${s.time} - ${s.hospital} - ${s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}`,"warning");
     setViewS(null);setConfirmDel(null);
     await loadAll(session?.user?.id);
   };
