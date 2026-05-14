@@ -420,8 +420,9 @@ function App(){
     if(old.time!==tim)changes.push(`saat ${tim==="Bilinmiyor"?"bilinmiyor":tim} olarak değişti`);
     if(old.doctor!==doc)changes.push(`doktor ${doc==="Bilinmiyor"?"bilinmiyor":doc} olarak değişti`);
     if(old.hospital!==form.hospital)changes.push(`hastane ${form.hospital} olarak değişti`);
-    if(changes.length===0)return`${form.type} ameliyatı güncellendi.`;
-    return`${form.type} ameliyatı: ${changes.join("; ")}.`;
+    const detail=`\n📅 ${fmtTR(form.date)} saat ${tim}\n🏥 ${form.hospital}\n👨‍⚕️ ${doc==="Bilinmiyor"?"Doktor bilinmiyor":doc}`;
+    if(changes.length===0)return`${form.type} ameliyatı güncellendi.${detail}`;
+    return`${form.type} ameliyatı: ${changes.join("; ")}.${detail}`;
   };
 
   const saveSurg=async()=>{
@@ -437,7 +438,7 @@ function App(){
         const payload={date:surgForm.date,time:tim,type:surgForm.type,hospital:surgForm.hospital,doctor:doc,status:surgForm.status,notes:surgForm.notes,adet:surgForm.adet||1,created_by:session?.user?.id};
         const{error}=await sb.from("surgeries").insert(payload);
         if(error)throw error;
-        await pushNotif(`Yeni ameliyat eklendi: ${surgForm.type} — ${fmtTR(surgForm.date)} saat ${tim} · ${surgForm.hospital}.`,"new");
+        await pushNotif(`Yeni ameliyat eklendi: ${surgForm.type}\n📅 ${fmtTR(surgForm.date)} saat ${tim}\n🏥 ${surgForm.hospital}\n👨‍⚕️ ${doc==="Bilinmiyor"?"Doktor bilinmiyor":doc}`,"new");
       }
       setShowModal(false);setInlineAdd(null);
       await loadAll(session?.user?.id);
