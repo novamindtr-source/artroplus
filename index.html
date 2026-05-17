@@ -4,6 +4,13 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ARTROPLUS — Ameliyat Takip</title>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="ARTROPLUS"/>
+  <meta name="theme-color" content="#0c1b33"/>
+  <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22ARTROPLUS%22%2C%22short_name%22%3A%22ARTROPLUS%22%2C%22start_url%22%3A%22%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230c1b33%22%2C%22theme_color%22%3A%22%230c1b33%22%7D"/>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -253,7 +260,7 @@ function App(){
   const [notifs,setNotifs]=useState([]);
   const [showModal,setShowModal]=useState(false);
   const [editS,setEditS]=useState(null);
-  const [surgForm,setSurgForm]=useState({date:"",time:"09:00",type:"",hospital:"",doctor:"",status:"planned",notes:"",adet:1});
+  const [surgForm,setSurgForm]=useState({date:"",time:"09:00",type:"",hospital:"",doctor:"",status:"planned",notes:"",adet:1,katilimcilar:""});
   const [viewS,setViewS]=useState(null);
   const [confirmDel,setConfirmDel]=useState(null);
   const [fType,setFType]=useState("");
@@ -328,11 +335,19 @@ function App(){
     return()=>subscription.unsubscribe();
   },[afterLogin]);
 
+  // Supabase Realtime subscription
   useEffect(()=>{
     if(!session)return;
-    const iv=setInterval(()=>loadNotifs(session.user.id),30000);
-    return()=>clearInterval(iv);
-  },[session,loadNotifs]);
+    const channel=sb.channel('artroplus-realtime')
+      .on('postgres_changes',{event:'*',schema:'public',table:'surgeries'},()=>{
+        loadAll(session.user.id);
+      })
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},()=>{
+        loadNotifs(session.user.id);
+      })
+      .subscribe();
+    return()=>sb.removeChannel(channel);
+  },[session,loadAll,loadNotifs]);
 
   useEffect(()=>{
     if(page==="users"&&profile?.role==="admin") loadUsers();
@@ -543,8 +558,8 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
     URL.revokeObjectURL(url);
   };
 
-  const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:types[0]?.name||"",hospital:hospitals[0]?.name||"",doctor:doctors[0]?.name||"",status:"planned",notes:"",adet:1});setEditS(null);setInlineAdd(null);setShowModal(true);};
-  const openEdit=s=>{setSurgForm({date:s.date,time:s.time,type:s.type,hospital:s.hospital,doctor:s.doctor,status:s.status,notes:s.notes,adet:s.adet||1});setEditS(s);setInlineAdd(null);setShowModal(true);setViewS(null);};
+  const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:types[0]?.name||"",hospital:hospitals[0]?.name||"",doctor:doctors[0]?.name||"",status:"planned",notes:"",adet:1,katilimcilar:""});setEditS(null);setInlineAdd(null);setShowModal(true);if(users.length===0)loadUsers();};
+  const openEdit=s=>{setSurgForm({date:s.date,time:s.time,type:s.type,hospital:s.hospital,doctor:s.doctor,status:s.status,notes:s.notes,adet:s.adet||1,katilimcilar:s.katilimcilar||""});setEditS(s);setInlineAdd(null);setShowModal(true);setViewS(null);if(users.length===0)loadUsers();};
 
   const filtered=useMemo(()=>surgeries.filter(s=>{
     if(fType&&s.type!==fType)return false;
@@ -751,7 +766,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                 </div>
                 <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:"18px 20px"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                    <div style={{fontWeight:700,fontSize:14}}>Bugünkü Ameliyatlar</div>
+                    <div style={{fontWeight:700,fontSize:14}}>Bugünün Ameliyat Programı</div>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <span style={{background:ACCENT_LT,color:ACCENT,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:10}}>{todayS.length}</span>
                       {todayS.length>0&&<button style={{...bBtn("secondary"),padding:"4px 10px",fontSize:11,display:"flex",alignItems:"center",gap:4}} onClick={()=>downloadExcel(fmtDate(today))}>
@@ -762,10 +777,23 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                   </div>
                   {todayS.length===0?<div style={{color:MUTED,fontSize:13,textAlign:"center",padding:"24px 0"}}>Bugün ameliyat yok.</div>
                   :todayS.map(s=>(
-                    <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:`1px solid ${BORDER}`,cursor:"pointer"}} onClick={()=>setViewS(s)}>
-                      <div style={{width:3,height:36,borderRadius:2,background:tColor(types,s.type),flexShrink:0}}/>
-                      <div style={{flex:1,minWidth:0}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{fontWeight:600,fontSize:13}}>{s.type}</div>{s.adet>1&&<span style={{background:"#eff6ff",color:"#2563eb",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{s.adet}</span>}</div><SurgSubtitle s={s}/></div>
-                      <Badge status={s.status}/>
+                    <div key={s.id} style={{padding:"10px 0",borderBottom:`1px solid ${BORDER}`,cursor:"pointer"}} onClick={()=>setViewS(s)}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <div style={{width:3,height:36,borderRadius:2,background:tColor(types,s.type),flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{fontWeight:600,fontSize:13}}>{s.type}</div>
+                            {s.adet>1&&<span style={{background:"#eff6ff",color:"#2563eb",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{s.adet}</span>}
+                          </div>
+                          <SurgSubtitle s={s}/>
+                        </div>
+                        <Badge status={s.status}/>
+                      </div>
+                      {s.katilimcilar&&<div style={{marginTop:6,marginLeft:13,display:"flex",flexWrap:"wrap",gap:4}}>
+                        {s.katilimcilar.split(",").map(n=>n.trim()).filter(Boolean).map(name=>(
+                          <span key={name} style={{background:ACCENT_LT,color:ACCENT,fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:12}}>{name}</span>
+                        ))}
+                      </div>}
                     </div>
                   ))}
                 </div>
@@ -1050,7 +1078,15 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                 ))}
               </div>
               <div style={{marginBottom:14}}><div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Durum</div><Badge status={viewS.status}/></div>
-              {viewS.notes&&<div style={{background:BG,borderRadius:8,padding:"10px 12px",marginBottom:14}}><div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Notlar</div><div style={{fontSize:13,lineHeight:1.6}}>{viewS.notes}</div></div>}
+              {viewS.katilimcilar&&<div style={{background:BG,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+              <div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Katılımcılar</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {(viewS.katilimcilar||"").split(",").map(s=>s.trim()).filter(Boolean).map(name=>(
+                  <span key={name} style={{background:ACCENT_LT,color:ACCENT,fontSize:12,fontWeight:600,padding:"3px 10px",borderRadius:20}}>{name}</span>
+                ))}
+              </div>
+            </div>}
+            {viewS.notes&&<div style={{background:BG,borderRadius:8,padding:"10px 12px",marginBottom:14}}><div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Notlar</div><div style={{fontSize:13,lineHeight:1.6}}>{viewS.notes}</div></div>}
               <div style={{display:"flex",gap:10,paddingTop:14,borderTop:`1px solid ${BORDER}`}}>
                 <button style={{...bBtn("primary"),fontSize:13,flex:1,justifyContent:"center"}} onClick={()=>openEdit(viewS)}>Düzenle</button>
                 <button style={{...bBtn("danger"),fontSize:13}} onClick={()=>setConfirmDel(viewS)}>Sil</button>
@@ -1120,6 +1156,26 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
 
                 <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:5}}>Durum</label><select style={inp} value={surgForm.status} onChange={e=>setSurgForm(p=>({...p,status:e.target.value}))}>{Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
                 <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:5}}>Adet</label><input style={inp} type="number" min="1" max="99" value={surgForm.adet||1} onChange={e=>setSurgForm(p=>({...p,adet:parseInt(e.target.value)||1}))}/></div>
+                <div style={{gridColumn:"1/-1"}}>
+                  <label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:8}}>Katılımcılar</label>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8,padding:"10px 12px",border:`1px solid ${BORDER}`,borderRadius:8,minHeight:42,background:CARD}}>
+                    {users.filter(u=>u.status!=="disabled").map(u=>{
+                      const selected=(surgForm.katilimcilar||"").split(",").map(s=>s.trim()).filter(Boolean).includes(u.name);
+                      return(
+                        <div key={u.id} onClick={()=>{
+                          const current=(surgForm.katilimcilar||"").split(",").map(s=>s.trim()).filter(Boolean);
+                          const updated=selected?current.filter(n=>n!==u.name):[...current,u.name];
+                          setSurgForm(p=>({...p,katilimcilar:updated.join(", ")}));
+                        }} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:20,cursor:"pointer",background:selected?ACCENT:BG,color:selected?"white":TEXT,fontSize:12,fontWeight:selected?600:400,border:`1px solid ${selected?ACCENT:BORDER}`,userSelect:"none"}}>
+                          {selected&&<svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>}
+                          {u.name}
+                        </div>
+                      );
+                    })}
+                    {users.filter(u=>u.status!=="disabled").length===0&&<span style={{color:MUTED,fontSize:13}}>Kullanıcı bulunamadı</span>}
+                  </div>
+                  {surgForm.katilimcilar&&<div style={{fontSize:11,color:MUTED,marginTop:4}}>Seçili: {surgForm.katilimcilar}</div>}
+                </div>
                 <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:5}}>Notlar</label><textarea style={{...inp,minHeight:72,resize:"vertical"}} placeholder="Ek bilgi..." value={surgForm.notes} onChange={e=>setSurgForm(p=>({...p,notes:e.target.value}))}/></div>
               </div>
               {(!surgForm.date||!surgForm.type||!surgForm.hospital)&&<div style={{fontSize:12,color:MUTED,marginTop:8}}>* Tarih, tür ve hastane zorunludur.</div>}
