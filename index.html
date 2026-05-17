@@ -2,6 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ARTROPLUS — Ameliyat Takip</title>
   <meta name="mobile-web-app-capable" content="yes"/>
@@ -18,7 +19,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:'Segoe UI',system-ui,sans-serif;}
+    body{font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
     @keyframes spin{to{transform:rotate(360deg)}}
     @keyframes slideIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
     select,input,textarea{font-family:inherit;}
@@ -47,6 +48,11 @@
     .bottom-nav button{flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#94a3b8;font-size:9px;font-weight:600;padding:8px 2px;letter-spacing:0.3px;}
     .bottom-nav button.active{color:#3b82f6;}
     .mob-cards{display:none;flex-direction:column;gap:10px;}
+    input:focus,select:focus,textarea:focus{border-color:#3b82f6!important;box-shadow:0 0 0 3px rgba(59,130,246,0.1)!important;}
+    button:hover{opacity:0.9;}
+    .nav-btn:hover{background:rgba(255,255,255,0.08)!important;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    .page-content>*{animation:fadeIn .2s ease;}
   </style>
 </head>
 <body>
@@ -94,10 +100,10 @@ const tColor  = (types,type) => { const i=types.findIndex(t=>t.name===type); ret
 const inits   = n => (n||"?").split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
 const autoDoc = name => { const n=name.trim(); if(!n)return n; return DR_PREFIXES.some(p=>n.startsWith(p))?n:`Dr. ${n}`; };
 
-const NAVY="#0c1b33",NAVY_MID="#1a2f4d",ACCENT="#2563eb",ACCENT_LT="#eff6ff";
-const BG="#f1f5f9",CARD="#fff",BORDER="#e2e8f0",TEXT="#0f172a",MUTED="#64748b";
-const inp={width:"100%",padding:"9px 12px",border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,color:TEXT,background:CARD,boxSizing:"border-box",outline:"none",fontFamily:"inherit"};
-const bBtn=v=>({display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:600,border:"none",background:v==="primary"?ACCENT:v==="danger"?"#dc2626":v==="ghost"?"transparent":"#f1f5f9",color:v==="primary"||v==="danger"?"white":TEXT});
+const NAVY="#0f172a",NAVY_MID="#1e293b",ACCENT="#3b82f6",ACCENT_LT="#eff6ff";
+const BG="#f8fafc",CARD="#fff",BORDER="#e2e8f0",TEXT="#0f172a",MUTED="#94a3b8";
+const inp={width:"100%",padding:"10px 14px",border:"1px solid #e2e8f0",borderRadius:10,fontSize:14,color:"#0f172a",background:"#fff",boxSizing:"border-box",outline:"none",fontFamily:"inherit",transition:"border-color .15s"};
+const bBtn=v=>({display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,cursor:"pointer",fontSize:14,fontWeight:600,border:"none",background:v==="primary"?"#3b82f6":v==="danger"?"#ef4444":v==="ghost"?"transparent":"#f1f5f9",color:v==="primary"||v==="danger"?"white":"#374151",boxShadow:v==="primary"?"0 1px 3px rgba(59,130,246,0.3)":v==="danger"?"0 1px 3px rgba(239,68,68,0.3)":"none",transition:"all .15s"});
 
 function Ico({d,size=18,color="currentColor",sw=1.8}){
   return <svg width={size} height={size} fill="none" stroke={color} strokeWidth={sw} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>;
@@ -542,7 +548,8 @@ function App(){
     const headerStyle = "background:#0c1b33;color:white;font-weight:bold;border:1px solid #0c1b33;padding:8px 12px;font-size:13px;font-family:Calibri,Arial,sans-serif;text-align:center;";
     const titleStyle = "background:#0c1b33;color:white;font-size:16px;font-weight:bold;padding:12px;font-family:Calibri,Arial,sans-serif;text-align:center;";
     const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-<head><meta charset="UTF-8"/></head>
+<head><meta charset="UTF-8"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/></head>
 <body>
 <table border="0" cellspacing="0" cellpadding="0">
 <tr><td colspan="${headers.length}" style="${titleStyle}">ARTROPLUS — ${dateLabel}</td></tr>
@@ -702,7 +709,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
       </aside>
 
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <header style={{background:CARD,borderBottom:`1px solid ${BORDER}`,padding:"0 24px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}} className="header-pad">
+        <header style={{background:CARD,borderBottom:"1px solid #f1f5f9",padding:"0 28px",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}} className="header-pad">
           <div>
             <span style={{fontWeight:700,fontSize:16}}>{NAV.find(n=>n.id===page)?.label}</span>
             <span className="header-date" style={{fontSize:12,color:MUTED,marginLeft:12}}>{today.getDate()} {MONTHS[today.getMonth()]} {today.getFullYear()}</span>
@@ -722,7 +729,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
           </div>
         </header>
 
-        <div className="page-content" style={{flex:1,overflow:"auto",padding:20,background:"#f8fafc"}}>
+        <div className="page-content" style={{flex:1,overflow:"auto",padding:24,background:"#f8fafc"}}>
           {loading?<Spinner/>:<>
 
           {page==="dashboard"&&(
@@ -737,7 +744,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
               </div>
               <div className="stat-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
                 {[{l:"Toplam",v:stats.total,c:"#2563eb",i:"M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"},{l:"Bugün",v:stats.today,c:"#d97706",i:"M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"},{l:"Planlanan",v:stats.planned,c:"#7c3aed",i:"M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"},{l:"Tamamlanan",v:stats.completed,c:"#16a34a",i:"M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"}].map(s=>(
-                  <div key={s.l} style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:"16px 18px",borderLeft:`4px solid ${s.c}`}}>
+                  <div key={s.l} style={{background:CARD,borderRadius:14,padding:"18px 20px",borderLeft:`4px solid ${s.c}`,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
                     <div style={{fontSize:10,color:MUTED,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4,marginBottom:8}}>{s.l}</div>
                     <div style={{fontSize:28,fontWeight:800,lineHeight:1}}>{s.v}</div>
                   </div>
@@ -745,7 +752,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
               </div>
               <div className="dash-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
                 {/* Ameliyat Türü Sayımları */}
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:"18px 20px"}}>
+                <div style={{background:CARD,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
                   <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Ameliyat Türleri</div>
                   <div style={{fontSize:11,color:MUTED,marginBottom:12}}>Doktor dağılımı için tıklayın</div>
                   {typeStats.length===0?<div style={{color:MUTED,fontSize:13,textAlign:"center",padding:"24px 0"}}>Veri yok.</div>
@@ -770,7 +777,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                     </div>
                   ))}
                 </div>
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:"18px 20px"}}>
+                <div style={{background:CARD,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                     <div style={{fontWeight:700,fontSize:14}}>Bugünün Ameliyat Programı</div>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -803,7 +810,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                     </div>
                   ))}
                 </div>
-                <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:"18px 20px"}}>
+                <div style={{background:CARD,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                     <div style={{fontWeight:700,fontSize:14}}>Yaklaşan Ameliyatlar</div>
                     <button style={{fontSize:12,color:ACCENT,background:"none",border:"none",cursor:"pointer",fontWeight:600}} onClick={()=>setPage("surgeries")}>Tümü →</button>
@@ -954,7 +961,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
           )}
 
           {page==="notifications"&&(
-            <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,padding:"18px 20px"}}>
+            <div style={{background:CARD,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
                 <div><span style={{fontWeight:700,fontSize:15}}>Bildirimler</span>{unread>0&&<span style={{marginLeft:8,background:ACCENT_LT,color:ACCENT,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:10}}>{unread} yeni</span>}</div>
                 <div style={{display:"flex",gap:8}}>
@@ -1104,7 +1111,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
 
       {showModal&&(
         <div className="modal-wrap" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}} onClick={()=>setShowModal(false)}>
-          <div className="modal-box" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:540,maxHeight:"96vh",overflow:"auto",boxShadow:"0 24px 64px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+          <div className="modal-box" style={{background:CARD,borderRadius:20,width:"100%",maxWidth:560,maxHeight:"96vh",overflow:"auto",boxShadow:"0 32px 80px rgba(0,0,0,0.18)"}} onClick={e=>e.stopPropagation()}>
             <div style={{padding:"18px 24px",borderBottom:`1px solid ${BORDER}`,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:CARD,zIndex:1}}>
               <div style={{fontWeight:700,fontSize:16}}>{editS?"Ameliyat Düzenle":"Yeni Ameliyat Ekle"}</div>
               <button style={{...bBtn("ghost"),padding:"6px",borderRadius:8}} onClick={()=>setShowModal(false)}><Ico d="M6 18L18 6M6 6l12 12" color={MUTED}/></button>
