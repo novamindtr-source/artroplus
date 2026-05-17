@@ -276,6 +276,7 @@ function App(){
   const [userErr,setUserErr]=useState("");
   const [statFilter,setStatFilter]=useState('all');
   const [selectedType,setSelectedType]=useState(null);
+  const [personnelModal,setPersonnelModal]=useState(null);
 
   const unread=notifs.filter(n=>!n.read).length;
 
@@ -558,6 +559,11 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
     URL.revokeObjectURL(url);
   };
 
+  const savePersonnel=async(surgId,names)=>{
+    await sb.from("surgeries").update({katilimcilar:names.join(", ")}).eq("id",surgId);
+    setSurgeries(p=>p.map(s=>s.id===surgId?{...s,katilimcilar:names.join(", ")}:s));
+    setPersonnelModal(null);
+  };
   const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:types[0]?.name||"",hospital:hospitals[0]?.name||"",doctor:doctors[0]?.name||"",status:"planned",notes:"",adet:1,katilimcilar:""});setEditS(null);setInlineAdd(null);setShowModal(true);if(users.length===0)loadUsers();};
   const openEdit=s=>{setSurgForm({date:s.date,time:s.time,type:s.type,hospital:s.hospital,doctor:s.doctor,status:s.status,notes:s.notes,adet:s.adet||1,katilimcilar:s.katilimcilar||""});setEditS(s);setInlineAdd(null);setShowModal(true);setViewS(null);if(users.length===0)loadUsers();};
 
@@ -776,24 +782,24 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                     </div>
                   </div>
                   {todayS.length===0?<div style={{color:MUTED,fontSize:13,textAlign:"center",padding:"24px 0"}}>Bugün ameliyat yok.</div>
-                  :todayS.map(s=>(
-                    <div key={s.id} style={{padding:"10px 0",borderBottom:`1px solid ${BORDER}`,cursor:"pointer"}} onClick={()=>setViewS(s)}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <div style={{width:3,height:36,borderRadius:2,background:tColor(types,s.type),flexShrink:0}}/>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <div style={{fontWeight:600,fontSize:13}}>{s.type}</div>
-                            {s.adet>1&&<span style={{background:"#eff6ff",color:"#2563eb",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{s.adet}</span>}
-                          </div>
-                          <SurgSubtitle s={s}/>
-                        </div>
-                        <Badge status={s.status}/>
+                  :todayS.map((s,i)=>(
+                    <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:i<todayS.length-1?`1px solid ${BORDER}`:"none"}}>
+                      <div style={{width:3,alignSelf:"stretch",borderRadius:2,background:tColor(types,s.type),flexShrink:0}}/>
+                      <div style={{width:46,flexShrink:0,textAlign:"center"}}>
+                        <div style={{fontSize:13,fontWeight:700,color:ACCENT}}>{s.time==="Bilinmiyor"?"?":s.time.slice(0,5)}</div>
                       </div>
-                      {s.katilimcilar&&<div style={{marginTop:6,marginLeft:13,display:"flex",flexWrap:"wrap",gap:4}}>
-                        {s.katilimcilar.split(",").map(n=>n.trim()).filter(Boolean).map(name=>(
-                          <span key={name} style={{background:ACCENT_LT,color:ACCENT,fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:12}}>{name}</span>
-                        ))}
-                      </div>}
+                      <div style={{flex:1,minWidth:0}} onClick={()=>setViewS(s)}>
+                        <div style={{fontWeight:600,fontSize:13,cursor:"pointer"}}>{s.type}{s.adet>1&&<span style={{marginLeft:6,background:"#eff6ff",color:"#2563eb",fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{s.adet} adet</span>}</div>
+                        <div style={{fontSize:11,color:MUTED,marginTop:1}}>{s.doctor==="Bilinmiyor"?"":s.doctor}</div>
+                        {s.katilimcilar&&<div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>
+                          {s.katilimcilar.split(",").map(n=>n.trim()).filter(Boolean).map(name=>(
+                            <span key={name} style={{background:ACCENT_LT,color:ACCENT,fontSize:10,fontWeight:600,padding:"1px 7px",borderRadius:10}}>{name}</span>
+                          ))}
+                        </div>}
+                      </div>
+                      <button onClick={e=>{e.stopPropagation();if(users.length===0)loadUsers();setPersonnelModal({surgId:s.id,type:s.type,selected:(s.katilimcilar||"").split(",").map(n=>n.trim()).filter(Boolean)});}} style={{...bBtn("secondary"),padding:"4px 10px",fontSize:11,flexShrink:0,whiteSpace:"nowrap"}}>
+                        Personel Seç
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1189,6 +1195,35 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
       )}
 
       <ToastContainer toasts={toasts} onRemove={id=>setToasts(p=>p.filter(t=>t.id!==id))}/>
+
+      {personnelModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:150,padding:20}} onClick={()=>setPersonnelModal(null)}>
+          <div style={{background:CARD,borderRadius:16,width:"100%",maxWidth:400,padding:"24px",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>Personel Seç</div>
+            <div style={{fontSize:13,color:MUTED,marginBottom:16}}>{personnelModal.type}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:300,overflowY:"auto",marginBottom:16}}>
+              {users.filter(u=>u.status!=="disabled").map(u=>{
+                const sel=personnelModal.selected.includes(u.name);
+                return(
+                  <div key={u.id} onClick={()=>setPersonnelModal(p=>({...p,selected:sel?p.selected.filter(n=>n!==u.name):[...p.selected,u.name]}))} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,cursor:"pointer",background:sel?ACCENT_LT:BG,border:`1px solid ${sel?ACCENT:BORDER}`}}>
+                    <div style={{width:32,height:32,borderRadius:"50%",background:sel?ACCENT:"#94a3b8",color:"white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>{inits(u.name)}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13,color:sel?ACCENT:TEXT}}>{u.name}</div>
+                      <div style={{fontSize:11,color:MUTED}}>{u.role==="admin"?"Yönetici":"Kullanıcı"}</div>
+                    </div>
+                    {sel&&<svg width="16" height="16" fill="none" stroke={ACCENT} strokeWidth="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>}
+                  </div>
+                );
+              })}
+              {users.filter(u=>u.status!=="disabled").length===0&&<div style={{color:MUTED,fontSize:13,textAlign:"center",padding:20}}>Kullanıcı bulunamadı.</div>}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...bBtn("secondary"),flex:1,justifyContent:"center"}} onClick={()=>setPersonnelModal(null)}>İptal</button>
+              <button style={{...bBtn("primary"),flex:1,justifyContent:"center"}} onClick={()=>savePersonnel(personnelModal.surgId,personnelModal.selected)}>Kaydet</button>
+            </div>
+          </div>
+        </div>
+      )}
       {confirmDel&&(
         <ConfirmModal
           message={`"${confirmDel.type}" ameliyatı (${fmtTR(confirmDel.date)}) kalıcı olarak silinecek. Bu işlem geri alınamaz.`}
