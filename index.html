@@ -1169,11 +1169,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
 
                 <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:5}}>Durum</label><select style={inp} value={surgForm.status} onChange={e=>setSurgForm(p=>({...p,status:e.target.value}))}>{Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
                 <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:5}}>Adet</label><input style={inp} type="number" min="1" max="99" value={surgForm.adet||1} onChange={e=>setSurgForm(p=>({...p,adet:parseInt(e.target.value)||1}))}/></div>
-                <div style={{gridColumn:"1/-1"}}>
-                  <label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:5}}>Katılımcılar</label>
-                  <input style={inp} placeholder="Personel adları (virgülle ayırın)..." value={surgForm.katilimcilar||""} onChange={e=>setSurgForm(p=>({...p,katilimcilar:e.target.value}))}/>
-                  <div style={{fontSize:11,color:MUTED,marginTop:4}}>Örnek: Ahmet Yılmaz, Ayşe Kaya</div>
-                </div>
+
                 <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,fontWeight:700,display:"block",marginBottom:5}}>Notlar</label><textarea style={{...inp,minHeight:72,resize:"vertical"}} placeholder="Ek bilgi..." value={surgForm.notes} onChange={e=>setSurgForm(p=>({...p,notes:e.target.value}))}/></div>
               </div>
               {(!surgForm.date||!surgForm.type||!surgForm.hospital)&&<div style={{fontSize:12,color:MUTED,marginTop:8}}>* Tarih, tür ve hastane zorunludur.</div>}
