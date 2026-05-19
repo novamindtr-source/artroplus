@@ -544,6 +544,14 @@ function App(){
   const [personel,setPersonel]=useState([]);
   const [programDate,setProgramDate]=useState(fmtDate(today));
   const [programView,setProgramView]=useState('month');
+  const [myOnly,setMyOnly]=useState(false);
+  const [urunler,setUrunler]=useState([]);
+  const [stoklar,setStoklar]=useState([]);
+  const [hareketler,setHareketler]=useState([]);
+  const [urunForm,setUrunForm]=useState({kod:"",ad:"",kategori:"",birim:"Adet",min_stok:0});
+  const [stokModal,setStokModal]=useState(null);
+  const [hareketModal,setHareketModal]=useState(null);
+  const [hareketForm,setHareketForm]=useState({urun_id:"",hastane:"",tip:"giris",miktar:1,aciklama:"",surgery_id:""});
   const [programMonth,setProgramMonth]=useState(new Date(today.getFullYear(),today.getMonth(),1));
   const [programSurgs,setProgramSurgs]=useState([]);
   const [users,setUsers]=useState([]);
@@ -629,7 +637,8 @@ function App(){
   useEffect(()=>{
     if(page==="users"&&profile?.role==="admin") loadUsers();
     if(page==="program") loadPersonel();
-  },[page,profile,loadUsers,loadPersonel]);
+    if(page==="urunler"||page==="stok"||page==="hareketler") loadUrunler();
+  },[page,profile,loadUsers,loadPersonel,loadUrunler]);
 
   const handleForgot=async()=>{
     setForgotMsg("");
@@ -661,6 +670,17 @@ function App(){
     showToast(message,type);
     await sendTelegram(message);
   };
+
+  const loadUrunler=useCallback(async()=>{
+    try{
+      const[{data:u},{data:s},{data:h}]=await Promise.all([
+        sb.from("urunler").select("*").order("ad"),
+        sb.from("stok").select("*"),
+        sb.from("hareketler").select("*,urunler(ad,kod,birim)").order("created_at",{ascending:false}).limit(200),
+      ]);
+      setUrunler(u||[]);setStoklar(s||[]);setHareketler(h||[]);
+    }catch(e){console.error(e);}
+  },[]);
 
   const loadPersonel=useCallback(async()=>{
     try{const{data}=await sb.from("personel").select("*").order("name");setPersonel(data||[]);}
@@ -862,28 +882,30 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
     if(!list||list.length===0){alert("Bu tarihte ameliyat bulunamadı.");return;}
     const d=new Date(dateStr+"T12:00:00");
     const dateLabel=d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear();
-    const cellStyle="border:1px solid #1a2f4d;padding:8px 12px;font-size:13px;font-family:Calibri,Arial,sans-serif;";
-    const headerStyle="background:#0c1b33;color:white;font-weight:bold;border:1px solid #0c1b33;padding:8px 12px;font-size:13px;font-family:Calibri,Arial,sans-serif;text-align:center;";
-    const titleStyle="background:#0c1b33;color:white;font-size:16px;font-weight:bold;padding:14px;font-family:Calibri,Arial,sans-serif;text-align:center;";
-    const headers=["Sıra","Saat","Ameliyat Türü","Doktor","Hastane","Durum","Adet","Personel","Notlar"];
-    const STATUS_LABELS2={planned:"Planlandı",in_progress:"Devam Ediyor",completed:"Tamamlandı",cancelled:"İptal Edildi"};
-    const rows=list.map((s,i)=>[i+1,s.time==="Bilinmiyor"?"—":s.time,s.type,s.doctor==="Bilinmiyor"?"—":s.doctor,s.hospital,STATUS_LABELS2[s.status]||s.status,s.adet||1,s.katilimcilar||"—",s.notes||""]);
-    const html="<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel'><head><meta charset='UTF-8'/></head><body><table border='0' cellspacing='0' cellpadding='0'><tr><td colspan='"+headers.length+"' style='"+titleStyle+"'>ARTROPLUS — AMELIYAT PROGRAMI — "+dateLabel+"</td></tr><tr>"+headers.map(h=>"<td style='"+headerStyle+"'>"+h+"</td>").join("")+"</tr>"+rows.map((r,i)=>"<tr style='background:"+(i%2===0?"#ffffff":"#f0f5ff")+"'>"+r.map(c=>"<td style='"+cellStyle+"'>"+(c??"")+"</td>").join("")+"</tr>").join("")+"</table></body></html>";
+    const SL={planned:"Planlandı",in_progress:"Devam Ediyor",completed:"Tamamlandı",cancelled:"İptal Edildi"};
+    const th="background:#0c1b33;color:white;font-weight:bold;padding:8px 12px;border:1px solid #0c1b33;font-family:Calibri;font-size:13px;text-align:center;";
+    const td="border:1px solid #1a2f4d;padding:8px 12px;font-size:13px;font-family:Calibri;";
+    const tt="background:#0c1b33;color:white;font-size:16px;font-weight:bold;padding:14px;font-family:Calibri;text-align:center;";
+    const cols=["Sıra","Saat","Ameliyat Türü","Doktor","Hastane","Durum","Adet","Personel"];
+    const rowData=list.map((s,i)=>[i+1,s.time==="Bilinmiyor"?"—":s.time,s.type||"",s.doctor==="Bilinmiyor"?"—":s.doctor||"",s.hospital||"",SL[s.status]||s.status,s.adet||1,s.katilimcilar||"—"]);
+    const header="<tr><td colspan='"+cols.length+"' style='"+tt+"'>ARTROPLUS — "+dateLabel+"</td></tr>";
+    const colRow="<tr>"+cols.map(c=>"<td style='"+th+"'>"+c+"</td>").join("")+"</tr>";
+    const dataRows=rowData.map((r,i)=>"<tr style='background:"+(i%2===0?"#fff":"#f0f5ff")+"'>"+r.map(c=>"<td style='"+td+"'>"+String(c||"")+"</td>").join("")+"</tr>").join("");
+    const html="<html><head><meta charset='UTF-8'/></head><body><table border='0' cellspacing='0'>"+header+colRow+dataRows+"</table></body></html>";
     const blob=new Blob([html],{type:"application/vnd.ms-excel;charset=utf-8"});
-    const fileName="ARTROPLUS_Program_"+dateStr+".xls";
-    const formData=new FormData();
-    formData.append("chat_id",TG_CHAT);
-    formData.append("document",blob,fileName);
-    formData.append("caption","📋 AMELIYAT PROGRAMI — "+dateLabel+" ("+list.length+" ameliyat)");
+    const fd=new FormData();
+    fd.append("chat_id",TG_CHAT);
+    fd.append("document",blob,"ARTROPLUS_"+dateStr+".xls");
+    fd.append("caption","Ameliyat Programı — "+dateLabel+" ("+list.length+" ameliyat)");
     try{
-      const res=await fetch("https://api.telegram.org/bot"+TG_TOKEN+"/sendDocument",{method:"POST",body:formData});
+      const res=await fetch("https://api.telegram.org/bot"+TG_TOKEN+"/sendDocument",{method:"POST",body:fd});
       const data=await res.json();
       if(data.ok){alert("Excel tablosu Telegram grubuna gönderildi!");}
       else{alert("Hata: "+data.description);}
     }catch(e){alert("Gönderme hatası: "+e.message);}
   };
 
-  const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:"",hospital:"",doctor:"",status:"planned",notes:"",adet:1,katilimcilar:""});setEditS(null);setInlineAdd(null);setShowModal(true);if(users.length===0)loadUsers();};
+    const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:"",hospital:"",doctor:"",status:"planned",notes:"",adet:1,katilimcilar:""});setEditS(null);setInlineAdd(null);setShowModal(true);if(users.length===0)loadUsers();};
   const openEdit=s=>{setSurgForm({date:s.date,time:s.time,type:s.type,hospital:s.hospital,doctor:s.doctor,status:s.status,notes:s.notes,adet:s.adet||1,katilimcilar:s.katilimcilar||""});setEditS(s);setInlineAdd(null);setShowModal(true);setViewS(null);if(users.length===0)loadUsers();};
 
   const filtered=useMemo(()=>surgeries.filter(s=>{
@@ -907,7 +929,12 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
   };
 
   const todayStr=fmtDate(today);
-  const programList=useMemo(()=>surgeries.filter(s=>s.date===programDate).sort((a,b)=>a.time.localeCompare(b.time)),[surgeries,programDate]);
+  const programList=useMemo(()=>{
+    const base=surgeries.filter(s=>s.date===programDate).sort((a,b)=>a.time.localeCompare(b.time));
+    if(!myOnly)return base;
+    const myName=profile?.name||"";
+    return base.filter(s=>(s.katilimcilar||"").split(",").map(n=>n.trim()).includes(myName));
+  },[surgeries,programDate,myOnly,profile]);
   const weekStart=fmtDate(new Date(today.getFullYear(),today.getMonth(),today.getDate()-(today.getDay()+6)%7));
   const monthStart=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`;
   const filteredSurgs = useMemo(()=>{
@@ -941,6 +968,9 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
     {id:"notifications",label:"Bildirimler",ico:"M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.437L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"},
     {id:"lists",        label:"Listeler",   ico:"M4 6h16M4 10h16M4 14h16M4 18h16"},
     {id:"program",      label:"Ameliyat Programı",ico:"M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"},
+    {id:"urunler",      label:"Ürün Yönetimi",     ico:"M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"},
+    {id:"stok",         label:"Stok Takibi",       ico:"M3 10h18M3 14h18M10 3v18M14 3v18"},
+    {id:"hareketler",   label:"Mal Hareketleri",   ico:"M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"},
     {id:"users",        label:"Kullanıcılar",ico:"M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 11a4 4 0 100-8 4 4 0 000 8z"},
   ];
 
@@ -1069,6 +1099,16 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                   </div>
                 ))}
               </div>
+              {urunler.some(u=>stoklar.filter(s=>s.urun_id===u.id).reduce((a,s)=>a+(s.miktar||0),0)<=u.min_stok&&u.min_stok>0)&&(
+                <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:12,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:20}}>⚠️</span>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:"#b91c1c"}}>Kritik Stok Uyarısı</div>
+                    <div style={{fontSize:12,color:"#b91c1c",marginTop:2}}>{urunler.filter(u=>stoklar.filter(s=>s.urun_id===u.id).reduce((a,s)=>a+(s.miktar||0),0)<=u.min_stok&&u.min_stok>0).map(u=>u.ad).join(", ")} — minimum stok seviyesinde</div>
+                  </div>
+                  <button onClick={()=>setPage("stok")} style={{...bBtn("danger"),marginLeft:"auto",fontSize:12,padding:"6px 14px"}}>Stoğa Git</button>
+                </div>
+              )}
               <div className="dash-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
                 {/* Ameliyat Türü Sayımları */}
                 <div style={{background:CARD,borderRadius:12,padding:"22px 24px",boxShadow:"0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)",border:"1px solid #eaecf0"}}>
@@ -1354,12 +1394,18 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                     </button>
                   </div>
                   <div style={{fontWeight:700,fontSize:16}}>{MONTHS[mo]} {yr}</div>
-                  <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-                    {["month","list"].map(v=>(
-                      <button key={v} onClick={()=>setProgramView(v)} style={{...bBtn(programView===v?"primary":"secondary"),padding:"6px 14px",fontSize:12}}>
-                        {v==="month"?"Aylık":"Liste"}
-                      </button>
-                    ))}
+                  <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
+                    <div style={{display:"flex",background:"#f1f5f9",borderRadius:8,padding:3,gap:2}}>
+                      <button onClick={()=>setMyOnly(false)} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:myOnly?400:600,background:myOnly?"transparent":CARD,color:myOnly?MUTED:ACCENT,boxShadow:myOnly?"none":"0 1px 3px rgba(0,0,0,0.08)"}}>Tüm Ameliyatlar</button>
+                      <button onClick={()=>setMyOnly(true)} style={{padding:"5px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:myOnly?600:400,background:myOnly?CARD:"transparent",color:myOnly?ACCENT:MUTED,boxShadow:myOnly?"0 1px 3px rgba(0,0,0,0.08)":"none"}}>Benim Ameliyatlarım</button>
+                    </div>
+                    <div style={{display:"flex",gap:4}}>
+                      {["month","list"].map(v=>(
+                        <button key={v} onClick={()=>setProgramView(v)} style={{...bBtn(programView===v?"primary":"secondary"),padding:"6px 12px",fontSize:12}}>
+                          {v==="month"?"Aylık":"Liste"}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -1411,7 +1457,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                           Excel
                         </button>}
                       </div>
-                      {programList.length===0?<div style={{padding:40,textAlign:"center",color:MUTED,fontSize:14}}>Bu tarihte ameliyat bulunamadı.</div>
+                      {programList.length===0?<div style={{padding:40,textAlign:"center",color:MUTED,fontSize:14}}>{myOnly?"Bu tarihte size atanan ameliyat bulunamadı.":"Bu tarihte ameliyat bulunamadı."}</div>
                       :programList.map((s,i)=>(
                         <ProgramCard key={s.id} s={s} personel={personel} types={types} onSave={async(id,names)=>{
                           await sb.from("surgeries").update({katilimcilar:names.join(", ")}).eq("id",id);
@@ -1428,6 +1474,254 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
               </div>
             );
           })()}
+
+          {page==="urunler"&&(
+            <div>
+              <div style={{display:"grid",gridTemplateColumns:"380px 1fr",gap:16}}>
+                {/* Ürün Ekle */}
+                <div style={{background:"#fff",borderRadius:12,padding:"20px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",border:"1px solid #eaecf0"}}>
+                  <div style={{fontWeight:700,fontSize:15,marginBottom:16}}>Yeni Ürün Ekle</div>
+                  {[["Ürün Kodu *","kod","text","ÖRN: IMP-001"],["Ürün Adı *","ad","text","Örn: ÖÇB İmplant Set"],["Kategori","kategori","text","Örn: İmplant, Sarf, Alet"],["Birim","birim","text","Adet, Kutu, Set"]].map(([l,f,t,ph])=>(
+                    <div key={f} style={{marginBottom:12}}>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>{l}</label>
+                      <input style={{...inp}} type={t} placeholder={ph} value={urunForm[f]||""} onChange={e=>setUrunForm(p=>({...p,[f]:e.target.value}))}/>
+                    </div>
+                  ))}
+                  <div style={{marginBottom:16}}>
+                    <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Min. Stok Uyarısı</label>
+                    <input style={inp} type="number" min="0" value={urunForm.min_stok||0} onChange={e=>setUrunForm(p=>({...p,min_stok:parseInt(e.target.value)||0}))}/>
+                  </div>
+                  <button style={{...bBtn("primary"),width:"100%",justifyContent:"center",padding:"10px"}} onClick={async()=>{
+                    if(!urunForm.kod||!urunForm.ad){alert("Kod ve ad zorunlu");return;}
+                    const{error}=await sb.from("urunler").insert(urunForm);
+                    if(error){alert("Hata: "+error.message);return;}
+                    setUrunForm({kod:"",ad:"",kategori:"",birim:"Adet",min_stok:0});
+                    loadUrunler();
+                  }}>Ürün Ekle</button>
+                </div>
+
+                {/* Ürün Listesi */}
+                <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",border:"1px solid #eaecf0"}}>
+                  <div style={{padding:"14px 20px",borderBottom:"1px solid #eaecf0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{fontWeight:700,fontSize:15}}>Ürün Kataloğu</span>
+                    <span style={{background:"#eef1ff",color:"#4361ee",fontSize:12,fontWeight:700,padding:"2px 10px",borderRadius:10}}>{urunler.length} ürün</span>
+                  </div>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead><tr style={{background:"#f8fafc"}}>
+                      {["Kod","Ürün Adı","Kategori","Birim","Min.Stok","Toplam Stok",""].map(h=>(
+                        <th key={h} style={{padding:"10px 16px",textAlign:"left",fontSize:11,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",borderBottom:"2px solid #eaecf0"}}>{h}</th>
+                      ))}
+                    </thead>
+                    <tbody>
+                      {urunler.length===0?<tr><td colSpan={7} style={{textAlign:"center",color:"#94a3b8",padding:40}}>Henüz ürün eklenmedi.</td></tr>
+                      :urunler.map((u,i)=>{
+                        const toplamStok=stoklar.filter(s=>s.urun_id===u.id).reduce((a,s)=>a+(s.miktar||0),0);
+                        const dusuk=toplamStok<=u.min_stok&&u.min_stok>0;
+                        return(
+                          <tr key={u.id} style={{background:i%2===0?"white":"#fafbfc",borderBottom:"1px solid #f1f5f9"}} onMouseEnter={e=>e.currentTarget.style.background="#f0f9ff"} onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"white":"#fafbfc"}>
+                            <td style={{padding:"10px 16px",fontWeight:600,color:"#4361ee"}}>{u.kod}</td>
+                            <td style={{padding:"10px 16px",fontWeight:600}}>{u.ad}</td>
+                            <td style={{padding:"10px 16px",color:"#6b7280"}}>{u.kategori||"—"}</td>
+                            <td style={{padding:"10px 16px",color:"#6b7280"}}>{u.birim}</td>
+                            <td style={{padding:"10px 16px",color:"#6b7280"}}>{u.min_stok}</td>
+                            <td style={{padding:"10px 16px"}}>
+                              <span style={{fontWeight:700,color:dusuk?"#e11d48":"#059669"}}>{toplamStok} {u.birim}</span>
+                              {dusuk&&<span style={{marginLeft:6,fontSize:10,background:"#fef2f2",color:"#e11d48",fontWeight:700,padding:"1px 6px",borderRadius:8}}>⚠ DÜŞÜK</span>}
+                            </td>
+                            <td style={{padding:"10px 12px"}}>
+                              <button onClick={async()=>{if(window.confirm(u.ad+" silinsin mi?"))await sb.from("urunler").delete().eq("id",u.id).then(()=>loadUrunler());}} style={{background:"none",border:"none",cursor:"pointer",color:"#e11d48",fontSize:12,fontWeight:600}}>Sil</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {page==="stok"&&(
+            <div>
+              <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",border:"1px solid #eaecf0",marginBottom:16}}>
+                <div style={{padding:"14px 20px",borderBottom:"1px solid #eaecf0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontWeight:700,fontSize:15}}>Hastane Bazında Stok</span>
+                  <button style={{...bBtn("primary"),fontSize:13}} onClick={()=>setStokModal({urun_id:"",hastane:"",miktar:0,raf:""})}>+ Stok Düzenle</button>
+                </div>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead><tr style={{background:"#f8fafc"}}>
+                    {["Ürün Kodu","Ürün Adı","Hastane","Raf","Miktar","Durum",""].map(h=>(
+                      <th key={h} style={{padding:"10px 16px",textAlign:"left",fontSize:11,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",borderBottom:"2px solid #eaecf0"}}>{h}</th>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {stoklar.length===0?<tr><td colSpan={7} style={{textAlign:"center",color:"#94a3b8",padding:40}}>Stok kaydı bulunamadı.</td></tr>
+                    :stoklar.map((s,i)=>{
+                      const urun=urunler.find(u=>u.id===s.urun_id);
+                      if(!urun)return null;
+                      const dusuk=s.miktar<=urun.min_stok&&urun.min_stok>0;
+                      return(
+                        <tr key={s.id} style={{background:i%2===0?"white":"#fafbfc",borderBottom:"1px solid #f1f5f9"}}>
+                          <td style={{padding:"10px 16px",fontWeight:600,color:"#4361ee"}}>{urun.kod}</td>
+                          <td style={{padding:"10px 16px",fontWeight:600}}>{urun.ad}</td>
+                          <td style={{padding:"10px 16px"}}>{s.hastane}</td>
+                          <td style={{padding:"10px 16px",color:"#6b7280"}}>{s.raf||"—"}</td>
+                          <td style={{padding:"10px 16px",fontWeight:700,color:dusuk?"#e11d48":"#059669"}}>{s.miktar} {urun.birim}</td>
+                          <td style={{padding:"10px 16px"}}>
+                            {dusuk?<span style={{background:"#fef2f2",color:"#e11d48",fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8}}>⚠ Kritik</span>:<span style={{background:"#ecfdf5",color:"#059669",fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8}}>✓ Yeterli</span>}
+                          </td>
+                          <td style={{padding:"10px 12px"}}>
+                            <button onClick={()=>setStokModal({...s})} style={{...bBtn("secondary"),padding:"4px 10px",fontSize:11}}>Düzenle</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {stokModal&&(
+                <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}} onClick={()=>setStokModal(null)}>
+                  <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,padding:"24px",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+                    <div style={{fontWeight:700,fontSize:16,marginBottom:20}}>Stok Güncelle</div>
+                    <div style={{marginBottom:12}}>
+                      <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Ürün</label>
+                      <select style={inp} value={stokModal.urun_id} onChange={e=>setStokModal(p=>({...p,urun_id:e.target.value}))}>
+                        <option value="">Ürün seçin...</option>
+                        {urunler.map(u=><option key={u.id} value={u.id}>{u.kod} — {u.ad}</option>)}
+                      </select>
+                    </div>
+                    <div style={{marginBottom:12}}>
+                      <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Hastane</label>
+                      <select style={inp} value={stokModal.hastane} onChange={e=>setStokModal(p=>({...p,hastane:e.target.value}))}>
+                        <option value="">Hastane seçin...</option>
+                        {hospitals.map(h=><option key={h.id} value={h.name}>{h.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{marginBottom:12}}>
+                      <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Raf</label>
+                      <input style={inp} placeholder="Raf no / konum" value={stokModal.raf||""} onChange={e=>setStokModal(p=>({...p,raf:e.target.value}))}/>
+                    </div>
+                    <div style={{marginBottom:20}}>
+                      <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Miktar</label>
+                      <input style={inp} type="number" min="0" value={stokModal.miktar||0} onChange={e=>setStokModal(p=>({...p,miktar:parseInt(e.target.value)||0}))}/>
+                    </div>
+                    <div style={{display:"flex",gap:10}}>
+                      <button style={{...bBtn("secondary"),flex:1,justifyContent:"center"}} onClick={()=>setStokModal(null)}>İptal</button>
+                      <button style={{...bBtn("primary"),flex:1,justifyContent:"center"}} onClick={async()=>{
+                        if(!stokModal.urun_id||!stokModal.hastane){alert("Ürün ve hastane zorunlu");return;}
+                        await sb.from("stok").upsert({...stokModal,updated_at:new Date().toISOString()},{onConflict:"urun_id,hastane"});
+                        setStokModal(null);loadUrunler();
+                      }}>Kaydet</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {page==="hareketler"&&(
+            <div>
+              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+                <button style={{...bBtn("primary"),fontSize:13}} onClick={()=>setHareketModal(true)}>+ Mal Hareketi Ekle</button>
+              </div>
+              <div style={{background:"#fff",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",border:"1px solid #eaecf0"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead><tr style={{background:"#f8fafc"}}>
+                    {["Tarih","Ürün","Hareket","Hastane","Miktar","Açıklama","Ameliyat"].map(h=>(
+                      <th key={h} style={{padding:"10px 16px",textAlign:"left",fontSize:11,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",borderBottom:"2px solid #eaecf0"}}>{h}</th>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {hareketler.length===0?<tr><td colSpan={7} style={{textAlign:"center",color:"#94a3b8",padding:40}}>Hareket kaydı bulunamadı.</td></tr>
+                    :hareketler.map((h,i)=>{
+                      const TIP={giris:{label:"Giriş",bg:"#ecfdf5",color:"#059669"},cikis:{label:"Çıkış",bg:"#fef2f2",color:"#e11d48"},transfer:{label:"Transfer",bg:"#fffbeb",color:"#d97706"},kullanim:{label:"Kullanım",bg:"#eef1ff",color:"#4361ee"}};
+                      const t=TIP[h.tip]||{label:h.tip,bg:"#f1f5f9",color:"#6b7280"};
+                      const surg=surgeries.find(s=>s.id===h.surgery_id);
+                      return(
+                        <tr key={h.id} style={{background:i%2===0?"white":"#fafbfc",borderBottom:"1px solid #f1f5f9"}}>
+                          <td style={{padding:"10px 16px",color:"#6b7280",fontSize:12}}>{new Date(h.created_at).toLocaleDateString("tr-TR")}</td>
+                          <td style={{padding:"10px 16px"}}><div style={{fontWeight:600}}>{h.urunler?.ad||"—"}</div><div style={{fontSize:11,color:"#94a3b8"}}>{h.urunler?.kod}</div></td>
+                          <td style={{padding:"10px 16px"}}><span style={{background:t.bg,color:t.color,fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:10}}>{t.label}</span></td>
+                          <td style={{padding:"10px 16px",color:"#6b7280"}}>{h.hastane||"—"}</td>
+                          <td style={{padding:"10px 16px",fontWeight:700,color:h.tip==="giris"?"#059669":h.tip==="cikis"||h.tip==="kullanim"?"#e11d48":"#d97706"}}>{h.tip==="cikis"||h.tip==="kullanim"?"-":h.tip==="giris"?"+":" "}{h.miktar} {h.urunler?.birim||""}</td>
+                          <td style={{padding:"10px 16px",color:"#6b7280",fontSize:12}}>{h.aciklama||"—"}</td>
+                          <td style={{padding:"10px 16px",fontSize:12,color:"#4361ee"}}>{surg?surg.type+" "+fmtTR(surg.date):"—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {hareketModal&&(
+                <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}} onClick={()=>setHareketModal(null)}>
+                  <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:480,padding:"24px",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+                    <div style={{fontWeight:700,fontSize:16,marginBottom:20}}>Mal Hareketi Ekle</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                      <div style={{gridColumn:"1/-1"}}>
+                        <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Ürün *</label>
+                        <select style={inp} value={hareketForm.urun_id} onChange={e=>setHareketForm(p=>({...p,urun_id:e.target.value}))}>
+                          <option value="">Ürün seçin...</option>
+                          {urunler.map(u=><option key={u.id} value={u.id}>{u.kod} — {u.ad}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Hareket Tipi *</label>
+                        <select style={inp} value={hareketForm.tip} onChange={e=>setHareketForm(p=>({...p,tip:e.target.value}))}>
+                          <option value="giris">Giriş (Stok Artışı)</option>
+                          <option value="cikis">Çıkış (Stok Azalışı)</option>
+                          <option value="kullanim">Kullanım (Ameliyatta)</option>
+                          <option value="transfer">Transfer</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Miktar *</label>
+                        <input style={inp} type="number" min="1" value={hareketForm.miktar} onChange={e=>setHareketForm(p=>({...p,miktar:parseInt(e.target.value)||1}))}/>
+                      </div>
+                      <div style={{gridColumn:"1/-1"}}>
+                        <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Hastane</label>
+                        <select style={inp} value={hareketForm.hastane} onChange={e=>setHareketForm(p=>({...p,hastane:e.target.value}))}>
+                          <option value="">Hastane seçin...</option>
+                          {hospitals.map(h=><option key={h.id} value={h.name}>{h.name}</option>)}
+                        </select>
+                      </div>
+                      {hareketForm.tip==="kullanim"&&(
+                        <div style={{gridColumn:"1/-1"}}>
+                          <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>İlgili Ameliyat</label>
+                          <select style={inp} value={hareketForm.surgery_id} onChange={e=>setHareketForm(p=>({...p,surgery_id:e.target.value}))}>
+                            <option value="">Ameliyat seçin...</option>
+                            {surgeries.slice(0,50).map(s=><option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.doctor}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div style={{gridColumn:"1/-1"}}>
+                        <label style={{fontSize:12,fontWeight:600,display:"block",marginBottom:4}}>Açıklama</label>
+                        <input style={inp} placeholder="Ek bilgi..." value={hareketForm.aciklama} onChange={e=>setHareketForm(p=>({...p,aciklama:e.target.value}))}/>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:10}}>
+                      <button style={{...bBtn("secondary"),flex:1,justifyContent:"center"}} onClick={()=>setHareketModal(null)}>İptal</button>
+                      <button style={{...bBtn("primary"),flex:1,justifyContent:"center"}} onClick={async()=>{
+                        if(!hareketForm.urun_id||!hareketForm.miktar){alert("Ürün ve miktar zorunlu");return;}
+                        await sb.from("hareketler").insert({...hareketForm,created_by:profile?.id,surgery_id:hareketForm.surgery_id||null});
+                        if(hareketForm.hastane){
+                          const sign=hareketForm.tip==="giris"?1:-1;
+                          const mevcut=stoklar.find(s=>s.urun_id===hareketForm.urun_id&&s.hastane===hareketForm.hastane);
+                          const yeniMiktar=Math.max(0,(mevcut?.miktar||0)+(sign*hareketForm.miktar));
+                          await sb.from("stok").upsert({urun_id:hareketForm.urun_id,hastane:hareketForm.hastane,miktar:yeniMiktar,raf:mevcut?.raf||"",updated_at:new Date().toISOString()},{onConflict:"urun_id,hastane"});
+                        }
+                        setHareketModal(null);
+                        setHareketForm({urun_id:"",hastane:"",tip:"giris",miktar:1,aciklama:"",surgery_id:""});
+                        loadUrunler();
+                      }}>Kaydet</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
 
           {page==="users"&&profile?.role==="admin"&&(
             <div>
