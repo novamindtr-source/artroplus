@@ -1323,38 +1323,40 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
       </nav>
 
       {viewS&&(
-        <div className="modal-wrap" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}} onClick={()=>setViewS(null)}>
-          <div className="modal-box" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:500,overflow:"hidden",boxShadow:"0 24px 64px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{background:"#f8fafc",padding:"16px 24px",borderBottom:"1px solid #eaecf0"}}>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:8,background:ACCENT_LT,display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="16" height="16" fill="none" stroke={ACCENT} strokeWidth="2" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div style={{fontWeight:700,fontSize:16}}>Ameliyat Detayı</div></div>
-                <button style={{...bBtn("ghost"),padding:"6px",borderRadius:8,flexShrink:0}} onClick={()=>setViewS(null)}><Ico d="M6 18L18 6M6 6l12 12" color={MUTED}/></button>
+        <div className="modal-wrap" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:20}} onClick={()=>setViewS(null)}>
+          <div className="modal-box" style={{background:CARD,borderRadius:16,width:"100%",maxWidth:480,overflow:"hidden",boxShadow:"0 24px 64px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{background:"#f8fafc",padding:"14px 20px",borderBottom:"1px solid #eaecf0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:30,height:30,borderRadius:8,background:ACCENT_LT,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <Ico d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" size={15} color={ACCENT}/>
+                </div>
+                <span style={{fontWeight:700,fontSize:15}}>Ameliyat Detayı</span>
               </div>
+              <button style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:MUTED}} onClick={()=>setViewS(null)}>
+                <Ico d="M6 18L18 6M6 6l12 12" size={18} color={MUTED}/>
+              </button>
             </div>
-            <div style={{padding:"20px 24px"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",marginBottom:16}}>
-                  {[
-                    ["Tarih / Saat",`${fmtTR(viewS.date)} ${viewS.time==="Bilinmiyor"?"":viewS.time}`,false],
-                    ["Doktor",viewS.doctor||"—",viewS.doctor==="Bilinmiyor"],
-                    ["Hastane",viewS.hospital||"—",false],
-                    ["Ameliyat Türü",viewS.type||"—",false],
-                    ["Ameliyat Sayısı",(viewS.adet||1)+" adet",false],
-                    ["Personel",viewS.katilimcilar||"—",false],
-                    ["Not",viewS.notes||"—",false],
-                  ].map(([l,v,unk])=>(
-                    <tr key={l} style={{borderBottom:"1px solid #f1f5f9"}}>
-                      <td style={{padding:"10px 0",fontSize:12,color:MUTED,fontWeight:600,width:130,verticalAlign:"top"}}>{l}</td>
-                      <td style={{padding:"10px 0 10px 12px",fontSize:13,fontWeight:500,color:unk?"#94a3b8":TEXT,fontStyle:unk?"italic":"normal"}}>{v}</td>
-                    </tr>
-                  ))}
-                </table>
-              <div style={{marginBottom:14}}><div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Durum</div><Badge status={viewS.status}/></div>
-              
-            {viewS.notes&&<div style={{background:BG,borderRadius:8,padding:"10px 12px",marginBottom:14}}><div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Notlar</div><div style={{fontSize:13,lineHeight:1.6}}>{viewS.notes}</div></div>}
-              <div style={{display:"flex",gap:8,paddingTop:14,borderTop:"1px solid #eaecf0"}}>
-                <button style={{...bBtn("primary"),fontSize:13,flex:1,justifyContent:"center"}} onClick={()=>openEdit(viewS)}>Düzenle</button>
-                <button style={{...bBtn("danger"),fontSize:13}} onClick={()=>setConfirmDel(viewS)}>Sil</button>
-              </div>
+            <div style={{padding:"16px 20px"}}>
+              {[
+                ["Tarih / Saat", fmtTR(viewS.date)+" "+(viewS.time==="Bilinmiyor"?"":viewS.time)],
+                ["Doktor", viewS.doctor==="Bilinmiyor"?"—":viewS.doctor||"—"],
+                ["Hastane", viewS.hospital||"—"],
+                ["Ameliyat Türü", viewS.type||"—"],
+                ["Ameliyat Sayısı", (viewS.adet||1)+" adet"],
+                ["Personel", viewS.katilimcilar||"—"],
+                ["Durum", null],
+                ["Not", viewS.notes||"—"],
+              ].map(([l,v])=>(
+                <div key={l} style={{display:"flex",alignItems:"flex-start",padding:"9px 0",borderBottom:"1px solid #f4f6f8"}}>
+                  <span style={{fontSize:12,color:MUTED,fontWeight:600,width:130,flexShrink:0,paddingTop:2}}>{l}</span>
+                  {l==="Durum"?<Badge status={viewS.status}/>:<span style={{fontSize:13,color:TEXT,flex:1,lineHeight:1.5}}>{v}</span>}
+                </div>
+              ))}
+            </div>
+            <div style={{padding:"12px 20px",borderTop:"1px solid #eaecf0",display:"flex",gap:8}}>
+              <button style={{...bBtn("danger"),fontSize:13}} onClick={()=>setConfirmDel(viewS)}>Sil</button>
+              <button style={{...bBtn("primary"),fontSize:13,flex:1,justifyContent:"center"}} onClick={()=>openEdit(viewS)}>Düzenle</button>
+              <button style={{...bBtn("secondary"),fontSize:13}} onClick={()=>setViewS(null)}>Kapat</button>
             </div>
           </div>
         </div>
