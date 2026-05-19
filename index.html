@@ -1332,8 +1332,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
               </div>
             </div>
             <div style={{padding:"20px 24px"}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",marginBottom:16}}>
                   {[
                     ["Tarih / Saat",`${fmtTR(viewS.date)} ${viewS.time==="Bilinmiyor"?"":viewS.time}`,false],
                     ["Doktor",viewS.doctor||"—",viewS.doctor==="Bilinmiyor"],
@@ -1349,7 +1348,6 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                     </tr>
                   ))}
                 </table>
-              </div>
               <div style={{marginBottom:14}}><div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Durum</div><Badge status={viewS.status}/></div>
               
             {viewS.notes&&<div style={{background:BG,borderRadius:8,padding:"10px 12px",marginBottom:14}}><div style={{fontSize:11,color:MUTED,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Notlar</div><div style={{fontSize:13,lineHeight:1.6}}>{viewS.notes}</div></div>}
