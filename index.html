@@ -634,6 +634,16 @@ function App(){
     return()=>sb.removeChannel(channel);
   },[session,loadAll,loadNotifs]);
 
+  const loadUrunler=useCallback(async()=>{
+    try{
+      const[{data:u},{data:s},{data:h}]=await Promise.all([
+        sb.from("urunler").select("*").order("ad"),
+        sb.from("stok").select("*"),
+        sb.from("hareketler").select("*,urunler(ad,kod,birim)").order("created_at",{ascending:false}).limit(200),
+      ]);
+      setUrunler(u||[]);setStoklar(s||[]);setHareketler(h||[]);
+    }catch(e){console.error(e);}
+  },[]);
   useEffect(()=>{
     if(page==="users"&&profile?.role==="admin") loadUsers();
     if(page==="program") loadPersonel();
@@ -671,16 +681,6 @@ function App(){
     await sendTelegram(message);
   };
 
-  const loadUrunler=useCallback(async()=>{
-    try{
-      const[{data:u},{data:s},{data:h}]=await Promise.all([
-        sb.from("urunler").select("*").order("ad"),
-        sb.from("stok").select("*"),
-        sb.from("hareketler").select("*,urunler(ad,kod,birim)").order("created_at",{ascending:false}).limit(200),
-      ]);
-      setUrunler(u||[]);setStoklar(s||[]);setHareketler(h||[]);
-    }catch(e){console.error(e);}
-  },[]);
 
   const loadPersonel=useCallback(async()=>{
     try{const{data}=await sb.from("personel").select("*").order("name");setPersonel(data||[]);}
@@ -1101,7 +1101,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
               </div>
               {urunler.some(u=>stoklar.filter(s=>s.urun_id===u.id).reduce((a,s)=>a+(s.miktar||0),0)<=u.min_stok&&u.min_stok>0)&&(
                 <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:12,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
-                  <span style={{fontSize:20}}>⚠️</span>
+                  <span style={{fontSize:18,fontWeight:700,color:"#dc2626"}}>!</span>
                   <div>
                     <div style={{fontWeight:700,fontSize:13,color:"#b91c1c"}}>Kritik Stok Uyarısı</div>
                     <div style={{fontSize:12,color:"#b91c1c",marginTop:2}}>{urunler.filter(u=>stoklar.filter(s=>s.urun_id===u.id).reduce((a,s)=>a+(s.miktar||0),0)<=u.min_stok&&u.min_stok>0).map(u=>u.ad).join(", ")} — minimum stok seviyesinde</div>
