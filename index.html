@@ -84,8 +84,8 @@ const sb = supabase.createClient(
 
 const abbrev = (type) => {
   if(!type) return "?";
-  const words = type.toUpperCase().split(/[\s-]+/);
-  if(words.length>=2) return words.map(w=>w[0]).slice(0,3).join("");
+  const w = type.toUpperCase().trim().split(" ").filter(Boolean);
+  if(w.length>=2) return w.map(x=>x[0]).slice(0,3).join("");
   return type.slice(0,4).toUpperCase();
 };
 const DOC_COLORS=["#4361ee","#e11d48","#059669","#d97706","#7c3aed","#0891b2","#be185d","#ea580c","#0d9488","#6366f1","#16a34a","#854d0e"];
@@ -525,10 +525,6 @@ function App(){
     setPersonel(p=>p.filter(x=>x.id!==id));
   };
 
-  const loadPersonelItem=useCallback(async()=>{
-    try{const{data}=await sb.from("personel").select("*").order("name");setPersonel(data||[]);}
-    catch{}
-  },[]);
 
   const loadUsers=useCallback(async()=>{
     try{const{data}=await sb.from("profiles").select("*").order("created_at",{ascending:false});setUsers(data||[]);}
@@ -892,7 +888,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                         <svg width="18" height="18" fill="none" stroke={s.c} strokeWidth="1.8" viewBox="0 0 24 24" strokeLinecap="round"><path d={s.i}/></svg>
                       </div>
                     </div>
-                    <div style={{fontSize:32,fontWeight:800,lineHeight:1,color:"#111827",marginTop:4}}>{s.v}</div></div>
+                    <div style={{fontSize:32,fontWeight:800,lineHeight:1,color:"#111827",marginTop:4}}>{s.v}</div>
                   </div>
                 ))}
               </div>
@@ -1166,9 +1162,9 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
               const ds=`${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
               return surgeries.filter(s=>s.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
             };
-            const isToday=(day)=>day&&yr===today.getFullYear()&&mo===today.getMonth()&&day===today.getDate();
+            const isToday2=(day)=>day&&yr===today.getFullYear()&&mo===today.getMonth()&&day===today.getDate();
             return(
-              <div>
+<div>
                 {/* Header */}
                 <div style={{background:CARD,borderRadius:12,padding:"14px 20px",marginBottom:16,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
                   <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -1202,7 +1198,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                     <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
                       {cells.map((day,i)=>{
                         const surgs=surgsOnDay(day);
-                        const tod=isToday(day);
+                        const tod=isToday2(day);
                         return(
                           <div key={i} style={{minHeight:110,padding:"6px",borderRight:i%7!==6?"1px solid #f1f5f9":"none",borderBottom:"1px solid #f1f5f9",background:tod?"#fafbff":"white",cursor:day?"pointer":"default"}} onClick={()=>day&&setProgramDate(`${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`)}>
                             {day&&(
@@ -1213,7 +1209,7 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
                                 {surgs.slice(0,4).map(s=>(
                                   <div key={s.id} onClick={e=>{e.stopPropagation();setViewS(s);}} style={{display:"flex",alignItems:"center",gap:3,padding:"2px 5px",borderRadius:4,marginBottom:2,cursor:"pointer"}} title={`${s.time} ${s.doctor} - ${s.type}`}>
                                     <span style={{width:7,height:7,borderRadius:"50%",background:docColor(doctors,s.doctor),flexShrink:0,display:"inline-block"}}/>
-                                    <span style={{fontSize:10,fontWeight:600,color:"#374151",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.time==="Bilinmiyor"?"?":s.time.slice(0,5)} {(s.doctor==="Bilinmiyor"?"":s.doctor.replace(/^(Prof\. Dr\.|Doç\. Dr\.|Op\. Dr\.|Uzm\. Dr\.|Dr\.) /,"")).toUpperCase()}</span>
+                                    <span style={{fontSize:10,fontWeight:600,color:"#374151",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.time==="Bilinmiyor"?"?":s.time.slice(0,5)} {(s.doctor==="Bilinmiyor"?"":s.doctor.split(" ").slice(-2).join(" ")).toUpperCase()}</span>
                                     <span style={{fontSize:9,fontWeight:700,color:docColor(doctors,s.doctor),flexShrink:0,marginLeft:2}}>{abbrev(s.type)}</span>
                                   </div>
                                 ))}
