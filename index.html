@@ -298,6 +298,157 @@ function ProgramCard({s,personel,types,onSave,isLast}){
   const [selected,setSelected]=useState((s.katilimcilar||"").split(",").map(n=>n.trim()).filter(Boolean));
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
+  const [evraklar,setEvraklar]=useState([]);
+  const [showEvrak,setShowEvrak]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const SB_URL="https://etrmnfjaomrgbbpydvgq.supabase.co";
+  const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0cm1uZmphb21yZ2JicHlkdmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODgwNDAsImV4cCI6MjA5NDI2NDA0MH0.jWYGZYtfahRTzAAtIp5kdffNmVDCeEQM9YHEKMUiIX0";
+
+  useEffect(()=>{setSelected((s.katilimcilar||"").split(",").map(n=>n.trim()).filter(Boolean));},[s.katilimcilar]);
+  useEffect(()=>{if(showEvrak)loadEvraklar();},[showEvrak,s.id]);
+
+  const getSb=()=>supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false,storageKey:"pc_"+s.id}});
+
+  const loadEvraklar=async()=>{
+    try{const{data}=await getSb().from("evraklar").select("*").eq("surgery_id",s.id).order("created_at");setEvraklar(data||[]);}
+    catch{}
+  };
+
+  const uploadEvrak=async(file)=>{
+    if(!file)return;
+    setUploading(true);
+    try{
+      const sb2=getSb();
+      const path=s.id+"/"+Date.now()+"_"+file.name;
+      const{error}=await sb2.storage.from("evraklar").upload(path,file);
+      if(error)throw error;
+      const{data:{publicUrl}}=sb2.storage.from("evraklar").getPublicUrl(path);
+      await sb2.from("evraklar").insert({surgery_id:s.id,name:file.name,url:publicUrl,size:file.size});
+      await loadEvraklar();
+    }catch(e){alert("Hata: "+e.message);}
+    setUploading(false);
+  };
+
+  const deleteEvrak=async(id)=>{
+    try{await getSb().from("evraklar").delete().eq("id",id);setEvraklar(p=>p.filter(e=>e.id!==id));}
+    catch{}
+  };
+
+  const toggle=name=>{setSelected(p=>p.includes(name)?p.filter(n=>n!==name):[...p,name]);setSaved(false);};
+  const save=async()=>{setSaving(true);await onSave(s.id,selected);setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);};
+
+  const SCOLOR={planned:"#4361ee",in_progress:"#d97706",completed:"#059669",cancelled:"#e11d48"};
+  const SLABEL={planned:"Planlandı",in_progress:"Devam Ediyor",completed:"Tamamlandı",cancelled:"İptal Edildi"};
+  const TC=["#4361ee","#0891b2","#e11d48","#7c3aed","#d97706","#0d9488","#16a34a","#2563eb","#be185d","#ea580c"];
+  const tc=(types,type)=>{const i=types.findIndex(t=>t.name===type);return TC[i<0?0:i%TC.length];};
+  const done=s.status==="completed";
+  const A="#4361ee",AL="#eef1ff",B="#dde3ec",M="#8896ab",T="#111827",BG="#f8fafc";
+
+  return(
+    <div style={{padding:"14px 20px",borderBottom:isLast?"none":"1px solid #f1f5f9",background:done?"#f0fdf4":"white"}}>
+      <div style={{display:"flex",gap:12,marginBottom:8}}>
+        <div style={{width:48,textAlign:"center",flexShrink:0,background:done?"#dcfce7":BG,borderRadius:10,padding:"5px 4px",border:"1px solid "+(done?"#bbf7d0":"#e2e8f0")}}>
+          <div style={{fontSize:9,color:M,fontWeight:700,textTransform:"uppercase"}}>SAAT</div>
+          <div style={{fontSize:14,fontWeight:800,color:done?"#059669":A}}>{s.time==="Bilinmiyor"?"?":s.time.slice(0,5)}</div>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
+            <span style={{width:7,height:7,borderRadius:"50%",background:tc(types,s.type),flexShrink:0,display:"inline-block"}}/>
+            <span style={{fontWeight:700,fontSize:13}}>{s.type}</span>
+            {s.adet>1&&<span style={{background:AL,color:A,fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8}}>{s.adet} adet</span>}
+            <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:done?"#dcfce7":"#f1f5f9",color:SCOLOR[s.status]||M}}>{SLABEL[s.status]||s.status}</span>
+          </div>
+          <div style={{fontSize:11,color:M}}>{s.doctor==="Bilinmiyor"?"":s.doctor}{s.hospital?" · "+s.hospital:""}</div>
+        </div>
+      </div>
+
+      {personel.length>0&&(
+        <div style={{marginBottom:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:M,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Personel</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:6}}>
+            {personel.map(p=>{
+              const sel=selected.includes(p.name);
+              return <div key={p.id} onClick={()=>toggle(p.name)} style={{padding:"3px 10px",borderRadius:20,cursor:"pointer",background:sel?A:BG,color:sel?"white":T,fontSize:11,fontWeight:sel?600:400,border:"1px solid "+(sel?A:B),transition:"all .12s",userSelect:"none"}}>{sel&&"✓ "}{p.name}</div>;
+            })}
+          </div>
+          <button onClick={save} disabled={saving} style={{background:saved?"#059669":A,color:"white",border:"none",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+            {saving?"Kaydediliyor...":saved?"Kaydedildi ✓":"Personeli Kaydet"}
+          </button>
+        </div>
+      )}
+
+      <div style={{borderTop:"1px solid #f1f5f9",paddingTop:6}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <button onClick={()=>setShowEvrak(v=>!v)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:A,fontWeight:600,padding:0,display:"flex",alignItems:"center",gap:4}}>
+            📄 Evraklar{evraklar.length>0?" ("+evraklar.length+")":""}
+            <span style={{fontSize:10,transition:"transform .2s",display:"inline-block",transform:showEvrak?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
+          </button>
+          {showEvrak&&(
+            <label style={{background:A,color:"white",border:"none",borderRadius:6,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+              {uploading?"Yükleniyor...":"+ Evrak Ekle"}
+              <input type="file" style={{display:"none"}} accept=".pdf,.doc,.docx,.jpg,.png,.xls,.xlsx" onChange={e=>uploadEvrak(e.target.files[0])} disabled={uploading}/>
+            </label>
+          )}
+        </div>
+        {showEvrak&&(
+          <div style={{marginTop:6}}>
+            {evraklar.length===0
+              ?<div style={{fontSize:11,color:M,fontStyle:"italic"}}>Henüz evrak eklenmedi.</div>
+              :evraklar.map(ev=>(
+                <div key={ev.id} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",background:BG,borderRadius:6,marginBottom:3}}>
+                  <span style={{fontSize:12}}>📄</span>
+                  <a href={ev.url} target="_blank" rel="noopener" style={{flex:1,fontSize:11,color:T,textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ev.name}</a>
+                  <button onClick={()=>deleteEvrak(ev.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#e11d48",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
+                </div>
+              ))
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function PersonelManager({personel,onAdd,onRemove}){
+  const [name,setName]=useState("");
+  const [unvan,setUnvan]=useState("");
+  const add=()=>{if(!name.trim())return;onAdd(name.trim(),unvan.trim());setName("");setUnvan("");};
+  return(
+    <div>
+      <div style={{marginBottom:12}}>
+        <input style={{...inp,marginBottom:6}} placeholder="Ad Soyad" value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/>
+        <input style={{...inp,marginBottom:8}} placeholder="Ünvan (isteğe bağlı)" value={unvan} onChange={e=>setUnvan(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}/>
+        <button style={{...bBtn("primary"),width:"100%",justifyContent:"center",padding:"8px"}} onClick={add}>
+          <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Personel Ekle
+        </button>
+      </div>
+      <div style={{maxHeight:400,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+        {personel.length===0&&<div style={{color:"#94a3b8",fontSize:13,textAlign:"center",padding:"20px 0"}}>Henüz personel eklenmedi.</div>}
+        {personel.map(p=>(
+          <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:"#f8fafc",borderRadius:8}}>
+            <div style={{width:32,height:32,borderRadius:"50%",background:"#3b82f6",color:"white",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>
+              {(p.name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase()}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+              {p.unvan&&<div style={{fontSize:11,color:"#94a3b8"}}>{p.unvan}</div>}
+            </div>
+            <button onClick={()=>onRemove(p.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",flexShrink:0}}>
+              <svg width="13" height="13" fill="none" stroke="#ef4444" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:8,fontSize:11,color:"#94a3b8"}}>{personel.length} personel</div>
+    </div>
+  );
+}
+
+function ProgramCard({s,personel,types,onSave,isLast}){
+  const [selected,setSelected]=useState((s.katilimcilar||"").split(",").map(n=>n.trim()).filter(Boolean));
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
 
   useEffect(()=>{
     setSelected((s.katilimcilar||"").split(",").map(n=>n.trim()).filter(Boolean));
@@ -707,7 +858,32 @@ ${rows.map((r,i)=>`<tr style="background:${i%2===0?"#ffffff":"#f0f5ff"}">${r.map
     setSurgeries(p=>p.map(s=>s.id===surgId?{...s,katilimcilar:names.join(", ")}:s));
     setPersonnelModal(null);
   };
-  const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:types[0]?.name||"",hospital:hospitals[0]?.name||"",doctor:doctors[0]?.name||"",status:"planned",notes:"",adet:1,katilimcilar:""});setEditS(null);setInlineAdd(null);setShowModal(true);if(users.length===0)loadUsers();};
+  const sendProgramToTelegram=async(dateStr,list)=>{
+    if(!list||list.length===0){alert("Bu tarihte ameliyat bulunamadı.");return;}
+    const d=new Date(dateStr+"T12:00:00");
+    const dateLabel=d.getDate()+" "+MONTHS[d.getMonth()]+" "+d.getFullYear();
+    const cellStyle="border:1px solid #1a2f4d;padding:8px 12px;font-size:13px;font-family:Calibri,Arial,sans-serif;";
+    const headerStyle="background:#0c1b33;color:white;font-weight:bold;border:1px solid #0c1b33;padding:8px 12px;font-size:13px;font-family:Calibri,Arial,sans-serif;text-align:center;";
+    const titleStyle="background:#0c1b33;color:white;font-size:16px;font-weight:bold;padding:14px;font-family:Calibri,Arial,sans-serif;text-align:center;";
+    const headers=["Sıra","Saat","Ameliyat Türü","Doktor","Hastane","Durum","Adet","Personel","Notlar"];
+    const STATUS_LABELS2={planned:"Planlandı",in_progress:"Devam Ediyor",completed:"Tamamlandı",cancelled:"İptal Edildi"};
+    const rows=list.map((s,i)=>[i+1,s.time==="Bilinmiyor"?"—":s.time,s.type,s.doctor==="Bilinmiyor"?"—":s.doctor,s.hospital,STATUS_LABELS2[s.status]||s.status,s.adet||1,s.katilimcilar||"—",s.notes||""]);
+    const html="<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel'><head><meta charset='UTF-8'/></head><body><table border='0' cellspacing='0' cellpadding='0'><tr><td colspan='"+headers.length+"' style='"+titleStyle+"'>ARTROPLUS — AMELIYAT PROGRAMI — "+dateLabel+"</td></tr><tr>"+headers.map(h=>"<td style='"+headerStyle+"'>"+h+"</td>").join("")+"</tr>"+rows.map((r,i)=>"<tr style='background:"+(i%2===0?"#ffffff":"#f0f5ff")+"'>"+r.map(c=>"<td style='"+cellStyle+"'>"+(c??"")+"</td>").join("")+"</tr>").join("")+"</table></body></html>";
+    const blob=new Blob([html],{type:"application/vnd.ms-excel;charset=utf-8"});
+    const fileName="ARTROPLUS_Program_"+dateStr+".xls";
+    const formData=new FormData();
+    formData.append("chat_id",TG_CHAT);
+    formData.append("document",blob,fileName);
+    formData.append("caption","📋 AMELIYAT PROGRAMI — "+dateLabel+" ("+list.length+" ameliyat)");
+    try{
+      const res=await fetch("https://api.telegram.org/bot"+TG_TOKEN+"/sendDocument",{method:"POST",body:formData});
+      const data=await res.json();
+      if(data.ok){alert("Excel tablosu Telegram grubuna gönderildi!");}
+      else{alert("Hata: "+data.description);}
+    }catch(e){alert("Gönderme hatası: "+e.message);}
+  };
+
+  const openAdd=()=>{setSurgForm({date:fmtDate(today),time:"09:00",type:"",hospital:"",doctor:"",status:"planned",notes:"",adet:1,katilimcilar:""});setEditS(null);setInlineAdd(null);setShowModal(true);if(users.length===0)loadUsers();};
   const openEdit=s=>{setSurgForm({date:s.date,time:s.time,type:s.type,hospital:s.hospital,doctor:s.doctor,status:s.status,notes:s.notes,adet:s.adet||1,katilimcilar:s.katilimcilar||""});setEditS(s);setInlineAdd(null);setShowModal(true);setViewS(null);if(users.length===0)loadUsers();};
 
   const filtered=useMemo(()=>surgeries.filter(s=>{
