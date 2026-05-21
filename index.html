@@ -2,14 +2,20 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MedTrack Enterprise</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
 
+  <title>MedTrack Enterprise v2</title>
+
+  <!-- FONT -->
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet"
   />
 
+  <!-- TAILWIND -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <script>
@@ -19,18 +25,25 @@
           fontFamily: {
             sans: ["Inter", "sans-serif"],
           },
+
           colors: {
             brand: {
               DEFAULT: "#4361ee",
-              light: "#eef1ff",
               dark: "#2d4bc4",
+              light: "#eef2ff",
             },
+          },
+
+          boxShadow: {
+            soft:
+              "0 10px 40px rgba(15,23,42,0.08)",
           },
         },
       },
     };
   </script>
 
+  <!-- REACT -->
   <script
     src="https://unpkg.com/react@18/umd/react.development.js"
     crossorigin
@@ -41,30 +54,39 @@
     crossorigin
   ></script>
 
+  <!-- BABEL -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
     body {
-      font-family: "Inter", sans-serif;
-      background: #f8fafc;
       margin: 0;
-      padding: 0;
+      background: #f8fafc;
+      font-family: "Inter", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
     }
 
     @keyframes slideIn {
       from {
-        transform: translateX(100%);
         opacity: 0;
+        transform: translateX(120%);
       }
 
       to {
-        transform: translateX(0);
         opacity: 1;
+        transform: translateX(0);
       }
     }
 
     .toast-in {
-      animation: slideIn 0.3s ease-out forwards;
+      animation: slideIn 0.25s ease-out forwards;
+    }
+
+    .glass {
+      backdrop-filter: blur(14px);
+      background: rgba(255, 255, 255, 0.7);
     }
   </style>
 </head>
@@ -73,17 +95,29 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, createContext, useContext } = React;
+    const {
+      useState,
+      useEffect,
+      createContext,
+      useContext,
+    } = React;
 
-    // TOAST CONTEXT
+    // =========================
+    // TOAST SYSTEM
+    // =========================
+
     const ToastContext = createContext();
 
-    const useToast = () => useContext(ToastContext);
+    const useToast = () =>
+      useContext(ToastContext);
 
-    const ToastProvider = ({ children }) => {
+    function ToastProvider({ children }) {
       const [toasts, setToasts] = useState([]);
 
-      const addToast = (message, type = "info") => {
+      const addToast = (
+        message,
+        type = "info"
+      ) => {
         const id = Date.now();
 
         setToasts((prev) => [
@@ -96,7 +130,9 @@
         ]);
 
         setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== id));
+          setToasts((prev) =>
+            prev.filter((t) => t.id !== id)
+          );
         }, 3000);
       };
 
@@ -104,16 +140,16 @@
         <ToastContext.Provider value={addToast}>
           {children}
 
-          <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+          <div className="fixed top-4 right-4 z-50 flex flex-col gap-3">
             {toasts.map((t) => (
               <div
                 key={t.id}
-                className={`toast-in px-4 py-3 rounded-xl shadow-lg text-white font-medium ${
-                  t.type === "error"
-                    ? "bg-red-500"
-                    : t.type === "success"
+                className={`toast-in px-5 py-4 rounded-2xl shadow-2xl text-white font-semibold ${
+                  t.type === "success"
                     ? "bg-green-500"
-                    : "bg-slate-800"
+                    : t.type === "error"
+                    ? "bg-red-500"
+                    : "bg-slate-900"
                 }`}
               >
                 {t.message}
@@ -122,64 +158,319 @@
           </div>
         </ToastContext.Provider>
       );
-    };
+    }
 
-    // APP
-    function App() {
-      const toast = useToast();
+    // =========================
+    // SIDEBAR
+    // =========================
 
-      useEffect(() => {
-        toast("Sistem başarıyla başlatıldı", "success");
-      }, []);
+    function Sidebar({
+      active,
+      setActive,
+    }) {
+      const menus = [
+        "Dashboard",
+        "Patients",
+        "Appointments",
+        "Doctors",
+        "Analytics",
+        "Settings",
+      ];
 
       return (
-        <div className="min-h-screen flex items-center justify-center p-6">
-          <div className="bg-white rounded-3xl shadow-xl p-10 w-full max-w-xl">
-            <h1 className="text-4xl font-extrabold text-slate-800 mb-4">
-              MedTrack Enterprise
-            </h1>
+        <div className="w-[270px] h-screen fixed left-0 top-0 bg-slate-950 text-white p-6">
+          <div className="mb-10">
+            <div className="text-3xl font-black">
+              MedTrack
+            </div>
 
-            <p className="text-slate-600 mb-6">
-              React + Tailwind çalışan tek dosya örneği.
-            </p>
+            <div className="text-slate-400 text-sm mt-2">
+              Enterprise ERP
+            </div>
+          </div>
 
-            <div className="flex gap-3">
+          <div className="flex flex-col gap-3">
+            {menus.map((m) => (
               <button
-                onClick={() =>
-                  toast("Başarılı işlem", "success")
-                }
-                className="px-5 py-3 rounded-xl bg-green-500 text-white font-semibold"
+                key={m}
+                onClick={() => setActive(m)}
+                className={`text-left px-4 py-4 rounded-2xl transition font-semibold ${
+                  active === m
+                    ? "bg-brand"
+                    : "hover:bg-slate-800"
+                }`}
               >
-                Success
+                {m}
               </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
 
-              <button
-                onClick={() =>
-                  toast("Hata oluştu", "error")
-                }
-                className="px-5 py-3 rounded-xl bg-red-500 text-white font-semibold"
-              >
-                Error
-              </button>
+    // =========================
+    // STAT CARD
+    // =========================
 
-              <button
-                onClick={() =>
-                  toast("Bilgilendirme mesajı")
-                }
-                className="px-5 py-3 rounded-xl bg-slate-800 text-white font-semibold"
-              >
-                Info
-              </button>
+    function StatCard({
+      title,
+      value,
+      subtitle,
+    }) {
+      return (
+        <div className="bg-white rounded-3xl p-7 shadow-soft border border-slate-100">
+          <div className="text-slate-500 font-medium">
+            {title}
+          </div>
+
+          <div className="text-5xl font-black mt-4 text-slate-900">
+            {value}
+          </div>
+
+          <div className="text-slate-400 mt-3">
+            {subtitle}
+          </div>
+        </div>
+      );
+    }
+
+    // =========================
+    // PATIENT TABLE
+    // =========================
+
+    function PatientTable() {
+      const patients = [
+        {
+          name: "Ahmet Yılmaz",
+          age: 32,
+          department: "Kardiyoloji",
+          status: "Aktif",
+        },
+
+        {
+          name: "Ayşe Kaya",
+          age: 41,
+          department: "Nöroloji",
+          status: "Bekliyor",
+        },
+
+        {
+          name: "Mehmet Demir",
+          age: 28,
+          department: "Ortopedi",
+          status: "Aktif",
+        },
+      ];
+
+      return (
+        <div className="bg-white rounded-3xl shadow-soft border border-slate-100 overflow-hidden">
+          <div className="p-6 border-b border-slate-100">
+            <div className="text-2xl font-bold">
+              Son Hastalar
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="text-left px-6 py-4">
+                    Ad Soyad
+                  </th>
+
+                  <th className="text-left px-6 py-4">
+                    Yaş
+                  </th>
+
+                  <th className="text-left px-6 py-4">
+                    Bölüm
+                  </th>
+
+                  <th className="text-left px-6 py-4">
+                    Durum
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {patients.map((p, index) => (
+                  <tr
+                    key={index}
+                    className="border-t border-slate-100 hover:bg-slate-50"
+                  >
+                    <td className="px-6 py-5 font-semibold">
+                      {p.name}
+                    </td>
+
+                    <td className="px-6 py-5">
+                      {p.age}
+                    </td>
+
+                    <td className="px-6 py-5">
+                      {p.department}
+                    </td>
+
+                    <td className="px-6 py-5">
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          p.status === "Aktif"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
+                      >
+                        {p.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================
+    // TOPBAR
+    // =========================
+
+    function Topbar() {
+      return (
+        <div className="glass sticky top-0 z-40 border-b border-white/40 px-8 py-5 flex items-center justify-between">
+          <div>
+            <div className="text-2xl font-black text-slate-900">
+              Dashboard
+            </div>
+
+            <div className="text-slate-500 mt-1">
+              Hastane yönetim paneli
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <input
+              placeholder="Hasta ara..."
+              className="bg-white border border-slate-200 rounded-2xl px-5 py-3 outline-none w-[260px]"
+            />
+
+            <div className="w-12 h-12 rounded-full bg-brand text-white flex items-center justify-center font-bold">
+              M
             </div>
           </div>
         </div>
       );
     }
 
+    // =========================
+    // MAIN APP
+    // =========================
+
+    function App() {
+      const toast = useToast();
+
+      const [active, setActive] =
+        useState("Dashboard");
+
+      useEffect(() => {
+        toast(
+          "MedTrack Enterprise hazır",
+          "success"
+        );
+      }, []);
+
+      return (
+        <div className="flex">
+          <Sidebar
+            active={active}
+            setActive={setActive}
+          />
+
+          <div className="ml-[270px] w-full min-h-screen">
+            <Topbar />
+
+            <div className="p-8">
+              {/* STATS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+                <StatCard
+                  title="Toplam Hasta"
+                  value="1,284"
+                  subtitle="Aktif kayıt"
+                />
+
+                <StatCard
+                  title="Bugünkü Randevu"
+                  value="87"
+                  subtitle="Günlük plan"
+                />
+
+                <StatCard
+                  title="Doktor"
+                  value="42"
+                  subtitle="Aktif personel"
+                />
+
+                <StatCard
+                  title="Gelir"
+                  value="₺248K"
+                  subtitle="Aylık toplam"
+                />
+              </div>
+
+              {/* ACTIONS */}
+              <div className="flex flex-wrap gap-4 mb-8">
+                <button
+                  onClick={() =>
+                    toast(
+                      "Hasta oluşturuldu",
+                      "success"
+                    )
+                  }
+                  className="bg-brand hover:bg-brand-dark transition text-white px-6 py-4 rounded-2xl font-bold shadow-xl"
+                >
+                  Yeni Hasta
+                </button>
+
+                <button
+                  onClick={() =>
+                    toast(
+                      "Randevu oluşturuldu",
+                      "success"
+                    )
+                  }
+                  className="bg-slate-900 hover:bg-black transition text-white px-6 py-4 rounded-2xl font-bold shadow-xl"
+                >
+                  Yeni Randevu
+                </button>
+
+                <button
+                  onClick={() =>
+                    toast(
+                      "Sunucu bağlantısı kesildi",
+                      "error"
+                    )
+                  }
+                  className="bg-red-500 hover:bg-red-600 transition text-white px-6 py-4 rounded-2xl font-bold shadow-xl"
+                >
+                  Test Error
+                </button>
+              </div>
+
+              {/* TABLE */}
+              <PatientTable />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================
     // RENDER
-    const root = ReactDOM.createRoot(
-      document.getElementById("root")
-    );
+    // =========================
+
+    const root =
+      ReactDOM.createRoot(
+        document.getElementById("root")
+      );
 
     root.render(
       <ToastProvider>
