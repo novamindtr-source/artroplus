@@ -38,6 +38,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
   <!-- Recharts UMD -->
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <!-- jsPDF -->
@@ -221,6 +222,27 @@ const movementPayload=({urun_id,type,quantity,notes,surgery_id})=>({
   aciklama:notes||"",
   surgery_id:surgery_id||null,
 });
+const isCompanyShelfName=name=>{
+  const n=(name||"").toLocaleLowerCase("tr-TR");
+  return n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
+};
+const displayLocationName=loc=>isCompanyShelfName(loc?.name||loc)?"Ana Depo":(loc?.name||loc||"");
+const selectableHospitals=hospitals=>(hospitals||[]).filter(h=>!isCompanyShelfName(h.name));
+const profileDisplayName=p=>p?.full_name||p?.name||p?.email||"Kullanıcı";
+const buildProgramPersonnel=(profiles=[],legacyPersonnel=[])=>{
+  const map=new Map();
+  profiles.filter(p=>p&&p.status!=="inactive").forEach(p=>{
+    const name=profileDisplayName(p);
+    if(name)map.set(`profile-${p.id||name}`,{id:p.id||name,name,role:p.role||"user",source:"profile"});
+  });
+  if(!map.size){
+    legacyPersonnel.forEach(p=>{
+      const name=p?.name||p?.full_name||"";
+      if(name)map.set(`legacy-${p.id||name}`,{id:p.id||name,name,role:p.role||"personel",source:"legacy"});
+    });
+  }
+  return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,"tr"));
+};
 
 // ─── TOAST ────────────────────────────────────────────────────────────────────
 const ToastCtx=React.createContext(()=>{});
@@ -563,6 +585,11 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
 
   const todayS=surgeries.filter(s=>s.date===todayStr).sort((a,b)=>a.time.localeCompare(b.time));
   const upcoming=surgeries.filter(s=>s.date>todayStr&&s.status==="planned").sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  const tomorrowStr=fmtDate(new Date(today.getTime()+86400000));
+  const tomorrowS=surgeries.filter(s=>s.date===tomorrowStr&&s.status!=="cancelled");
+  const overduePlanned=surgeries.filter(s=>s.date<todayStr&&s.status==="planned");
+  const missingInfo=surgeries.filter(s=>s.status==="planned"&&(s.time==="??:??"||s.doctor==="Bilinmiyor")).slice(0,6);
+  const docsCompleted=surgeries.filter(s=>s.status==="done"&&getSurgeryDocs(s).length>0);
 
   const statusCounts=useMemo(()=>{
     const m={planned:0,done:0,cancelled:0,postponed:0};
@@ -639,6 +666,46 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
           </div>
         ))}
       </div>
+
+      {/* Smart control row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        {[
+          {label:"Yarınki Program",value:tomorrowS.length,sub:"ameliyat",color:"#3b82f6",action:()=>setPage("program")},
+          {label:"Geciken Plan",value:overduePlanned.length,sub:"kontrol gerekli",color:overduePlanned.length?"#f43f5e":"#10b981",action:()=>setPage("surgeries")},
+          {label:"Eksik Bilgi",value:missingInfo.length,sub:"saat/doktor",color:missingInfo.length?"#f59e0b":"#10b981",action:()=>setPage("program")},
+          {label:"Evraklı Tamamlanan",value:docsCompleted.length,sub:"ameliyat",color:"#8b5cf6",action:()=>setPage("surgeries")},
+        ].map(item=>(
+          <button key={item.label} onClick={item.action} className="card card-hover rounded-2xl p-4 text-left">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs text-slate-500 mb-1">{item.label}</div>
+                <div className="text-sm text-slate-400">{item.sub}</div>
+              </div>
+              <div className="text-3xl font-black" style={{color:item.color}}>{item.value}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {missingInfo.length>0&&(
+        <div className="card rounded-2xl p-4 border border-amber2/20">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h3 className="font-bold text-sm text-white">Tamamlanması Gereken Program Bilgileri</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Saat veya doktor bilgisi eksik planlar</p>
+            </div>
+            <button onClick={()=>setPage("program")} className="px-3 py-1.5 rounded-lg bg-amber2/15 text-amber2 text-xs font-bold border border-amber2/25">Programa Git</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {missingInfo.map(s=>(
+              <div key={s.id} className="bg-navy-800/70 rounded-xl px-3 py-2 border border-white/8">
+                <div className="text-sm font-semibold text-white truncate">{s.type}</div>
+                <div className="text-xs text-slate-500 truncate">{fmtTR(s.date)} · {s.time==="??:??"?"Saat bilinmiyor":s.time} · {s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -777,6 +844,7 @@ function SurgeryForm({surg,types,hospitals,doctors,onSave,onCancel,onAddType,onA
   const [docs,setDocs]=useState(surg?getSurgeryDocs(surg):[]);
   const [adding,setAdding]=useState(null);
   const toast=useToast();
+  const visibleHospitals=useMemo(()=>selectableHospitals(hospitals),[hospitals]);
 
   const save=()=>{
     if(!f.type)return toast("Ameliyat türü seçin","warning");
@@ -798,7 +866,7 @@ function SurgeryForm({surg,types,hospitals,doctors,onSave,onCancel,onAddType,onA
     if(!added.length)return;
     setDocs(prev=>[...prev,...added]);
     setF(prev=>({...prev,status:"done"}));
-    toast("Evrak eklendi, ameliyat tamamlandÄ± olarak iÅŸaretlendi","success");
+    toast("Evrak eklendi, ameliyat tamamlandı olarak işaretlendi","success");
   };
 
   const handleInline=async(field,name)=>{
@@ -846,7 +914,7 @@ function SurgeryForm({surg,types,hospitals,doctors,onSave,onCancel,onAddType,onA
         ):(
           <div className="flex gap-2">
             <div className="flex-1">
-              <SearchableSelect items={hospitals.map(h=>({name:h.name}))} value={f.hospital} onChange={v=>setF(p=>({...p,hospital:v}))} placeholder="Hastane seçin"/>
+              <SearchableSelect items={visibleHospitals.map(h=>({name:h.name}))} value={f.hospital} onChange={v=>setF(p=>({...p,hospital:v}))} placeholder="Hastane seçin"/>
             </div>
             <button type="button" onClick={()=>setAdding("hospital")} className="px-3 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold transition-colors">+</button>
           </div>
@@ -892,21 +960,21 @@ function SurgeryForm({surg,types,hospitals,doctors,onSave,onCancel,onAddType,onA
         <Textarea value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} rows={3} placeholder="Ek notlar..."/>
       </Row>
 
-      <Row label="Ameliyat EvrakÄ±">
+      <Row label="Ameliyat Evrakı">
         <div className="space-y-3">
           <label className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-navy-800/60 px-4 py-5 text-center cursor-pointer hover:border-brand/60 hover:bg-brand/10 transition-colors">
-            <span className="text-2xl">â‡§</span>
+            <span className="text-2xl">⇧</span>
             <span className="text-sm font-semibold text-slate-200">Evrak ekle</span>
-            <span className="text-xs text-slate-500">PDF, fotoÄŸraf veya belge seÃ§ilebilir. Evrak eklenince ameliyat tamamlandÄ± olur.</span>
+            <span className="text-xs text-slate-500">PDF, fotoğraf veya belge seçilebilir. Evrak eklenince ameliyat tamamlandı olur.</span>
             <input type="file" multiple className="hidden" onChange={e=>{addDocs(e.target.files);e.target.value="";}}/>
           </label>
           {docs.length>0&&(
             <div className="space-y-2">
               {docs.map((doc,i)=>(
                 <div key={`${doc.name}-${i}`} className="flex items-center gap-2 rounded-xl bg-emerald2/10 border border-emerald2/25 px-3 py-2">
-                  <span className="text-emerald2">âœ“</span>
+                  <span className="text-emerald2">✓</span>
                   <span className="flex-1 truncate text-sm text-slate-200">{doc.name}</span>
-                  <button type="button" onClick={()=>setDocs(prev=>prev.filter((_,idx)=>idx!==i))} className="text-xs text-slate-500 hover:text-rose2">KaldÄ±r</button>
+                  <button type="button" onClick={()=>setDocs(prev=>prev.filter((_,idx)=>idx!==i))} className="text-xs text-slate-500 hover:text-rose2">Kaldır</button>
                 </div>
               ))}
             </div>
@@ -1036,11 +1104,11 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
             </div>
             {viewDocs.length>0&&(
               <div className="bg-navy-800 rounded-xl p-3">
-                <div className="text-xs text-slate-500 mb-2">Ameliyat EvrakÄ±</div>
+                <div className="text-xs text-slate-500 mb-2">Ameliyat Evrakı</div>
                 <div className="space-y-2">
                   {viewDocs.map((doc,i)=>(
                     <div key={`${doc.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-emerald2/10 border border-emerald2/20 px-3 py-2">
-                      <span className="text-emerald2">âœ“</span>
+                      <span className="text-emerald2">✓</span>
                       <span className="text-sm text-slate-200 truncate">{doc.name}</span>
                     </div>
                   ))}
@@ -1212,9 +1280,10 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
 
   // Ameliyat ekle modalı (program sekmesinden)
   const [addModal,setAddModal]=useState(null); // {date, time, hospital}
-  const emptyAddForm={type:"",hospital:"",doctor:"",time:"09:00",status:"planned",notes:"",adet:1,personnel:[]};
+  const emptyAddForm={type:"",hospital:"",doctor:"",time:"09:00",status:"planned",notes:"",adet:1,personnel:[],timeUnknown:false,doctorUnknown:false};
   const [addForm,setAddForm]=useState(emptyAddForm);
   const [addingInline,setAddingInline]=useState(null); // {field}
+  const visibleHospitals=useMemo(()=>selectableHospitals(hospitals),[hospitals]);
 
   const docColorMap=useMemo(()=>{
     const uniq=[...new Set(surgeries.map(s=>s.doctor))];
@@ -1293,19 +1362,26 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
 
   // Hızlı ameliyat ekle
   const quickAdd=async()=>{
-    if(!addForm.type||!addForm.hospital||!addForm.doctor){
+    if(!addForm.type||!addForm.hospital||(!addForm.doctor&&!addForm.doctorUnknown)){
       toast("Tür, hastane ve doktor zorunlu","warning");return;
     }
-    const {personnel,...payload}=addForm;
+    const {personnel,timeUnknown,doctorUnknown,...payload}=addForm;
     const notes=buildSurgeryNotes(payload.notes,personnel,[]);
     const{error}=await SB.from("surgeries").insert({
-      ...payload,notes,date:addModal.date,time:addModal.time||payload.time,
+      ...payload,
+      doctor:doctorUnknown?"Bilinmiyor":payload.doctor,
+      notes,date:addModal.date,time:timeUnknown?"??:??":(payload.time||addModal.time||"09:00"),
       adet:Number(addForm.adet)||1,created_by:profile?.id,
     });
     if(error)return toast(error.message,"error");
     toast("Ameliyat programa eklendi ✓","success");
     setAddModal(null);setAddForm(emptyAddForm);
     onRefresh();
+  };
+
+  const openProgramAdd=(data)=>{
+    setAddForm({...emptyAddForm,time:data.time||"09:00",hospital:data.hospital||""});
+    setAddModal(data);
   };
 
   const tabs=[
@@ -1330,7 +1406,13 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label required>Saat</Label>
-                <Input type="time" value={addForm.time} onChange={e=>setAddForm(p=>({...p,time:e.target.value}))}/>
+                <div className="space-y-2">
+                  {!addForm.timeUnknown&&<Input type="time" value={addForm.time} onChange={e=>setAddForm(p=>({...p,time:e.target.value}))}/>}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={addForm.timeUnknown} onChange={e=>setAddForm(p=>({...p,timeUnknown:e.target.checked}))} className="rounded"/>
+                    <span className="text-xs text-slate-400">Saat bilinmiyor</span>
+                  </label>
+                </div>
               </div>
               <div>
                 <Label>Durum</Label>
@@ -1359,14 +1441,14 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                 <InlineAdd onSave={async n=>{await SB.from("hospitals").insert({name:n});setAddForm(p=>({...p,hospital:n}));setAddingInline(null);onRefresh();}} onCancel={()=>setAddingInline(null)} placeholder="Hastane ekle"/>
               ):(
                 <div className="flex gap-2">
-                  <div className="flex-1"><SearchableSelect items={hospitals.map(h=>({name:h.name}))} value={addForm.hospital} onChange={v=>setAddForm(p=>({...p,hospital:v}))} placeholder="Hastane seçin"/></div>
+                  <div className="flex-1"><SearchableSelect items={visibleHospitals.map(h=>({name:h.name}))} value={addForm.hospital} onChange={v=>setAddForm(p=>({...p,hospital:v}))} placeholder="Hastane seçin"/></div>
                   <button type="button" onClick={()=>setAddingInline("hospital")} className="px-3 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold transition-colors">+</button>
                 </div>
               )}
             </div>
             <div>
               <Label required>Doktor</Label>
-              {addingInline==="doctor"?(
+              {addForm.doctorUnknown?null:addingInline==="doctor"?(
                 <InlineAdd onSave={async n=>{await SB.from("doctors").insert({name:autoDoc(n)});setAddForm(p=>({...p,doctor:autoDoc(n)}));setAddingInline(null);onRefresh();}} onCancel={()=>setAddingInline(null)} placeholder="Doktor ekle" isDoc/>
               ):(
                 <div className="flex gap-2">
@@ -1374,12 +1456,16 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                   <button type="button" onClick={()=>setAddingInline("doctor")} className="px-3 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold transition-colors">+</button>
                 </div>
               )}
+              <label className="flex items-center gap-2 cursor-pointer mt-2">
+                <input type="checkbox" checked={addForm.doctorUnknown} onChange={e=>setAddForm(p=>({...p,doctorUnknown:e.target.checked,doctor:e.target.checked?"":p.doctor}))} className="rounded"/>
+                <span className="text-xs text-slate-400">Doktor bilinmiyor</span>
+              </label>
             </div>
             <div>
               <Label>Ameliyata Girecek Personel</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto rounded-xl border border-white/8 bg-navy-900/40 p-2">
                 {personel.length===0?(
-                  <div className="text-xs text-slate-500 px-2 py-3">Personel listesi boş</div>
+                  <div className="text-xs text-slate-500 px-2 py-3">Kayıtlı kullanıcı bulunamadı</div>
                 ):personel.map(p=>{
                   const checked=addForm.personnel.includes(p.name);
                   return(
@@ -1388,7 +1474,10 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                         ...prev,
                         personnel:e.target.checked?[...prev.personnel,p.name]:prev.personnel.filter(x=>x!==p.name)
                       }))}/>
-                      <span className="text-sm truncate">{p.name}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm truncate">{p.name}</span>
+                        <span className="block text-[10px] text-slate-500 truncate">{p.role==="admin"?"Admin":isManager({role:p.role})?"Yönetici":"Kullanıcı"}</span>
+                      </span>
                     </label>
                   );
                 })}
@@ -1408,7 +1497,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
         <div className="sm:ml-auto flex flex-wrap gap-2">
           {tab==="today"&&(
             <>
-              <button onClick={()=>setAddModal({date:selDate,time:"09:00"})}
+              <button onClick={()=>openProgramAdd({date:selDate,time:"09:00"})}
                 className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">
                 + Programa Ekle
               </button>
@@ -1487,7 +1576,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
               <div className="px-5 py-10 text-center">
                 <div className="text-3xl opacity-20 mb-3">📋</div>
                 <p className="text-slate-500 text-sm mb-4">Bu gün için program yok</p>
-                <button onClick={()=>setAddModal({date:selDate,time:"08:00"})}
+                <button onClick={()=>openProgramAdd({date:selDate,time:"08:00"})}
                   className="px-5 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">
                   + İlk Ameliyatı Ekle
                 </button>
@@ -1498,7 +1587,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
             <div className="divide-y divide-white/5">
               {HOURS.map((hour,hi)=>{
                 const slotS=dayS.filter(s=>{
-                  if(s.time==="??:??")return hi===0;
+                  if(s.time==="??:??")return false;
                   const h=parseInt(s.time.split(":")[0]);
                   return h===hi+7;
                 });
@@ -1513,7 +1602,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                     <div className="flex-1 min-h-[52px] relative border-l border-white/8 pl-4 py-2 pr-3">
                       {/* Boş slot ekle butonu */}
                       {!hasOp&&(
-                        <button onClick={()=>setAddModal({date:selDate,time:hour})}
+                        <button onClick={()=>openProgramAdd({date:selDate,time:hour})}
                           className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <span className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-300 transition-colors">
                             <span className="w-5 h-5 rounded-full border border-dashed border-slate-600 hover:border-brand-300 flex items-center justify-center text-[10px]">+</span>
@@ -1798,6 +1887,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   const [matchedUrun,setMatchedUrun]=useState(null);
   const [cameraModal,setCameraModal]=useState(false);
   const scanRef=useRef(null);
+  const visibleHospitals=useMemo(()=>selectableHospitals(hospitals),[hospitals]);
 
   // Form state — genişletildi: lot, expiryDate, mfgDate, initialStockQty, initialStockHospital
   const emptyForm={name:"",code:"",unit:"adet",min_stock:0,category:"",description:"",
@@ -1834,6 +1924,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         ...existing,
         addInitialStock:true,
         initialStockQty:p.qty||1,
+        name:existing.name||p.productName||"",
+        manufacturer:p.manufacturer||existing.manufacturer||"",
         udi:p.udi||raw.trim(),
         gtin:p.gtin||existing.gtin||"",
         lot:p.lot||"",
@@ -1845,7 +1937,11 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       setScanStatus("new");
       setMatchedUrun(null);
       setF({...emptyForm,
+        name:p.productName||"",
         code:p.ref||"",
+        manufacturer:p.manufacturer||"",
+        category:p.manufacturer==="Arthrex"?"İmplant":"",
+        description:p.size?`Ölçü: ${p.size}`:"",
         gtin:p.gtin||"",
         udi:p.udi||raw.trim(),
         lot:p.lot||"",
@@ -1861,13 +1957,17 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   const applyUdiToForm=(raw)=>{
     if(!raw?.trim())return;
     const p=parseGS1(raw.trim());
-    const hasData=!!(p.ref||p.gtin||p.lot||p.serial||p.expiryDate||p.mfgDate||p.qty>1);
+    const hasData=!!(p.ref||p.gtin||p.lot||p.serial||p.expiryDate||p.mfgDate||p.qty>1||p.productName||p.manufacturer);
     if(!hasData)return;
     setScanResult(p);
     setScanStatus(prev=>prev||"new");
     setF(prev=>({
       ...prev,
+      name:p.productName||prev.name,
       code:p.ref||prev.code,
+      manufacturer:p.manufacturer||prev.manufacturer,
+      category:prev.category||(p.manufacturer==="Arthrex"?"İmplant":""),
+      description:prev.description||(p.size?`Ölçü: ${p.size}`:""),
       gtin:p.gtin||prev.gtin,
       udi:p.udi||raw.trim(),
       lot:p.lot||prev.lot,
@@ -1887,6 +1987,17 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     const isNew=modal===true&&!matchedUrun;
 
     if(isNew){
+      const duplicate=urunler.find(u=>
+        (f.code&&u.code&&u.code.toLocaleLowerCase("tr-TR")===f.code.toLocaleLowerCase("tr-TR"))||
+        (f.gtin&&u.gtin&&u.gtin===f.gtin)
+      );
+      if(duplicate){
+        setMatchedUrun(duplicate);
+        setScanStatus("exists");
+        setF(p=>({...p,...duplicate,addInitialStock:true,initialStockQty:p.initialStockQty||1,lot:p.lot,expiryDate:p.expiryDate,mfgDate:p.mfgDate,udi:p.udi||duplicate.udi||""}));
+        toast("Bu REF/GTIN zaten kayıtlı. Yeni kayıt yerine mevcut ürüne stok ekleyebilirsiniz.","warning");
+        return;
+      }
       // Yeni ürün ekle
       const detailLines=[
         f.description||"",
@@ -2026,6 +2137,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
                     {l:"REF",v:scanResult.ref||scanResult.gtin?.slice(-8)||"—"},
+                    {l:"Ürün",v:scanResult.productName||"—"},
                     {l:"UDI",v:scanResult.udi||"—"},
                     {l:"Lot",v:scanResult.lot||"—"},
                     {l:"Seri",v:scanResult.serial||"—"},
@@ -2129,8 +2241,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
             <div className={`rounded-xl border transition-all ${f.addInitialStock?"border-brand/30 bg-brand/5":"border-white/8 bg-navy-800/50"}`}>
               <div className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <div className="text-sm font-semibold text-white">Şirket Rafına Stok Girişi Yap</div>
-                  <div className="text-xs text-slate-500">Barkodlu ürün önce merkez/şirket rafına eklenir</div>
+                  <div className="text-sm font-semibold text-white">Ana Depoya Stok Girişi Yap</div>
+                  <div className="text-xs text-slate-500">Barkodlu ürün önce ana depoya eklenir</div>
                 </div>
                 <button type="button" onClick={()=>setF(p=>({...p,addInitialStock:!p.addInitialStock}))}
                   className={`w-11 h-6 rounded-full transition-all ${f.addInitialStock?"bg-brand":"bg-navy-700"}`}>
@@ -2142,8 +2254,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                   <div>
                     <Label>Raf / Depo</Label>
                     <Select value={f.initialStockHospital} onChange={e=>setF(p=>({...p,initialStockHospital:e.target.value}))}>
-                      <option value="">Otomatik: Şirket Rafı</option>
-                      {hospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+                      <option value="">Otomatik: Ana Depo</option>
+                      {visibleHospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
                     </Select>
                   </div>
                   <div>
@@ -2320,14 +2432,28 @@ const readLabeledValue=(text,labels)=>{
   const m=text.match(re);
   return m?m[1].replace(/^["']|["']$/g,"").trim():"";
 };
+const extractLabelDates=text=>[...String(text||"").matchAll(/\b(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{4})\b/g)]
+  .map(m=>normalizeBarcodeDate(m[0])).filter(Boolean);
+const extractArthrexProduct=text=>{
+  const clean=String(text||"").replace(/\s+/g," ").trim();
+  const m=clean.match(/(Suture Anchor,\s*[^]+?)(?=\s+(?:UDI|REF|LOT|QTY|\(01\)|Arthrex\b))/i);
+  return m?m[1].replace(/\s+/g," ").trim():"";
+};
+const extractArthrexSize=text=>{
+  const m=String(text||"").match(/\b\d+(?:[.,]\d+)?\s*x\s*\d+(?:[.,]\d+)?\s*mm\b/i);
+  return m?m[0].replace(/\s+/g," ").replace(",","."):"";
+};
 
 function parseGS1(raw){
-  const result={gtin:"",lot:"",serial:"",expiryDate:null,mfgDate:null,qty:1,ref:"",udi:String(raw||"").trim()};
+  const result={gtin:"",lot:"",serial:"",expiryDate:null,mfgDate:null,qty:1,ref:"",udi:String(raw||"").trim(),productName:"",manufacturer:"",size:""};
   if(!raw||raw.length<4)return result;
 
   // Remove GS1 prefix identifiers ]d2 ]C1 ]e0 etc.
   let s=raw.replace(/^\].[0-9]/,"").replace(/^\][a-zA-Z][0-9]/,"").trim();
   const original=s;
+  if(/arthrex/i.test(original))result.manufacturer="Arthrex";
+  result.productName=extractArthrexProduct(original);
+  result.size=extractArthrexSize(original);
   const aiPairs=[];
   original.replace(/\((\d{2,4})\)\s*([^\(]+)/g,(_,ai,val)=>{
     aiPairs.push([ai,val.trim()]);
@@ -2418,6 +2544,10 @@ function parseGS1(raw){
   const mfgDate=normalizeBarcodeDate(labeledMfg);
   if(expDate)result.expiryDate=expDate;
   if(mfgDate)result.mfgDate=mfgDate;
+  const visibleDates=extractLabelDates(original);
+  if(!result.mfgDate&&visibleDates[0])result.mfgDate=visibleDates[0];
+  if(!result.expiryDate&&visibleDates[1])result.expiryDate=visibleDates[1];
+  if(!result.expiryDate&&visibleDates[0]&&/skt|exp|expiry|son kullanma/i.test(original))result.expiryDate=visibleDates[0];
 
   if(!result.gtin){
     const gtin=readLabeledValue(original,["GTIN","UDI-DI","DI"]);
@@ -2446,6 +2576,7 @@ function BarcodeCameraModal({onDetected,onClose}){
   const videoRef=useRef(null);
   const detectorRef=useRef(null);
   const streamRef=useRef(null);
+  const zxingControlsRef=useRef(null);
   const stopRef=useRef(false);
   const [status,setStatus]=useState("Kamera hazırlanıyor...");
   const [manual,setManual]=useState("");
@@ -2455,6 +2586,7 @@ function BarcodeCameraModal({onDetected,onClose}){
     const stop=()=>{
       stopRef.current=true;
       if(raf)cancelAnimationFrame(raf);
+      zxingControlsRef.current?.stop?.();
       streamRef.current?.getTracks?.().forEach(t=>t.stop());
     };
     const start=async()=>{
@@ -2463,38 +2595,53 @@ function BarcodeCameraModal({onDetected,onClose}){
           setStatus("Bu tarayıcı kamera erişimini desteklemiyor.");
           return;
         }
-        if(!("BarcodeDetector" in window)){
-          setStatus("Bu tarayıcıda yerleşik barkod okuyucu yok. Manuel alanı veya USB okuyucuyu kullanın.");
-          return;
-        }
-        detectorRef.current=new BarcodeDetector({formats:["qr_code","data_matrix","code_128","code_39","ean_13","ean_8","upc_a","upc_e"]});
-        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
-        streamRef.current=stream;
-        if(videoRef.current){
-          videoRef.current.srcObject=stream;
-          await videoRef.current.play();
-        }
-        setStatus("Barkodu kameraya yaklaştırın.");
-        const tick=async()=>{
-          if(stopRef.current)return;
-          try{
-            if(videoRef.current?.readyState>=2){
-              const codes=await detectorRef.current.detect(videoRef.current);
-              if(codes.length){
-                const value=codes[0].rawValue||codes[0].rawData||"";
-                if(value){
-                  toast("Barkod okundu","success");
-                  stop();
-                  onDetected(String(value));
-                  onClose();
-                  return;
+        if("BarcodeDetector" in window){
+          detectorRef.current=new BarcodeDetector({formats:["qr_code","data_matrix","code_128","code_39","ean_13","ean_8","upc_a","upc_e"]});
+          const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+          streamRef.current=stream;
+          if(videoRef.current){
+            videoRef.current.srcObject=stream;
+            await videoRef.current.play();
+          }
+          setStatus("Barkodu kameraya yaklaştırın.");
+          const tick=async()=>{
+            if(stopRef.current)return;
+            try{
+              if(videoRef.current?.readyState>=2){
+                const codes=await detectorRef.current.detect(videoRef.current);
+                if(codes.length){
+                  const value=codes[0].rawValue||codes[0].rawData||"";
+                  if(value){
+                    toast("Barkod okundu","success");
+                    stop();
+                    onDetected(String(value));
+                    onClose();
+                    return;
+                  }
                 }
               }
-            }
-          }catch(e){}
+            }catch(e){}
+            raf=requestAnimationFrame(tick);
+          };
           raf=requestAnimationFrame(tick);
-        };
-        raf=requestAnimationFrame(tick);
+          return;
+        }
+        if(window.ZXingBrowser?.BrowserMultiFormatReader){
+          setStatus("Yerleşik okuyucu yok; yedek kamera okuyucu açılıyor.");
+          const reader=new window.ZXingBrowser.BrowserMultiFormatReader();
+          zxingControlsRef.current=await reader.decodeFromVideoDevice(undefined,videoRef.current,(result)=>{
+            const value=result?.getText?.()||result?.text||"";
+            if(value&&!stopRef.current){
+              toast("Barkod okundu","success");
+              stop();
+              onDetected(String(value));
+              onClose();
+            }
+          });
+          setStatus("Yedek okuyucu aktif. Barkodu kameraya yaklaştırın.");
+          return;
+        }
+        setStatus("Bu tarayıcı kamera barkod okumayı desteklemiyor. Manuel alan veya USB okuyucu ile devam edin.");
       }catch(e){
         setStatus("Kamera açılamadı. Telefon tarayıcısında kamera izni verin veya dosyayı HTTPS/localhost üzerinden açın.");
       }
@@ -2534,6 +2681,7 @@ function BarcodeScannerModal({onResult,onClose,urunler,hospitals}){
   const [movType,setMovType]=useState("in");
   const [cameraModal,setCameraModal]=useState(false);
   const inputRef=useRef(null);
+  const visibleHospitals=useMemo(()=>selectableHospitals(hospitals),[hospitals]);
 
   useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),100);},[]);
 
@@ -2624,10 +2772,11 @@ function BarcodeScannerModal({onResult,onClose,urunler,hospitals}){
             <div className="grid grid-cols-2 gap-2">
               {[
                 {l:"REF / GTIN",v:parsed.ref||parsed.gtin||"—"},
+                {l:"Ürün",v:parsed.productName||"—"},
                 {l:"UDI / Barkod",v:parsed.udi||"—"},
                 {l:"Lot Numarası",v:parsed.lot||"—"},
                 {l:"Seri No",v:parsed.serial||"—"},
-                {l:"Son Kullanma",v:parsed.expiryDate?`${parsed.expiryDate}${daysLeft!==null?` (${daysLeft>0?daysLeft+" gün kaldı":"GEÇMIŞ"})`:""}` :"—"},
+                  {l:"Son Kullanma",v:parsed.expiryDate?`${parsed.expiryDate}${daysLeft!==null?` (${daysLeft>0?daysLeft+" gün kaldı":"GEÇMİŞ"})`:""}` :"—"},
                 {l:"Üretim Tarihi",v:parsed.mfgDate||"—"},
                 {l:"Miktar",v:String(parsed.qty||1)},
               ].map(r=>(
@@ -2666,8 +2815,8 @@ function BarcodeScannerModal({onResult,onClose,urunler,hospitals}){
           <div>
             <Label>{movType==="in"?"Raf / Depo":"Hastane"}</Label>
             <Select value={selHospital} onChange={e=>setSelHospital(e.target.value)}>
-              <option value="">{movType==="in"?"Otomatik: Şirket Rafı":"Seçin"}</option>
-              {hospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+              <option value="">{movType==="in"?"Otomatik: Ana Depo":"Seçin"}</option>
+              {visibleHospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
             </Select>
           </div>
         </div>
@@ -2718,6 +2867,7 @@ const getMovTag=(notes)=>{
 
 function StokView({urunler,stoklar,hospitals,loadAll}){
   const toast=useToast();
+  const visibleHospitals=useMemo(()=>selectableHospitals(hospitals),[hospitals]);
   const [hareketler,setHareketler]=useState([]);
   const [activeTab,setActiveTab]=useState("overview");
   const [hFilter,setHFilter]=useState("");
@@ -2744,7 +2894,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   const rows=useMemo(()=>stoklar.map(s=>({
     ...s,
     urun:urunler.find(u=>u.id===s.urun_id)||{name:"?",unit:"",min_stock:0,code:""},
-    hospital:hospitals.find(h=>h.id===s.hospital_id)||{name:"?"},
+    hospital:{...(hospitals.find(h=>h.id===s.hospital_id)||{}),name:displayLocationName(hospitals.find(h=>h.id===s.hospital_id)||{name:"?"})||"?"},
   })),[stoklar,urunler,hospitals]);
 
   const productSummary=useMemo(()=>{
@@ -3013,7 +3163,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                       <Label>Kaynak (Raf/Depo)</Label>
                       <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                         <option value="">Ana Stoktan</option>
-                        {hospitals.map(h=>{
+                        {visibleHospitals.map(h=>{
                           const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
                           return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
                         })}
@@ -3024,7 +3174,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                       <Label required>Hedef Hastane</Label>
                       <Select value={op.to_id} onChange={e=>setOp(p=>({...p,to_id:e.target.value}))}>
                         <option value="">Seçin</option>
-                        {hospitals.filter(h=>h.id!==op.from_id).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+                        {visibleHospitals.filter(h=>h.id!==op.from_id).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
                       </Select>
                     </div>
                   </div>
@@ -3042,7 +3192,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <Label required>Kaynak Hastane</Label>
                     <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                       <option value="">Seçin</option>
-                      {hospitals.map(h=>{
+                      {visibleHospitals.map(h=>{
                         const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
                         return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
                       })}
@@ -3052,8 +3202,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                   <div>
                     <Label required>Hedef (Depo/Raf)</Label>
                     <Select value={op.to_id} onChange={e=>setOp(p=>({...p,to_id:e.target.value}))}>
-                      <option value="">Otomatik: Şirket Rafı / Ana Depo</option>
-                      {hospitals.filter(h=>h.id!==op.from_id).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+                      <option value="">Otomatik: Ana Depo</option>
+                      {visibleHospitals.filter(h=>h.id!==op.from_id).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
                     </Select>
                   </div>
                 </div>
@@ -3066,7 +3216,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <Label required>Hangi Hastaneden</Label>
                     <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                       <option value="">Seçin</option>
-                      {hospitals.map(h=>{
+                      {visibleHospitals.map(h=>{
                         const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
                         return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
                       })}
@@ -3103,7 +3253,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <Label required>Kayıp Lokasyonu</Label>
                     <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                       <option value="">Seçin</option>
-                      {hospitals.map(h=>{
+                      {visibleHospitals.map(h=>{
                         const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
                         return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
                       })}
@@ -3366,7 +3516,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
             <div className="py-12 text-center text-slate-500 text-sm">Hareket bulunamadı</div>
           ):filteredHistory.map(h=>{
             const urun=urunler.find(u=>u.id===h.urun_id);
-            const hosp=hospitals.find(x=>x.id===h.hospital_id);
+      const hosp=hospitals.find(x=>x.id===h.hospital_id);
             const tag=getMovTag(h.notes);
             const meta=tag?MOV_META[tag]:null;
             const isIn=h.type==="in";
@@ -3383,7 +3533,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <span className="text-sm font-semibold text-white truncate">{urun?.name||"?"}</span>
                     {meta&&<span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{background:meta.bg,color:meta.color}}>{meta.label}</span>}
                   </div>
-                  <div className="text-xs text-slate-500 truncate">{hosp?.name||"?"}{cleanNote?` · ${cleanNote}`:""}</div>
+                  <div className="text-xs text-slate-500 truncate">{displayLocationName(hosp)||"?"}{cleanNote?` · ${cleanNote}`:""}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className="text-sm font-bold" style={meta?{color:meta.color}:{color:isIn?"#10b981":"#f43f5e"}}>
@@ -3404,6 +3554,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
 // ─── MOVEMENTS VIEW ────────────────────────────────────────────────────────────
 function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const toast=useToast();
+  const visibleHospitals=useMemo(()=>selectableHospitals(hospitals),[hospitals]);
   const [modal,setModal]=useState(false);
   const [barcodeModal,setBarcodeModal]=useState(false);
   const [hareketler,setHareketler]=useState([]);
@@ -3424,7 +3575,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     const hosp=hospitals.find(x=>x.id===h.hospital_id);
     if(fType&&h.type!==fType)return false;
     if(fHospital&&h.hospital_id!==fHospital)return false;
-    if(search){const q=search.toLowerCase();return urun?.name?.toLowerCase().includes(q)||hosp?.name?.toLowerCase().includes(q)||h.notes?.toLowerCase().includes(q);}
+    if(search){const q=search.toLowerCase();return urun?.name?.toLowerCase().includes(q)||displayLocationName(hosp).toLowerCase().includes(q)||h.notes?.toLowerCase().includes(q);}
     return true;
   });
 
@@ -3478,7 +3629,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
             <div><Label required>Hastane</Label>
               <Select value={f.hospital_id} onChange={e=>setF(p=>({...p,hospital_id:e.target.value}))}>
                 <option value="">Hastane seçin</option>
-                {hospitals.map(h=>{const s=stoklar.find(x=>x.urun_id===f.urun_id&&x.hospital_id===h.id);return<option key={h.id} value={h.id}>{h.name}{f.urun_id&&s?` (${s.quantity})`:""}</option>;})}
+                {visibleHospitals.map(h=>{const s=stoklar.find(x=>x.urun_id===f.urun_id&&x.hospital_id===h.id);return<option key={h.id} value={h.id}>{h.name}{f.urun_id&&s?` (${s.quantity})`:""}</option>;})}
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -3501,15 +3652,15 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="card rounded-2xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Toplam Giris</p>
+          <p className="text-xs text-slate-500 mb-1">Toplam Giriş</p>
           <p className="text-2xl font-black text-emerald2">{totalIn}</p>
         </div>
         <div className="card rounded-2xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Toplam Cikis</p>
+          <p className="text-xs text-slate-500 mb-1">Toplam Çıkış</p>
           <p className="text-2xl font-black text-rose2">{totalOut}</p>
         </div>
         <div className="card rounded-2xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Kayit</p>
+          <p className="text-xs text-slate-500 mb-1">Kayıt</p>
           <p className="text-2xl font-black text-white">{filtered.length}</p>
         </div>
       </div>
@@ -3517,24 +3668,24 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       <div className="card rounded-2xl p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
-            <Input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Urun, hastane veya not ara..."/>
+            <Input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ürün, hastane veya not ara..."/>
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 text-xs">?</span>
           </div>
           <Select value={fType} onChange={e=>setFType(e.target.value)}>
-            <option value="">Tum hareketler</option>
-            <option value="in">Stok Girisi</option>
-            <option value="out">Stok Cikisi</option>
+            <option value="">Tüm hareketler</option>
+            <option value="in">Stok Girişi</option>
+            <option value="out">Stok Çıkışı</option>
           </Select>
           <Select value={fHospital} onChange={e=>setFHospital(e.target.value)}>
-            <option value="">Tum hastaneler</option>
-            {hospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+            <option value="">Tüm hastaneler</option>
+            {visibleHospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
           </Select>
         </div>
       </div>
 
       <div className="card rounded-2xl overflow-hidden">
         {filtered.length===0?(
-          <div className="py-12 text-center text-slate-500 text-sm">Hareket bulunamadi</div>
+          <div className="py-12 text-center text-slate-500 text-sm">Hareket bulunamadı</div>
         ):filtered.map(h=>{
           const urun=urunler.find(u=>u.id===h.urun_id);
           const hosp=hospitals.find(x=>x.id===h.hospital_id);
@@ -3551,13 +3702,13 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <span className="text-sm font-semibold text-white truncate">{urun?.name||"Urun bulunamadi"}</span>
+                  <span className="text-sm font-semibold text-white truncate">{urun?.name||"Ürün bulunamadı"}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${meta?"":isIn?"bg-emerald2/15 text-emerald2":"bg-rose2/15 text-rose2"}`}
                     style={meta?{background:meta.bg,color:meta.color}:null}>
-                    {meta?meta.label:(isIn?"Giris":"Cikis")}
+                    {meta?meta.label:(isIn?"Giriş":"Çıkış")}
                   </span>
                 </div>
-                <div className="text-xs text-slate-500 truncate">{hosp?.name||"Hastane bulunamadi"}{cleanNote?` - ${cleanNote}`:""}</div>
+                <div className="text-xs text-slate-500 truncate">{displayLocationName(hosp)||"Hastane bulunamadı"}{cleanNote?` - ${cleanNote}`:""}</div>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className={`text-sm font-bold ${meta?"":isIn?"text-emerald2":"text-rose2"}`} style={meta?{color:meta.color}:null}>
@@ -3838,12 +3989,13 @@ function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const[surg,typ,hosp,doc,pers,notf,urn,stk,prof]=await Promise.all([
+      const[surg,typ,hosp,doc,pers,users,notf,urn,stk,prof]=await Promise.all([
         SB.from("surgeries").select("*").order("date",{ascending:false}).order("time"),
         SB.from("surgery_types").select("*").order("name"),
         SB.from("hospitals").select("*").order("name"),
         SB.from("doctors").select("*").order("name"),
         SB.from("personel").select("*").order("name"),
+        SB.from("profiles").select("*").order("name"),
         SB.from("notifications").select("*").order("created_at",{ascending:false}).limit(50),
         SB.from("urunler").select("*").order("ad"),
         SB.from("stok").select("*"),
@@ -3856,7 +4008,7 @@ function App(){
       const normalizedHospitals=findCompanyShelf(dbHospitals)?dbHospitals:[shelf,...dbHospitals];
       setHospitals(normalizedHospitals);
       setDoctors(doc.data||[]);
-      setPersonel(pers.data||[]);
+      setPersonel(buildProgramPersonnel(users.data||[],pers.data||[]));
       setNotifs(notf.data||[]);
       setUrunler((urn.data||[]).map(normalizeProduct));
       setStoklar((stk.data||[]).map(s=>normalizeStock(s,shelf.id)));
