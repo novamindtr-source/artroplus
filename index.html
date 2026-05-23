@@ -1061,15 +1061,54 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
   );
 }
 
-// ─── PROGRAM VIEW (Calendar) ──────────────────────────────────────────────────
-function ProgramView({surgeries,types,doctors,personel,onSavePersonnel,onAddPersonel,onRemovePersonel,onRefresh,hospitals}){
+// ─── PROGRAM VIEW ────────────────────────────────────────────────────────────
+// Saat dilimleri: 07:00 → 20:00
+const HOURS=Array.from({length:14},(_,i)=>`${String(i+7).padStart(2,"0")}:00`);
+const ROOMS=["Ameliyathane 1","Ameliyathane 2","Ameliyathane 3","Ameliyathane 4"];
+
+// Ameliyat zaman dilimini bul
+const getSurgerySlot=(time)=>{
+  if(!time||time==="??:??")return null;
+  const h=parseInt(time.split(":")[0]);
+  if(h<7||h>20)return null;
+  return h-7; // 0..13 index
+};
+
+function ProgramView({surgeries,types,doctors,hospitals,onRefresh,profile,onAddSurgery}){
   const toast=useToast();
+  const [tab,setTab]=useState("today");        // today | calendar | mine | list
+  const [selDate,setSelDate]=useState(todayStr);
   const [year,setYear]=useState(today.getFullYear());
   const [month,setMonth]=useState(today.getMonth());
-  const [view,setView]=useState("month");
-  const [selDay,setSelDay]=useState(null);
   const [sending,setSending]=useState(false);
 
+  // Ameliyat ekle modalı (program sekmesinden)
+  const [addModal,setAddModal]=useState(null); // {date, time, hospital}
+  const [addForm,setAddForm]=useState({type:"",hospital:"",doctor:"",time:"09:00",status:"planned",notes:"",adet:1});
+  const [addingInline,setAddingInline]=useState(null); // {field}
+
+  const docColorMap=useMemo(()=>{
+    const uniq=[...new Set(surgeries.map(s=>s.doctor))];
+    const m={};uniq.forEach((d,i)=>{m[d]=DOC_COLORS[i%DOC_COLORS.length];});
+    return m;
+  },[surgeries]);
+
+  // Seçili günün ameliyatları
+  const dayS=useMemo(()=>
+    surgeries.filter(s=>s.date===selDate).sort((a,b)=>a.time.localeCompare(b.time))
+  ,[surgeries,selDate]);
+
+  // Benim ameliyatlarım
+  const mineS=useMemo(()=>
+    surgeries.filter(s=>s.created_by===profile?.id)
+      .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time))
+  ,[surgeries,profile]);
+
+  const mineUpcoming=mineS.filter(s=>s.date>=todayStr&&s.status==="planned");
+  const minePast=mineS.filter(s=>s.date<todayStr);
+  const mineThisMonth=mineS.filter(s=>s.date.startsWith(fmtDate(today).slice(0,7)));
+
+  // Aylık takvim
   const firstDay=new Date(year,month,1);
   const daysInMonth=new Date(year,month+1,0).getDate();
   const startDow=(firstDay.getDay()+6)%7;
@@ -1080,29 +1119,40 @@ function ProgramView({surgeries,types,doctors,personel,onSavePersonnel,onAddPers
     return surgeries.filter(s=>s.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
   };
 
-  const docColorMap=useMemo(()=>{
-    const uniq=[...new Set(surgeries.map(s=>s.doctor))];
-    const m={};uniq.forEach((d,i)=>{m[d]=DOC_COLORS[i%DOC_COLORS.length];});
-    return m;
-  },[surgeries]);
-
   const listSurgeries=useMemo(()=>{
     const ms=`${year}-${String(month+1).padStart(2,"0")}`;
-    return surgeries.filter(s=>s.date.startsWith(ms)).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+    return surgeries.filter(s=>s.date.startsWith(ms))
+      .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
   },[surgeries,year,month]);
 
-  const selSurgeries=selDay?daySurgeries(selDay):[];
+  // Telegram günlük program
+  const sendTGDay=async(date)=>{
+    setSending(true);
+    const ss=surgeries.filter(s=>s.date===date).sort((a,b)=>a.time.localeCompare(b.time));
+    if(!ss.length){toast("Bu gün ameliyat yok","warning");setSending(false);return;}
+    let msg=`📅 *${fmtTR(date)} Ameliyat Programı*\n\n`;
+    ss.forEach((s,i)=>{
+      msg+=`*${i+1}.* ${s.time!=="??:??"?`⏰ ${s.time}`:""} — *${s.type}*\n`;
+      msg+=`  🏥 ${s.hospital}\n  👨‍⚕️ ${s.doctor}\n\n`;
+    });
+    msg+=`_Toplam: ${ss.length} ameliyat_`;
+    await sendTelegram(msg);
+    toast("Telegram'a gönderildi ✓","success");
+    setSending(false);
+  };
 
-  const sendTG=async()=>{
+  // Telegram aylık
+  const sendTGMonth=async()=>{
     setSending(true);
     const ms=`${year}-${String(month+1).padStart(2,"0")}`;
-    const data=surgeries.filter(s=>s.date.startsWith(ms)).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+    const data=surgeries.filter(s=>s.date.startsWith(ms))
+      .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
     if(!data.length){toast("Bu ay ameliyat yok","warning");setSending(false);return;}
     let msg=`📅 *${MONTHS[month]} ${year} Ameliyat Programı*\n\n`;
     let lastDate="";
     data.forEach(s=>{
       if(s.date!==lastDate){msg+=`\n📌 *${fmtTR(s.date)}*\n`;lastDate=s.date;}
-      msg+=`  ⏰ ${s.time} — ${s.type}\n  🏥 ${s.hospital} — ${s.doctor}\n`;
+      msg+=`  ⏰ ${s.time} — ${s.type} — ${s.doctor}\n`;
     });
     msg+=`\n_Toplam: ${data.length} ameliyat_`;
     await sendTelegram(msg);
@@ -1110,158 +1160,601 @@ function ProgramView({surgeries,types,doctors,personel,onSavePersonnel,onAddPers
     setSending(false);
   };
 
+  // Hızlı ameliyat ekle
+  const quickAdd=async()=>{
+    if(!addForm.type||!addForm.hospital||!addForm.doctor){
+      toast("Tür, hastane ve doktor zorunlu","warning");return;
+    }
+    const{error}=await SB.from("surgeries").insert({
+      ...addForm,date:addModal.date,time:addModal.time||addForm.time,
+      adet:Number(addForm.adet)||1,created_by:profile?.id,
+    });
+    if(error)return toast(error.message,"error");
+    toast("Ameliyat programa eklendi ✓","success");
+    setAddModal(null);setAddForm({type:"",hospital:"",doctor:"",time:"09:00",status:"planned",notes:"",adet:1});
+    onRefresh();
+  };
+
+  const tabs=[
+    {id:"today",label:"Günün Programı",icon:"⏰"},
+    {id:"calendar",label:"Takvim",icon:"📅"},
+    {id:"mine",label:"Benim Ameliyatlarım",icon:"👤"},
+    {id:"list",label:"Ay Listesi",icon:"≡"},
+  ];
+
   return(
     <div className="space-y-4">
+
+      {/* Hızlı Ameliyat Ekle Modal */}
+      {addModal&&(
+        <Modal title={`➕ ${fmtTR(addModal.date)} — ${addModal.time||"?"} Ameliyat Ekle`}
+          onClose={()=>setAddModal(null)} size="md"
+          footer={<div className="flex gap-2">
+            <button onClick={()=>setAddModal(null)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
+            <button onClick={quickAdd} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Programa Ekle</button>
+          </div>}>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label required>Saat</Label>
+                <Input type="time" value={addForm.time} onChange={e=>setAddForm(p=>({...p,time:e.target.value}))}/>
+              </div>
+              <div>
+                <Label>Durum</Label>
+                <Select value={addForm.status} onChange={e=>setAddForm(p=>({...p,status:e.target.value}))}>
+                  <option value="planned">Planlandı</option>
+                  <option value="done">Tamamlandı</option>
+                  <option value="cancelled">İptal</option>
+                  <option value="postponed">Ertelendi</option>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label required>Ameliyat Türü</Label>
+              {addingInline==="type"?(
+                <InlineAdd onSave={async n=>{await SB.from("surgery_types").insert({name:n});setAddForm(p=>({...p,type:n}));setAddingInline(null);onRefresh();}} onCancel={()=>setAddingInline(null)} placeholder="Tür ekle"/>
+              ):(
+                <div className="flex gap-2">
+                  <div className="flex-1"><SearchableSelect items={types.map(t=>({name:t.name}))} value={addForm.type} onChange={v=>setAddForm(p=>({...p,type:v}))} placeholder="Tür seçin"/></div>
+                  <button type="button" onClick={()=>setAddingInline("type")} className="px-3 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold transition-colors">+</button>
+                </div>
+              )}
+            </div>
+            <div>
+              <Label required>Hastane</Label>
+              {addingInline==="hospital"?(
+                <InlineAdd onSave={async n=>{await SB.from("hospitals").insert({name:n});setAddForm(p=>({...p,hospital:n}));setAddingInline(null);onRefresh();}} onCancel={()=>setAddingInline(null)} placeholder="Hastane ekle"/>
+              ):(
+                <div className="flex gap-2">
+                  <div className="flex-1"><SearchableSelect items={hospitals.map(h=>({name:h.name}))} value={addForm.hospital} onChange={v=>setAddForm(p=>({...p,hospital:v}))} placeholder="Hastane seçin"/></div>
+                  <button type="button" onClick={()=>setAddingInline("hospital")} className="px-3 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold transition-colors">+</button>
+                </div>
+              )}
+            </div>
+            <div>
+              <Label required>Doktor</Label>
+              {addingInline==="doctor"?(
+                <InlineAdd onSave={async n=>{await SB.from("doctors").insert({name:autoDoc(n)});setAddForm(p=>({...p,doctor:autoDoc(n)}));setAddingInline(null);onRefresh();}} onCancel={()=>setAddingInline(null)} placeholder="Doktor ekle" isDoc/>
+              ):(
+                <div className="flex gap-2">
+                  <div className="flex-1"><SearchableSelect items={doctors.map(d=>({name:d.name}))} value={addForm.doctor} onChange={v=>setAddForm(p=>({...p,doctor:v}))} placeholder="Doktor seçin"/></div>
+                  <button type="button" onClick={()=>setAddingInline("doctor")} className="px-3 py-2.5 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold transition-colors">+</button>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Adet</Label><Input type="number" min="1" value={addForm.adet} onChange={e=>setAddForm(p=>({...p,adet:e.target.value}))}/></div>
+              <div><Label>Not</Label><Input value={addForm.notes} onChange={e=>setAddForm(p=>({...p,notes:e.target.value}))} placeholder="Opsiyonel"/></div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Başlık */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <h1 className="text-xl font-bold text-white">Ameliyat Programı</h1>
         <div className="sm:ml-auto flex flex-wrap gap-2">
-          <button onClick={sendTG} disabled={sending} className="px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 text-sm font-semibold border border-sky-500/30 flex items-center gap-1.5 disabled:opacity-60 transition-colors">
-            {sending?"⋯":"✈"} Telegram
-          </button>
-          <div className="flex gap-1 p-1 bg-navy-800 rounded-xl border border-white/8">
-            {["month","list"].map(v=>(
-              <button key={v} onClick={()=>setView(v)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${view===v?"bg-brand text-white":"text-slate-400 hover:text-white"}`}>
-                {v==="month"?"Takvim":"Liste"}
+          {tab==="today"&&(
+            <>
+              <button onClick={()=>setAddModal({date:selDate,time:"09:00"})}
+                className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">
+                + Programa Ekle
               </button>
-            ))}
-          </div>
+              <button onClick={()=>sendTGDay(selDate)} disabled={sending}
+                className="px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 text-sm font-semibold border border-sky-500/30 flex items-center gap-1.5 disabled:opacity-60 transition-colors">
+                {sending?"⋯":"✈"} Telegram
+              </button>
+            </>
+          )}
+          {(tab==="calendar"||tab==="list")&&(
+            <button onClick={sendTGMonth} disabled={sending}
+              className="px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 text-sm font-semibold border border-sky-500/30 flex items-center gap-1.5 disabled:opacity-60 transition-colors">
+              {sending?"⋯":"✈"} Ay Programı Gönder
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Month nav */}
-      <div className="card rounded-2xl px-5 py-4 flex items-center gap-4">
-        <button onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}
-          className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">‹</button>
-        <span className="flex-1 text-center font-bold text-white">{MONTHS[month]} {year}</span>
-        <button onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}
-          className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">›</button>
+      {/* Sekmeler */}
+      <div className="flex border-b border-white/8 overflow-x-auto">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            className={`px-4 py-3 text-sm font-semibold flex items-center gap-1.5 border-b-2 transition-all -mb-px whitespace-nowrap ${tab===t.id?"border-brand text-brand-300":"border-transparent text-slate-500 hover:text-slate-300"}`}>
+            <span>{t.icon}</span><span>{t.label}</span>
+            {t.id==="mine"&&mineUpcoming.length>0&&<span className="w-5 h-5 rounded-full bg-brand text-white text-xs font-black flex items-center justify-center">{mineUpcoming.length}</span>}
+          </button>
+        ))}
       </div>
 
-      {view==="month"&&(
-        <div className="card rounded-2xl overflow-hidden">
-          {/* Day headers */}
-          <div className="grid grid-cols-7 border-b border-white/8">
-            {DAYS.map(d=>(
-              <div key={d} className="py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">{d}</div>
+      {/* ───── GÜNÜN PROGRAMI ──────────────────────────────── */}
+      {tab==="today"&&(
+        <div className="space-y-4">
+          {/* Tarih seçici */}
+          <div className="card rounded-2xl p-3 flex items-center gap-3">
+            <button onClick={()=>{const d=new Date(selDate);d.setDate(d.getDate()-1);setSelDate(fmtDate(d));}}
+              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors flex-shrink-0">‹</button>
+            <div className="flex-1 text-center">
+              <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)}
+                className="bg-transparent text-white font-bold text-base text-center border-none outline-none cursor-pointer"/>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {selDate===todayStr?"Bugün":selDate===fmtDate(new Date(today.getTime()+86400000))?"Yarın":
+                  DAYS[(new Date(selDate).getDay()+6)%7]}
+              </p>
+            </div>
+            <button onClick={()=>{const d=new Date(selDate);d.setDate(d.getDate()+1);setSelDate(fmtDate(d));}}
+              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors flex-shrink-0">›</button>
+            <button onClick={()=>setSelDate(todayStr)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${selDate===todayStr?"bg-brand text-white":"bg-navy-800 text-slate-400 hover:text-white border border-white/8"}`}>
+              Bugün
+            </button>
+          </div>
+
+          {/* İstatistik şerit */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              {l:"Toplam",v:dayS.length,c:"#3b82f6"},
+              {l:"Planlandı",v:dayS.filter(s=>s.status==="planned").length,c:"#f59e0b"},
+              {l:"Tamamlandı",v:dayS.filter(s=>s.status==="done").length,c:"#10b981"},
+              {l:"İptal",v:dayS.filter(s=>s.status==="cancelled"||s.status==="postponed").length,c:"#f43f5e"},
+            ].map(s=>(
+              <div key={s.l} className="stat-card rounded-xl p-3 text-center">
+                <div className="text-xl font-black" style={{color:s.c}}>{s.v}</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">{s.l}</div>
+              </div>
             ))}
           </div>
-          {/* Weeks */}
-          {Array.from({length:weeks},(_,wi)=>(
-            <div key={wi} className="grid grid-cols-7 border-b border-white/5 last:border-b-0">
-              {Array.from({length:7},(_,di)=>{
-                const dayNum=wi*7+di-startDow+1;
-                if(dayNum<1||dayNum>daysInMonth)return<div key={di} className="min-h-[70px] bg-navy-900/30 border-r border-white/5 last:border-r-0"/>;
-                const ss=daySurgeries(dayNum);
-                const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}`;
-                const isToday=ds===todayStr;
-                const isSel=selDay===dayNum;
+
+          {/* Zaman çizelgesi */}
+          <div className="card rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between">
+              <span className="text-sm font-bold text-white">{fmtTR(selDate)} — Zaman Çizelgesi</span>
+              <span className="text-xs text-slate-500">{dayS.length} ameliyat</span>
+            </div>
+
+            {dayS.length===0&&(
+              <div className="px-5 py-10 text-center">
+                <div className="text-3xl opacity-20 mb-3">📋</div>
+                <p className="text-slate-500 text-sm mb-4">Bu gün için program yok</p>
+                <button onClick={()=>setAddModal({date:selDate,time:"08:00"})}
+                  className="px-5 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">
+                  + İlk Ameliyatı Ekle
+                </button>
+              </div>
+            )}
+
+            {/* Saatlik slotlar */}
+            <div className="divide-y divide-white/5">
+              {HOURS.map((hour,hi)=>{
+                const slotS=dayS.filter(s=>{
+                  if(s.time==="??:??")return hi===0;
+                  const h=parseInt(s.time.split(":")[0]);
+                  return h===hi+7;
+                });
+                const hasOp=slotS.length>0;
                 return(
-                  <div key={di} onClick={()=>setSelDay(selDay===dayNum?null:dayNum)}
-                    className={`min-h-[70px] p-1.5 border-r border-white/5 last:border-r-0 calendar-day cursor-pointer ${isToday?"calendar-day today":""} ${isSel?"bg-brand/20 border-brand/40":"hover:bg-white/5"}`}>
-                    <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mb-1 ${isToday?"bg-brand text-white":"text-slate-400"}`}>{dayNum}</div>
-                    {ss.slice(0,3).map(s=>(
-                      <div key={s.id} className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate leading-tight"
-                        style={{background:docColorMap[s.doctor]+"25",color:docColorMap[s.doctor],borderLeft:`2px solid ${docColorMap[s.doctor]}`}}>
-                        {s.time!=="??:??"?s.time.slice(0,5):""} {s.type}
+                  <div key={hour} className={`flex gap-0 ${hasOp?"":"opacity-60 hover:opacity-100"} transition-opacity group`}>
+                    {/* Saat etiketi */}
+                    <div className="w-16 flex-shrink-0 flex items-start justify-end pr-3 pt-3">
+                      <span className="text-xs font-mono text-slate-500 font-semibold">{hour}</span>
+                    </div>
+                    {/* İçerik */}
+                    <div className="flex-1 min-h-[52px] relative border-l border-white/8 pl-4 py-2 pr-3">
+                      {/* Boş slot ekle butonu */}
+                      {!hasOp&&(
+                        <button onClick={()=>setAddModal({date:selDate,time:hour})}
+                          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-300 transition-colors">
+                            <span className="w-5 h-5 rounded-full border border-dashed border-slate-600 hover:border-brand-300 flex items-center justify-center text-[10px]">+</span>
+                            Ameliyat Ekle
+                          </span>
+                        </button>
+                      )}
+                      {/* Ameliyatlar */}
+                      <div className="space-y-2">
+                        {slotS.map(s=>{
+                          const dc=docColorMap[s.doctor]||"#3b82f6";
+                          return(
+                            <div key={s.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-all hover:border-opacity-60"
+                              style={{background:dc+"12",borderColor:dc+"30"}}>
+                              <div className="w-1 h-10 rounded-full flex-shrink-0" style={{background:dc}}></div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-bold text-white truncate">{s.type}</div>
+                                <div className="text-xs text-slate-400 truncate">{s.time!=="??:??"?s.time+" · ":""}{s.hospital}</div>
+                                <div className="text-xs font-medium truncate" style={{color:dc}}>{s.doctor}</div>
+                              </div>
+                              <div className="flex-shrink-0 flex items-center gap-2">
+                                <Badge status={s.status}/>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                    {ss.length>3&&<div className="text-[9px] text-slate-500 pl-1">+{ss.length-3} daha</div>}
+                    </div>
                   </div>
                 );
               })}
             </div>
-          ))}
+
+            {/* Saati bilinmeyen ameliyatlar */}
+            {dayS.filter(s=>s.time==="??:??").length>0&&(
+              <div className="px-5 py-3 border-t border-white/8 bg-navy-900/40">
+                <p className="text-xs text-slate-500 mb-2 font-semibold">Saati Belirsiz</p>
+                <div className="space-y-2">
+                  {dayS.filter(s=>s.time==="??:??").map(s=>(
+                    <div key={s.id} className="flex items-center gap-3 bg-navy-800 rounded-xl p-3 border border-white/8">
+                      <span className="text-xs text-slate-500 font-mono w-10">??:??</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-white truncate">{s.type}</div>
+                        <div className="text-xs text-slate-500">{s.hospital} · {s.doctor}</div>
+                      </div>
+                      <Badge status={s.status}/>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Doktor renk anahtarı */}
+          {dayS.length>0&&(
+            <div className="card rounded-2xl p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Doktorlar</p>
+              <div className="flex flex-wrap gap-2">
+                {[...new Set(dayS.map(s=>s.doctor))].map(d=>(
+                  <div key={d} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-navy-800 border border-white/8">
+                    <div className="w-2 h-2 rounded-full" style={{background:docColorMap[d]||"#3b82f6"}}></div>
+                    <span className="text-xs text-slate-300">{d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Selected day detail */}
-      {selDay&&selSurgeries.length>0&&view==="month"&&(
-        <div className="card rounded-2xl p-5 fade-up">
-          <h3 className="font-bold text-sm text-white mb-4">{selDay} {MONTHS[month]} — {selSurgeries.length} Ameliyat</h3>
-          <div className="space-y-3">
-            {selSurgeries.map(s=>(
-              <div key={s.id} className="flex items-center gap-3 p-3 bg-navy-800 rounded-xl border border-white/5">
-                <div className="w-1 h-10 rounded-full flex-shrink-0" style={{background:docColorMap[s.doctor]}}></div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white">{s.type}</div>
-                  <div className="text-xs text-slate-500">{s.time} · {s.hospital} · {s.doctor}</div>
-                </div>
-                <Badge status={s.status}/>
+      {/* ───── TAKVİM ─────────────────────────────────────── */}
+      {tab==="calendar"&&(
+        <div className="space-y-4">
+          <div className="card rounded-2xl px-5 py-4 flex items-center gap-4">
+            <button onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}
+              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">‹</button>
+            <span className="flex-1 text-center font-bold text-white">{MONTHS[month]} {year}</span>
+            <button onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}
+              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">›</button>
+          </div>
+
+          <div className="card rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-7 border-b border-white/8">
+              {DAYS.map(d=><div key={d} className="py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">{d}</div>)}
+            </div>
+            {Array.from({length:weeks},(_,wi)=>(
+              <div key={wi} className="grid grid-cols-7 border-b border-white/5 last:border-b-0">
+                {Array.from({length:7},(_,di)=>{
+                  const dayNum=wi*7+di-startDow+1;
+                  if(dayNum<1||dayNum>daysInMonth)return<div key={di} className="min-h-[72px] bg-navy-900/30 border-r border-white/5 last:border-r-0"/>;
+                  const ss=daySurgeries(dayNum);
+                  const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}`;
+                  const isToday=ds===todayStr;
+                  return(
+                    <div key={di} onClick={()=>{setSelDate(ds);setTab("today");}}
+                      className={`min-h-[72px] p-1.5 border-r border-white/5 last:border-r-0 calendar-day cursor-pointer hover:bg-brand/8 ${isToday?"calendar-day today":""}`}>
+                      <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mb-1 ${isToday?"bg-brand text-white":"text-slate-400"}`}>{dayNum}</div>
+                      {ss.slice(0,3).map(s=>(
+                        <div key={s.id} className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate leading-tight"
+                          style={{background:(docColorMap[s.doctor]||"#3b82f6")+"22",color:docColorMap[s.doctor]||"#3b82f6",borderLeft:`2px solid ${docColorMap[s.doctor]||"#3b82f6"}`}}>
+                          {s.time!=="??:??"?s.time.slice(0,5):""} {s.type}
+                        </div>
+                      ))}
+                      {ss.length>3&&<div className="text-[9px] text-slate-500 pl-1">+{ss.length-3}</div>}
+                      {ss.length===0&&(
+                        <div className="flex items-center justify-center h-8 opacity-0 hover:opacity-100 transition-opacity">
+                          <span className="text-[9px] text-slate-600">+ Ekle</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {view==="list"&&(
-        <div className="card rounded-2xl overflow-hidden">
-          {listSurgeries.length===0?(
-            <div className="px-5 py-12 text-center text-slate-500 text-sm">Bu ayda ameliyat yok</div>
-          ):(
-            <div className="divide-y divide-white/5">
-              {listSurgeries.map(s=>(
-                <div key={s.id} className="table-row px-5 py-3 flex items-center gap-4">
-                  <div className="w-12 text-xs font-mono text-slate-500 flex-shrink-0">{s.date.slice(8)}.</div>
-                  <div className="w-1 h-10 rounded-full flex-shrink-0" style={{background:docColorMap[s.doctor]}}></div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{s.type}</div>
-                    <div className="text-xs text-slate-500">{s.time} · {s.hospital}</div>
-                    <div className="text-xs text-slate-600">{s.doctor}</div>
-                  </div>
-                  <Badge status={s.status}/>
+      {/* ───── BENİM AMELİYATLARIM ─────────────────────────── */}
+      {tab==="mine"&&(
+        <div className="space-y-4">
+          {/* Stat kartlar */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              {l:"Toplam Girdiğim",v:mineS.length,c:"#3b82f6",icon:"⚕"},
+              {l:"Bu Ay",v:mineThisMonth.length,c:"#8b5cf6",icon:"📅"},
+              {l:"Yaklaşan",v:mineUpcoming.length,c:"#f59e0b",icon:"◷"},
+              {l:"Tamamlanan",v:mineS.filter(s=>s.status==="done").length,c:"#10b981",icon:"✓"},
+            ].map(s=>(
+              <div key={s.l} className="stat-card rounded-2xl p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base" style={{background:s.c+"20",color:s.c}}>{s.icon}</div>
+                  <span className="text-2xl font-black" style={{color:s.c}}>{s.v}</span>
                 </div>
-              ))}
+                <p className="text-xs text-slate-500">{s.l}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Yaklaşan ameliyatlar */}
+          {mineUpcoming.length>0&&(
+            <div className="card rounded-2xl overflow-hidden">
+              <div className="px-5 py-3 border-b border-white/8 flex items-center gap-2">
+                <span className="text-sm font-bold text-white">Yaklaşan Ameliyatlarım</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-brand/20 text-brand-300">{mineUpcoming.length}</span>
+              </div>
+              {mineUpcoming.map(s=>{
+                const dc=docColorMap[s.doctor]||"#3b82f6";
+                const daysAway=Math.floor((new Date(s.date)-new Date(todayStr))/86400000);
+                return(
+                  <div key={s.id} className="table-row px-5 py-4 flex items-center gap-4 cursor-pointer"
+                    onClick={()=>{setSelDate(s.date);setTab("today");}}>
+                    <div className="w-14 flex-shrink-0 text-center">
+                      <div className="text-lg font-black" style={{color:daysAway===0?"#10b981":daysAway<=3?"#f59e0b":"#3b82f6"}}>
+                        {daysAway===0?"Bugün":daysAway===1?"Yarın":"+"+daysAway+"g"}
+                      </div>
+                    </div>
+                    <div className="w-1 h-12 rounded-full flex-shrink-0" style={{background:dc}}></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-white truncate">{s.type}</div>
+                      <div className="text-xs text-slate-400">{fmtTR(s.date)} · {s.time!=="??:??"?s.time:""} · {s.hospital}</div>
+                      <div className="text-xs" style={{color:dc}}>{s.doctor}</div>
+                    </div>
+                    <Badge status={s.status}/>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Tüm ameliyatlarım */}
+          <div className="card rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between">
+              <span className="text-sm font-bold text-white">Tüm Ameliyatlarım</span>
+              <span className="text-xs text-slate-500">{mineS.length} kayıt</span>
+            </div>
+            {mineS.length===0?(
+              <div className="px-5 py-12 text-center">
+                <div className="text-3xl opacity-20 mb-3">⚕</div>
+                <p className="text-slate-500 text-sm">Henüz ameliyat girmediniz</p>
+                <p className="text-xs text-slate-600 mt-1">Ameliyatlar sekmesinden ekleyebilirsiniz</p>
+              </div>
+            ):(
+              <div className="divide-y divide-white/5 max-h-96 overflow-y-auto">
+                {mineS.map(s=>{
+                  const dc=docColorMap[s.doctor]||"#3b82f6";
+                  const isPast=s.date<todayStr;
+                  return(
+                    <div key={s.id} className={`table-row px-5 py-3 flex items-center gap-3 cursor-pointer ${isPast?"opacity-60":""}`}
+                      onClick={()=>{setSelDate(s.date);setTab("today");}}>
+                      <div className="w-1 h-10 rounded-full flex-shrink-0" style={{background:dc}}></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-white truncate">{s.type}</div>
+                        <div className="text-xs text-slate-500">{fmtTR(s.date)} · {s.time!=="??:??"?s.time+" · ":""}{s.hospital}</div>
+                        <div className="text-xs" style={{color:dc}}>{s.doctor}</div>
+                      </div>
+                      <Badge status={s.status}/>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {!profile&&(
+            <div className="card rounded-2xl p-6 text-center border border-amber2/20 bg-amber2/5">
+              <p className="text-amber2 text-sm font-semibold">Kişisel ameliyatları görmek için giriş yapmalısınız</p>
             </div>
           )}
         </div>
       )}
 
-      {/* Doctor legend */}
-      <div className="card rounded-2xl p-4">
-        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Doktor Renkleri</div>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(docColorMap).map(([doc,color])=>(
-            <div key={doc} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-navy-800 border border-white/5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{background:color}}></div>
-              <span className="text-xs text-slate-300">{doc}</span>
-            </div>
-          ))}
+      {/* ───── AY LİSTESİ ─────────────────────────────────── */}
+      {tab==="list"&&(
+        <div className="space-y-4">
+          <div className="card rounded-2xl px-5 py-4 flex items-center gap-4">
+            <button onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}}
+              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">‹</button>
+            <span className="flex-1 text-center font-bold text-white">{MONTHS[month]} {year}</span>
+            <button onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}}
+              className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">›</button>
+          </div>
+
+          <div className="card rounded-2xl overflow-hidden">
+            {listSurgeries.length===0?(
+              <div className="px-5 py-12 text-center text-slate-500 text-sm">Bu ay ameliyat yok</div>
+            ):(()=>{
+              // Tarih bazında grupla
+              const groups={};
+              listSurgeries.forEach(s=>{if(!groups[s.date])groups[s.date]=[];groups[s.date].push(s);});
+              return Object.entries(groups).map(([date,ss])=>(
+                <div key={date} className="border-b border-white/8 last:border-b-0">
+                  <div className="px-5 py-2.5 bg-navy-900/50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-white">{fmtTR(date)}</span>
+                      {date===todayStr&&<span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand text-white">Bugün</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{ss.length} ameliyat</span>
+                      <button onClick={()=>{setSelDate(date);setTab("today");}}
+                        className="text-xs text-brand-300 hover:text-brand-200 transition-colors">Programa Git →</button>
+                    </div>
+                  </div>
+                  {ss.map(s=>(
+                    <div key={s.id} className="table-row px-5 py-3 flex items-center gap-3">
+                      <div className="w-1 h-8 rounded-full flex-shrink-0" style={{background:docColorMap[s.doctor]||"#3b82f6"}}></div>
+                      <div className="text-xs font-mono text-slate-500 w-12 flex-shrink-0">{s.time!=="??:??"?s.time:"??:??"}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-white truncate">{s.type}</div>
+                        <div className="text-xs text-slate-500 truncate">{s.hospital} · {s.doctor}</div>
+                      </div>
+                      <Badge status={s.status}/>
+                    </div>
+                  ))}
+                </div>
+              ));
+            })()}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
+
 // ─── PRODUCTS VIEW ────────────────────────────────────────────────────────────
-function UrunlerView({urunler,stoklar,loadAll}){
+function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   const toast=useToast();
-  const [modal,setModal]=useState(null);
+  const [modal,setModal]=useState(null);          // null | true | urun_obj
   const [delConf,setDelConf]=useState(null);
   const [search,setSearch]=useState("");
   const [catFilter,setCatFilter]=useState("");
-  const [f,setF]=useState({name:"",code:"",unit:"adet",min_stock:0,category:"",description:""});
+  const [scanInput,setScanInput]=useState("");
+  const [scanResult,setScanResult]=useState(null); // parsed GS1
+  const [scanStatus,setScanStatus]=useState("");   // "" | "new" | "exists"
+  const [matchedUrun,setMatchedUrun]=useState(null);
+  const scanRef=useRef(null);
+
+  // Form state — genişletildi: lot, expiryDate, mfgDate, initialStockQty, initialStockHospital
+  const emptyForm={name:"",code:"",unit:"adet",min_stock:0,category:"",description:"",
+    manufacturer:"",gtin:"",
+    addInitialStock:false,initialStockQty:1,initialStockHospital:"",
+    lot:"",expiryDate:"",mfgDate:""};
+  const [f,setF]=useState(emptyForm);
 
   const categories=[...new Set(urunler.map(u=>u.category).filter(Boolean))];
   const filtered=urunler.filter(u=>{
     const q=search.toLowerCase();
-    const matchSearch=!search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.category?.toLowerCase().includes(q);
-    const matchCat=!catFilter||u.category===catFilter;
-    return matchSearch&&matchCat;
+    const ms=!search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.category?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q);
+    return ms&&(!catFilter||u.category===catFilter);
   });
 
+  // ── Barkod okuma ─────────────────────────────────────────────────────────
+  const doScan=(raw)=>{
+    if(!raw.trim())return;
+    const p=parseGS1(raw.trim());
+    setScanResult(p);
+    setScanInput("");
+
+    // Katalogda bu REF/GTIN var mı?
+    const existing=urunler.find(u=>
+      (u.code&&(u.code===p.ref||u.code===p.gtin?.replace(/^0+/,"")))||
+      (u.gtin&&u.gtin===p.gtin)
+    );
+
+    if(existing){
+      // Ürün zaten var → stok girişi yap
+      setScanStatus("exists");
+      setMatchedUrun(existing);
+      setF({...emptyForm,
+        ...existing,
+        addInitialStock:true,
+        initialStockQty:p.qty||1,
+        lot:p.lot||"",
+        expiryDate:p.expiryDate||"",
+        mfgDate:p.mfgDate||"",
+      });
+    }else{
+      // Yeni ürün → formu doldur
+      setScanStatus("new");
+      setMatchedUrun(null);
+      setF({...emptyForm,
+        code:p.ref||"",
+        gtin:p.gtin||"",
+        lot:p.lot||"",
+        expiryDate:p.expiryDate||"",
+        mfgDate:p.mfgDate||"",
+        addInitialStock:true,
+        initialStockQty:p.qty||1,
+      });
+    }
+    setModal(true);
+  };
+
+  // ── Kaydet ───────────────────────────────────────────────────────────────
   const save=async()=>{
     if(!f.name.trim())return toast("Ürün adı gerekli","warning");
-    if(modal===true){
-      const{error}=await SB.from("urunler").insert(f);
+
+    let urunId=null;
+    const isNew=modal===true&&!matchedUrun;
+
+    if(isNew){
+      // Yeni ürün ekle
+      const payload={name:f.name,code:f.code,unit:f.unit,min_stock:f.min_stock,
+        category:f.category,description:f.description,manufacturer:f.manufacturer||null,gtin:f.gtin||null};
+      const{data,error}=await SB.from("urunler").insert(payload).select().single();
       if(error)return toast(error.message,"error");
-      toast("Ürün eklendi","success");
+      urunId=data.id;
+      toast("Ürün kataloğa eklendi ✓","success");
+    }else if(matchedUrun){
+      // Mevcut ürünü güncelle
+      const{error}=await SB.from("urunler").update({name:f.name,code:f.code,unit:f.unit,
+        min_stock:f.min_stock,category:f.category,description:f.description}).eq("id",matchedUrun.id);
+      if(error)return toast(error.message,"error");
+      urunId=matchedUrun.id;
+      toast("Ürün güncellendi ✓","success");
     }else{
-      const{error}=await SB.from("urunler").update(f).eq("id",modal.id);
+      // Edit mode
+      const{error}=await SB.from("urunler").update({name:f.name,code:f.code,unit:f.unit,
+        min_stock:f.min_stock,category:f.category,description:f.description}).eq("id",modal.id);
       if(error)return toast(error.message,"error");
-      toast("Güncellendi","success");
+      urunId=modal.id;
+      toast("Güncellendi ✓","success");
     }
-    setModal(null);loadAll();
+
+    // Başlangıç stok + hareket kaydı
+    if(f.addInitialStock&&f.initialStockHospital&&urunId){
+      const qty=Number(f.initialStockQty)||1;
+      const existing=stoklar.find(s=>s.urun_id===urunId&&s.hospital_id===f.initialStockHospital);
+      if(existing){
+        await SB.from("stok").update({quantity:existing.quantity+qty}).eq("id",existing.id);
+      }else{
+        await SB.from("stok").insert({urun_id:urunId,hospital_id:f.initialStockHospital,quantity:qty});
+      }
+      const note=`Barkod girişi${f.lot?` — LOT:${f.lot}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
+      await SB.from("hareketler").insert({urun_id:urunId,hospital_id:f.initialStockHospital,
+        type:"in",quantity:qty,notes:note,created_at:new Date().toISOString()});
+      toast(`${qty} adet stok kaydedildi ✓`,"success");
+    }
+
+    setModal(null);setScanResult(null);setScanStatus("");setMatchedUrun(null);
+    loadAll();
   };
+
+  const openEdit=(u)=>{setScanResult(null);setScanStatus("");setMatchedUrun(null);
+    setF({name:u.name,code:u.code||"",unit:u.unit||"adet",min_stock:u.min_stock||0,
+      category:u.category||"",description:u.description||"",manufacturer:u.manufacturer||"",
+      gtin:u.gtin||"",addInitialStock:false,initialStockQty:1,initialStockHospital:"",
+      lot:"",expiryDate:"",mfgDate:""});
+    setModal(u);
+  };
+  const openAdd=()=>{setScanResult(null);setScanStatus("");setMatchedUrun(null);
+    setF(emptyForm);setModal(true);};
 
   const del=async(id)=>{
     const{error}=await SB.from("urunler").delete().eq("id",id);
@@ -1269,16 +1762,17 @@ function UrunlerView({urunler,stoklar,loadAll}){
     toast("Silindi","success");setDelConf(null);loadAll();
   };
 
-  const openEdit=(u)=>{setF({name:u.name,code:u.code||"",unit:u.unit||"adet",min_stock:u.min_stock||0,category:u.category||"",description:u.description||""});setModal(u);};
-  const openAdd=()=>{setF({name:"",code:"",unit:"adet",min_stock:0,category:"",description:""});setModal(true);};
-
   const totalStok=(id)=>stoklar.filter(s=>s.urun_id===id).reduce((a,b)=>a+(b.quantity||0),0);
   const minStok=(u)=>u.min_stock||0;
-
-  // Stats
   const critical=urunler.filter(u=>totalStok(u.id)>0&&totalStok(u.id)<=minStok(u)).length;
-  const empty=urunler.filter(u=>totalStok(u.id)===0).length;
+  const empty2=urunler.filter(u=>totalStok(u.id)===0).length;
   const ok=urunler.filter(u=>totalStok(u.id)>minStok(u)).length;
+
+  const isExpiredScan=scanResult?.expiryDate&&new Date(scanResult.expiryDate)<new Date();
+  const daysLeft=scanResult?.expiryDate?Math.floor((new Date(scanResult.expiryDate)-new Date())/86400000):null;
+  const modalTitle=scanStatus==="exists"?`Stok Ekle — ${matchedUrun?.name}`:
+    scanStatus==="new"?"Yeni Ürün (Barkoddan)":
+    modal===true?"Yeni Ürün":"Ürünü Düzenle";
 
   return(
     <div className="space-y-5">
@@ -1293,38 +1787,182 @@ function UrunlerView({urunler,stoklar,loadAll}){
       )}
 
       {modal&&(
-        <Modal title={modal===true?"Yeni Ürün":"Ürünü Düzenle"} onClose={()=>setModal(null)} size="md"
+        <Modal title={modalTitle} onClose={()=>{setModal(null);setScanResult(null);setScanStatus("");setMatchedUrun(null);}} size="lg"
           footer={<div className="flex gap-2">
-            <button onClick={()=>setModal(null)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
-            <button onClick={save} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Kaydet</button>
+            <button onClick={()=>{setModal(null);setScanResult(null);setScanStatus("");}} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
+            <button onClick={save} disabled={isExpiredScan&&f.addInitialStock} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold disabled:opacity-40">
+              {isExpiredScan&&f.addInitialStock?"⚠ SKT Geçmiş":"✓ Kaydet"}
+            </button>
           </div>}>
           <div className="space-y-4">
-            <div><Label required>Ürün Adı</Label><Input value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} placeholder="Örn: Koltuk Değneği"/></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Ürün Kodu</Label><Input value={f.code} onChange={e=>setF(p=>({...p,code:e.target.value}))} placeholder="ART-001"/></div>
-              <div><Label>Kategori</Label>
-                <Input value={f.category} onChange={e=>setF(p=>({...p,category:e.target.value}))} placeholder="İmplant, Protez..." list="cat-list"/>
-                <datalist id="cat-list">{categories.map(c=><option key={c} value={c}/>)}</datalist>
+
+            {/* Barkod sonucu bilgi kutusu */}
+            {scanResult&&(
+              <div className={`rounded-xl p-3 border fade-up ${isExpiredScan?"bg-rose2/10 border-rose2/30":scanStatus==="exists"?"bg-amber2/10 border-amber2/25":"bg-emerald2/8 border-emerald2/25"}`}>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                    isExpiredScan?"bg-rose2/20 text-rose2 border-rose2/30":
+                    scanStatus==="exists"?"bg-amber2/20 text-amber2 border-amber2/30":
+                    "bg-emerald2/20 text-emerald2 border-emerald2/30"}`}>
+                    {isExpiredScan?"⚠ SKT GEÇMİŞ":scanStatus==="exists"?"↻ Mevcut Ürün Bulundu":"✓ Yeni Ürün Barkoddan"}
+                  </span>
+                  {scanStatus==="exists"&&<span className="text-xs text-slate-400">Sadece stok eklenecek</span>}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    {l:"REF",v:scanResult.ref||scanResult.gtin?.slice(-8)||"—"},
+                    {l:"Lot",v:scanResult.lot||"—"},
+                    {l:"Seri",v:scanResult.serial||"—"},
+                    {l:"SKT",v:scanResult.expiryDate||"—",warn:isExpiredScan},
+                    {l:"Üretim",v:scanResult.mfgDate||"—"},
+                    {l:"Adet",v:String(scanResult.qty||1)},
+                  ].map(r=>(
+                    <div key={r.l} className="bg-navy-800 rounded-lg p-2">
+                      <div className="text-[9px] text-slate-500 mb-0.5">{r.l}</div>
+                      <div className={`text-xs font-bold truncate ${r.warn?"text-rose2":"text-white"}`}>{r.v}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Birim</Label>
-                <Select value={f.unit} onChange={e=>setF(p=>({...p,unit:e.target.value}))}>
-                  {["adet","kutu","paket","set","şişe","ampul","ml","gr","kg","lt"].map(u=><option key={u}>{u}</option>)}
-                </Select>
+            )}
+
+            {/* Ürün adı — düzenlenemez alandır eğer mevcut ürünse */}
+            {scanStatus!=="exists"&&(
+              <div>
+                <Label required>Ürün Adı</Label>
+                <Input value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} placeholder="Örn: BioComposite SwiveLock 5.5x19.1mm"/>
+                {scanResult?.ref&&!f.name&&(
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {["Suture Anchor","Interference Screw","Button","Repair Kit","Anchor System"].map(s=>(
+                      <button key={s} type="button" onClick={()=>setF(p=>({...p,name:`${s} ${scanResult.ref}`}))}
+                        className="text-xs px-2.5 py-1 rounded-full bg-brand/15 hover:bg-brand/25 text-brand-300 border border-brand/25 transition-colors">
+                        {s} {scanResult.ref}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div><Label>Kritik Stok Seviyesi</Label><Input type="number" min="0" value={f.min_stock} onChange={e=>setF(p=>({...p,min_stock:Number(e.target.value)}))}/></div>
+            )}
+
+            {scanStatus!=="exists"&&(
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>REF / Ürün Kodu</Label>
+                    <Input value={f.code} onChange={e=>setF(p=>({...p,code:e.target.value}))} placeholder="AR-2323BCC"/>
+                  </div>
+                  <div>
+                    <Label>Kategori</Label>
+                    <Input value={f.category} onChange={e=>setF(p=>({...p,category:e.target.value}))} placeholder="İmplant, Protez..." list="cat-list2"/>
+                    <datalist id="cat-list2">{[...new Set([...categories,"İmplant","Protez","Cerrahi Alet","Sarf Malzeme","Suture Anchor"])].map(c=><option key={c} value={c}/>)}</datalist>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label>Birim</Label>
+                    <Select value={f.unit} onChange={e=>setF(p=>({...p,unit:e.target.value}))}>
+                      {["adet","kutu","paket","set","şişe","ampul","ml","gr"].map(u=><option key={u}>{u}</option>)}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Kritik Stok</Label>
+                    <Input type="number" min="0" value={f.min_stock} onChange={e=>setF(p=>({...p,min_stock:Number(e.target.value)}))}/>
+                  </div>
+                  <div>
+                    <Label>Üretici</Label>
+                    <Input value={f.manufacturer} onChange={e=>setF(p=>({...p,manufacturer:e.target.value}))} placeholder="Arthrex, Stryker…"/>
+                  </div>
+                </div>
+                <div>
+                  <Label>Açıklama</Label>
+                  <Textarea value={f.description} onChange={e=>setF(p=>({...p,description:e.target.value}))} rows={2} placeholder="Ürün detayları…"/>
+                </div>
+              </>
+            )}
+
+            {/* Lot / SKT bilgileri */}
+            {(scanResult||scanStatus==="exists")&&(
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label>Lot Numarası</Label>
+                  <Input value={f.lot} onChange={e=>setF(p=>({...p,lot:e.target.value}))} className="font-mono" placeholder="15485965"/>
+                </div>
+                <div>
+                  <Label>Son Kullanma (SKT)</Label>
+                  <Input type="date" value={f.expiryDate} onChange={e=>setF(p=>({...p,expiryDate:e.target.value}))}
+                    className={f.expiryDate&&new Date(f.expiryDate)<new Date()?"border-rose2!":""}/>
+                  {f.expiryDate&&new Date(f.expiryDate)<new Date()&&(
+                    <p className="text-xs text-rose2 mt-0.5 font-semibold">⚠ Tarih geçmiş!</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Üretim Tarihi</Label>
+                  <Input type="date" value={f.mfgDate} onChange={e=>setF(p=>({...p,mfgDate:e.target.value}))}/>
+                </div>
+              </div>
+            )}
+
+            {/* Başlangıç stok toggle */}
+            <div className={`rounded-xl border transition-all ${f.addInitialStock?"border-brand/30 bg-brand/5":"border-white/8 bg-navy-800/50"}`}>
+              <div className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <div className="text-sm font-semibold text-white">Stok Girişi Yap</div>
+                  <div className="text-xs text-slate-500">Bu ürünü hemen bir hastaneye ekle</div>
+                </div>
+                <button type="button" onClick={()=>setF(p=>({...p,addInitialStock:!p.addInitialStock}))}
+                  className={`w-11 h-6 rounded-full transition-all ${f.addInitialStock?"bg-brand":"bg-navy-700"}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full transition-all mx-1 ${f.addInitialStock?"translate-x-5":""}`}/>
+                </button>
+              </div>
+              {f.addInitialStock&&(
+                <div className="px-4 pb-4 grid grid-cols-2 gap-3 border-t border-white/8 pt-3">
+                  <div>
+                    <Label required>Hastane</Label>
+                    <Select value={f.initialStockHospital} onChange={e=>setF(p=>({...p,initialStockHospital:e.target.value}))}>
+                      <option value="">Seçin</option>
+                      {hospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label required>Miktar</Label>
+                    <Input type="number" min="1" value={f.initialStockQty} onChange={e=>setF(p=>({...p,initialStockQty:Number(e.target.value)}))}/>
+                  </div>
+                </div>
+              )}
             </div>
-            <div><Label>Açıklama</Label><Textarea value={f.description} onChange={e=>setF(p=>({...p,description:e.target.value}))} rows={2} placeholder="Ürün hakkında notlar..."/></div>
+
           </div>
         </Modal>
       )}
 
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <h1 className="text-xl font-bold text-white">Ürün Yönetimi</h1>
-        <div className="sm:ml-auto">
-          <button onClick={openAdd} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Yeni Ürün</button>
+        <div className="sm:ml-auto flex flex-wrap gap-2">
+          <button onClick={()=>scanRef.current?.focus()}
+            className="px-4 py-2 rounded-xl bg-amber2/20 hover:bg-amber2/30 text-amber2 text-sm font-bold border border-amber2/30 flex items-center gap-2 transition-colors">
+            ▦ Barkod ile Ekle
+          </button>
+          <button onClick={openAdd} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Manuel Ekle</button>
         </div>
+      </div>
+
+      {/* Barkod okuyucu satırı */}
+      <div className="card rounded-2xl p-4">
+        <div className="flex gap-3 items-center">
+          <div className="w-8 h-8 rounded-xl bg-amber2/20 flex items-center justify-center text-amber2 text-base flex-shrink-0">▦</div>
+          <div className="flex-1 relative">
+            <input ref={scanRef} value={scanInput} onChange={e=>setScanInput(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"&&scanInput.trim()){doScan(scanInput);}}}
+              placeholder="USB barkod okuyucuyu buraya tıklayıp ürün etiketini okutun → Enter"
+              className="w-full pl-4 pr-4 py-2.5 rounded-xl input-dark text-sm font-mono"/>
+          </div>
+          <button onClick={()=>{if(scanInput.trim())doScan(scanInput);}}
+            className="px-4 py-2.5 rounded-xl bg-amber2/20 hover:bg-amber2/30 text-amber2 text-sm font-bold border border-amber2/25 flex-shrink-0 transition-colors">
+            Okut
+          </button>
+        </div>
+        <p className="text-xs text-slate-600 mt-2 ml-11">GS1-128 / GS1 DataMatrix (Arthrex, Stryker, Zimmer, DePuy vb.) · REF, LOT ve SKT otomatik dolar</p>
       </div>
 
       {/* Stats */}
@@ -1333,7 +1971,7 @@ function UrunlerView({urunler,stoklar,loadAll}){
           {l:"Toplam Ürün",v:urunler.length,c:"#3b82f6",bg:"rgba(59,130,246,.15)",icon:"⬡"},
           {l:"Normal Stok",v:ok,c:"#10b981",bg:"rgba(16,185,129,.15)",icon:"✓"},
           {l:"Kritik Stok",v:critical,c:"#f59e0b",bg:"rgba(245,158,11,.15)",icon:"⚠"},
-          {l:"Tükenmiş",v:empty,c:"#f43f5e",bg:"rgba(244,63,94,.15)",icon:"✕"},
+          {l:"Tükenmiş",v:empty2,c:"#f43f5e",bg:"rgba(244,63,94,.15)",icon:"✕"},
         ].map(s=>(
           <div key={s.l} className="stat-card rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
@@ -1348,7 +1986,7 @@ function UrunlerView({urunler,stoklar,loadAll}){
       {/* Filters */}
       <div className="card rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ürün ara (ad, kod, kategori)..." className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ürün ara (ad, kod, kategori, üretici)..." className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">⌕</span>
         </div>
         <Select value={catFilter} onChange={e=>setCatFilter(e.target.value)} className="sm:w-48">
@@ -1360,7 +1998,7 @@ function UrunlerView({urunler,stoklar,loadAll}){
       {/* Table */}
       <div className="card rounded-2xl overflow-hidden">
         <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] px-5 py-3 border-b border-white/8 bg-navy-900/50">
-          {["Ürün","Kod","Kategori","Birim","Stok Durumu",""].map((h,i)=>(
+          {["Ürün / Üretici","REF Kodu","Kategori","Birim","Stok Durumu",""].map((h,i)=>(
             <div key={i} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>
           ))}
         </div>
@@ -1372,53 +2010,40 @@ function UrunlerView({urunler,stoklar,loadAll}){
           const isEmpty=stok===0;
           const isLow=stok>0&&stok<=min;
           const pct=min>0?Math.min(100,Math.round(stok/min*100)):stok>0?100:0;
-          const statusColor=isEmpty?"#f43f5e":isLow?"#f59e0b":"#10b981";
-          const statusLabel=isEmpty?"Tükendi":isLow?"Kritik":"Normal";
-          const statusBg=isEmpty?"bg-rose2/20 text-rose2 border-rose2/30":isLow?"bg-amber2/20 text-amber2 border-amber2/30":"bg-emerald2/20 text-emerald2 border-emerald2/30";
+          const sc=isEmpty?"#f43f5e":isLow?"#f59e0b":"#10b981";
+          const sl=isEmpty?"Tükendi":isLow?"Kritik":"Normal";
+          const sb=isEmpty?"bg-rose2/20 text-rose2 border-rose2/30":isLow?"bg-amber2/20 text-amber2 border-amber2/30":"bg-emerald2/20 text-emerald2 border-emerald2/30";
           return(
             <div key={u.id} className="table-row px-4 lg:px-5 py-3 cursor-pointer" onClick={()=>openEdit(u)}>
               {/* Mobile */}
-              <div className="lg:hidden">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{background:statusColor+"20",color:statusColor}}>⬡</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{u.name}</div>
-                    <div className="text-xs text-slate-500">{u.code||"—"} {u.category?`· ${u.category}`:""}</div>
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${statusBg}`}>{stok} {u.unit}</span>
+              <div className="lg:hidden flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{background:sc+"20",color:sc}}>⬡</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{u.name}</div>
+                  <div className="text-xs text-slate-500">{u.code||"—"}{u.manufacturer?` · ${u.manufacturer}`:""}{u.category?` · ${u.category}`:""}</div>
                 </div>
-                {min>0&&(
-                  <div className="ml-11">
-                    <div className="flex justify-between text-xs text-slate-600 mb-1">
-                      <span>Stok: {stok}/{min} {u.unit}</span>
-                      <span>{pct}%</span>
-                    </div>
-                    <div className="h-1 bg-navy-700 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{width:`${pct}%`,background:statusColor}}></div>
-                    </div>
-                  </div>
-                )}
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sb} flex-shrink-0`}>{stok} {u.unit}</span>
               </div>
               {/* Desktop */}
               <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] items-center gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{u.name}</div>
-                  {u.description&&<div className="text-xs text-slate-600 truncate">{u.description}</div>}
+                  <div className="text-xs text-slate-500">{u.manufacturer||""}</div>
                 </div>
                 <div className="text-sm text-slate-400 font-mono">{u.code||"—"}</div>
                 <div className="text-sm text-slate-400">{u.category||"—"}</div>
                 <div className="text-sm text-slate-400">{u.unit}</div>
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${statusBg}`}>{statusLabel}</span>
-                    <span className="text-sm font-bold" style={{color:statusColor}}>{stok} {u.unit}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${sb}`}>{sl}</span>
+                    <span className="text-sm font-bold" style={{color:sc}}>{stok} {u.unit}</span>
                   </div>
                   {min>0&&(
                     <div>
                       <div className="h-1.5 bg-navy-700 rounded-full overflow-hidden w-32">
-                        <div className="h-full rounded-full" style={{width:`${pct}%`,background:statusColor}}></div>
+                        <div className="h-full rounded-full" style={{width:`${pct}%`,background:sc}}></div>
                       </div>
-                      <div className="text-[10px] text-slate-600 mt-0.5">Min: {min} {u.unit}</div>
+                      <div className="text-[10px] text-slate-600 mt-0.5">Min: {min}</div>
                     </div>
                   )}
                 </div>
@@ -1435,118 +2060,465 @@ function UrunlerView({urunler,stoklar,loadAll}){
   );
 }
 
-// ─── STOCK VIEW (Ana Stok Ekranı) ─────────────────────────────────────────────
+
+// ─── GS1 BARCODE PARSER ──────────────────────────────────────────────────────
+/**
+ * Arthrex / medikal etiketleri GS1-128 veya GS1 DataMatrix formatı kullanır.
+ * USB barkod okuyucu klavye girişi gibi çalışır → Enter ile tamamlar.
+ * Format: 010088886702672817290731101548596521
+ * AI (01)=GTIN  (17)=SKT  (10)=Lot  (11)=Üretim  (21)=Seri  (30)=Adet
+ */
+function parseGS1(raw){
+  const result={gtin:"",lot:"",serial:"",expiryDate:null,mfgDate:null,qty:1,ref:""};
+  if(!raw||raw.length<4)return result;
+
+  // Remove GS1 prefix identifiers ]d2 ]C1 ]e0 etc.
+  let s=raw.replace(/^\].[0-9]/,"").replace(/^\][a-zA-Z][0-9]/,"").trim();
+
+  // GS char (ASCII 29) as separator
+  const GS="\x1d";
+
+  const FIXED={
+    "00":18,"01":14,"02":14,"03":14,
+    "11":6,"12":6,"13":6,"15":6,"16":6,"17":6,
+    "18":6,"19":6,"20":2,
+    "31":10,"32":10,"33":10,"34":10,"35":10,"36":10,
+    "41":14,
+  };
+
+  let i=0;
+  let safety=0;
+  while(i<s.length&&safety<20){
+    safety++;
+    const ai2=s.slice(i,i+2);
+    const ai3=s.slice(i,i+3);
+    const ai4=s.slice(i,i+4);
+
+    let ai="",len=0;
+    if(FIXED[ai2]!==undefined){ai=ai2;len=FIXED[ai2];}
+    else{ai=ai2;len=-1;} // variable
+
+    if(!ai){i++;continue;}
+
+    let val;
+    if(len>0){
+      val=s.slice(i+ai.length,i+ai.length+len);
+      i+=ai.length+len;
+    }else{
+      // variable length — read until GS or end
+      const gsIdx=s.indexOf(GS,i+ai.length);
+      const end=gsIdx===-1?s.length:gsIdx;
+      val=s.slice(i+ai.length,end);
+      i=end+(gsIdx===-1?0:1);
+    }
+
+    switch(ai){
+      case"01":case"02":
+        result.gtin=val;
+        // Last 4-8 chars of GTIN often map to REF
+        result.ref=val.replace(/^0+/,"");
+        break;
+      case"10": result.lot=val; break;
+      case"21": result.serial=val; break;
+      case"17":{
+        // YYMMDD
+        const yy=val.slice(0,2),mm=val.slice(2,4),dd=val.slice(4,6);
+        const year=parseInt(yy)+(parseInt(yy)<50?2000:1900);
+        const realDD=dd==="00"?"28":dd;
+        result.expiryDate=`${year}-${mm}-${realDD}`;
+        break;
+      }
+      case"11":{
+        const yy=val.slice(0,2),mm=val.slice(2,4),dd=val.slice(4,6);
+        const year=parseInt(yy)+(parseInt(yy)<50?2000:1900);
+        result.mfgDate=`${year}-${mm}-${dd==="00"?"01":dd}`;
+        break;
+      }
+      case"30":case"37":
+        result.qty=parseInt(val)||1;
+        break;
+      default: break;
+    }
+  }
+  return result;
+}
+
+// ─── BARCODE SCANNER MODAL ────────────────────────────────────────────────────
+function BarcodeScannerModal({onResult,onClose,urunler,hospitals}){
+  const toast=useToast();
+  const [input,setInput]=useState("");
+  const [parsed,setParsed]=useState(null);
+  const [manualMode,setManualMode]=useState(false);
+  const [selUrun,setSelUrun]=useState("");
+  const [selHospital,setSelHospital]=useState("");
+  const [qty,setQty]=useState(1);
+  const [movType,setMovType]=useState("in");
+  const inputRef=useRef(null);
+
+  useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),100);},[]);
+
+  const handleScan=(raw)=>{
+    if(!raw.trim())return;
+    const p=parseGS1(raw.trim());
+    setParsed(p);
+
+    // Auto-match ürün by lot number or GTIN/REF
+    let matched=null;
+    if(p.lot){matched=urunler.find(u=>u.code&&u.code.toLowerCase()===p.ref?.toLowerCase());}
+    if(!matched&&p.ref){matched=urunler.find(u=>u.code&&(u.code===p.ref||u.code===p.gtin?.replace(/^0+/,"")));}
+    if(matched)setSelUrun(matched.id);
+    if(p.qty)setQty(p.qty);
+  };
+
+  const confirm=()=>{
+    if(!selUrun||!selHospital){toast("Ürün ve hastane seçin","warning");return;}
+    onResult({
+      urun_id:selUrun,hospital_id:selHospital,
+      lotNumber:parsed?.lot||"",
+      serialNumber:parsed?.serial||"",
+      expiryDate:parsed?.expiryDate||null,
+      quantity:qty,
+      type:movType,
+      source:"barcode",
+    });
+  };
+
+  const isExpired=parsed?.expiryDate&&new Date(parsed.expiryDate)<new Date();
+  const daysLeft=parsed?.expiryDate?Math.floor((new Date(parsed.expiryDate)-new Date())/86400000):null;
+
+  return(
+    <Modal title="📷 Barkod ile Stok Girişi" onClose={onClose} size="lg"
+      footer={
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
+          <button onClick={confirm} disabled={!parsed||!selHospital||isExpired}
+            className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold disabled:opacity-40">
+            {isExpired?"⚠ SKT Geçmiş — Kullanılamaz":"✓ Stoka Ekle"}
+          </button>
+        </div>
+      }>
+      <div className="space-y-4">
+
+        {/* Scanner input */}
+        <div className="rounded-xl border-2 border-dashed p-4 space-y-3" style={{borderColor:parsed?"#10b981":"#334155"}}>
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <span className="text-lg">📷</span>
+            <span>USB okuyucu ile barkodu okutun veya manuel girin</span>
+          </div>
+          <div className="flex gap-2">
+            <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter"){handleScan(input);setInput("");}}}
+              placeholder="Barkod okutun veya yapıştırın → Enter"
+              className="flex-1 px-4 py-2.5 rounded-xl input-dark text-sm font-mono"/>
+            <button onClick={()=>{handleScan(input);setInput("");}} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">
+              Okut
+            </button>
+          </div>
+          <p className="text-xs text-slate-600">USB barkod okuyucu klavye gibi davranır — direkt kutuya okutabilirsiniz</p>
+        </div>
+
+        {/* Parsed result */}
+        {parsed&&(
+          <div className={`rounded-xl p-4 border fade-up ${isExpired?"bg-rose2/10 border-rose2/30":"bg-emerald2/8 border-emerald2/25"}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`text-sm font-bold ${isExpired?"text-rose2":"text-emerald2"}`}>
+                {isExpired?"⚠ UYARI: Son Kullanma Tarihi Geçmiş!":"✓ Barkod Okundu"}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                {l:"REF / GTIN",v:parsed.ref||parsed.gtin||"—"},
+                {l:"Lot Numarası",v:parsed.lot||"—"},
+                {l:"Seri No",v:parsed.serial||"—"},
+                {l:"Son Kullanma",v:parsed.expiryDate?`${parsed.expiryDate}${daysLeft!==null?` (${daysLeft>0?daysLeft+" gün kaldı":"GEÇMIŞ"})`:""}` :"—"},
+                {l:"Üretim Tarihi",v:parsed.mfgDate||"—"},
+                {l:"Miktar",v:String(parsed.qty||1)},
+              ].map(r=>(
+                <div key={r.l} className="bg-navy-800 rounded-lg p-2.5">
+                  <div className="text-[10px] text-slate-500 mb-0.5">{r.l}</div>
+                  <div className={`text-xs font-bold truncate ${r.l==="Son Kullanma"&&isExpired?"text-rose2":"text-white"}`}>{r.v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Hareket tipi */}
+        <div>
+          <Label>Hareket Tipi</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {["in","out"].map(t=>(
+              <button key={t} type="button" onClick={()=>setMovType(t)}
+                className={`py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${movType===t?(t==="in"?"bg-emerald2/20 border-emerald2 text-emerald2":"bg-rose2/20 border-rose2 text-rose2"):"bg-navy-800 border-white/10 text-slate-400"}`}>
+                {t==="in"?"↓ Stok Girişi":"↑ Stok Çıkışı"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Ürün + Hastane */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label required>Ürün</Label>
+            <Select value={selUrun} onChange={e=>setSelUrun(e.target.value)}>
+              <option value="">Seçin</option>
+              {urunler.map(u=><option key={u.id} value={u.id}>{u.name}{u.code?` (${u.code})`:""}</option>)}
+            </Select>
+            {parsed?.ref&&!selUrun&&<p className="text-xs text-amber2 mt-1">REF {parsed.ref} eşleşmedi — manuel seçin</p>}
+          </div>
+          <div>
+            <Label required>Hastane</Label>
+            <Select value={selHospital} onChange={e=>setSelHospital(e.target.value)}>
+              <option value="">Seçin</option>
+              {hospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+            </Select>
+          </div>
+        </div>
+
+        {/* Miktar */}
+        <div>
+          <Label required>Miktar</Label>
+          <Input type="number" min="1" value={qty} onChange={e=>setQty(Number(e.target.value))}/>
+        </div>
+
+        {/* Arthrex etiketi örnek */}
+        <div className="bg-navy-900 rounded-xl p-3 border border-white/5">
+          <p className="text-xs text-slate-500 mb-2 font-semibold">Desteklenen etiket formatları:</p>
+          <div className="flex flex-wrap gap-2">
+            {["Arthrex","Stryker","Zimmer","Smith+Nephew","DePuy"].map(b=>(
+              <span key={b} className="text-xs px-2 py-1 rounded-full bg-navy-800 text-slate-400 border border-white/8">{b}</span>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-600 mt-2">GS1-128 / GS1 DataMatrix / UDI standartlarını destekler</p>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── STOCK VIEW ──────────────────────────────────────────────────────────────
+// Hareket tipi etiketleri (notes alanına prefix olarak kaydedilir)
+const MOV_TAGS={
+  SHELF_TO_HOSPITAL:"[RAF→HASTANE]",
+  RETURN:          "[GERİ ALIM]",
+  TEMP_RETURN:     "[GEÇİCİ GERİ]",
+  LOSS:            "[KAYIP]",
+  TRANSFER:        "[TRANSFER]",
+  ADJUST:          "[DÜZELTME]",
+};
+const MOV_META={
+  "[RAF→HASTANE]": {label:"Raf → Hastane",  color:"#3b82f6", icon:"→",  bg:"rgba(59,130,246,.18)"},
+  "[GERİ ALIM]":   {label:"Geri Alım",      color:"#10b981", icon:"↩",  bg:"rgba(16,185,129,.18)"},
+  "[GEÇİCİ GERİ]": {label:"Geçici Geri",    color:"#f59e0b", icon:"↻",  bg:"rgba(245,158,11,.18)"},
+  "[KAYIP]":        {label:"Kayıp/Eksik",    color:"#f43f5e", icon:"✕",  bg:"rgba(244,63,94,.18)"},
+  "[TRANSFER]":     {label:"Transfer",       color:"#8b5cf6", icon:"⇄",  bg:"rgba(139,92,246,.18)"},
+  "[DÜZELTME]":     {label:"Düzeltme",       color:"#64748b", icon:"✎",  bg:"rgba(100,116,139,.18)"},
+};
+const getMovTag=(notes)=>{
+  if(!notes)return null;
+  return Object.keys(MOV_META).find(k=>notes.startsWith(k))||null;
+};
+
 function StokView({urunler,stoklar,hospitals,loadAll}){
   const toast=useToast();
-  const [modal,setModal]=useState(null);
   const [hareketler,setHareketler]=useState([]);
-  const [activeTab,setActiveTab]=useState("overview"); // overview | hospital | alerts | history
-  const [selHospital,setSelHospital]=useState(null);
-  const [loading,setLoading]=useState(false);
-  const [moveModal,setMoveModal]=useState(false);
-  const [adjustModal,setAdjustModal]=useState(null);
-  const [mf,setMf]=useState({urun_id:"",from_hospital_id:"",to_hospital_id:"",quantity:1,notes:""});
-  const [af,setAf]=useState({quantity:0,notes:""});
+  const [activeTab,setActiveTab]=useState("overview");
   const [hFilter,setHFilter]=useState("");
+  const [histFilter,setHistFilter]=useState("");
 
-  useEffect(()=>{loadHareketler();},[]);
-  const loadHareketler=async()=>{
-    const{data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(200);
+  // Modals
+  const [opModal,setOpModal]=useState(false);   // işlem seç
+  const [adjustModal,setAdjustModal]=useState(null);
+  const [af,setAf]=useState({quantity:0,notes:""});
+
+  // İşlem form
+  const emptyOp={op:"",urun_id:"",from_id:"",to_id:"",quantity:1,notes:"",
+    lossReason:"kayboldu",expectedReturn:"",tempNote:""};
+  const [op,setOp]=useState(emptyOp);
+  const [opLoading,setOpLoading]=useState(false);
+
+  useEffect(()=>{loadH();},[]);
+  const loadH=async()=>{
+    const{data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(300);
     setHareketler(data||[]);
   };
 
-  // Enriched stok rows
-  const rows=useMemo(()=>{
-    return stoklar.map(s=>({
-      ...s,
-      urun:urunler.find(u=>u.id===s.urun_id)||{name:"?",unit:"",min_stock:0},
-      hospital:hospitals.find(h=>h.id===s.hospital_id)||{name:"?"},
-    }));
-  },[stoklar,urunler,hospitals]);
+  const rows=useMemo(()=>stoklar.map(s=>({
+    ...s,
+    urun:urunler.find(u=>u.id===s.urun_id)||{name:"?",unit:"",min_stock:0,code:""},
+    hospital:hospitals.find(h=>h.id===s.hospital_id)||{name:"?"},
+  })),[stoklar,urunler,hospitals]);
 
-  // Per-product summary
   const productSummary=useMemo(()=>{
     const m={};
     rows.forEach(r=>{
-      if(!m[r.urun_id]){m[r.urun_id]={urun:r.urun,total:0,hospitals:[],min:r.urun.min_stock||0};}
+      if(!m[r.urun_id])m[r.urun_id]={urun:r.urun,total:0,hospitals:[],min:r.urun.min_stock||0};
       m[r.urun_id].total+=r.quantity||0;
-      m[r.urun_id].hospitals.push({name:r.hospital.name,qty:r.quantity||0,id:r.hospital_id,stockId:r.id});
+      m[r.urun_id].hospitals.push({name:r.hospital.name,qty:r.quantity||0,id:r.hospital_id,row:r});
     });
     return Object.values(m).sort((a,b)=>a.urun.name.localeCompare(b.urun.name));
   },[rows]);
 
-  // Alert items
-  const alerts=useMemo(()=>{
-    return productSummary.filter(p=>p.total<=p.min||p.total===0).sort((a,b)=>(a.total/Math.max(a.min,1))-(b.total/Math.max(b.min,1)));
-  },[productSummary]);
+  const alerts=useMemo(()=>productSummary.filter(p=>p.total<=p.min||p.total===0)
+    .sort((a,b)=>(a.total/Math.max(a.min,1))-(b.total/Math.max(b.min,1))),[productSummary]);
 
-  // Hospital view
   const hospitalSummary=useMemo(()=>{
     const m={};
     rows.forEach(r=>{
-      if(!m[r.hospital_id]){m[r.hospital_id]={hospital:r.hospital,items:[],total:0,critical:0,empty:0};}
-      m[r.hospital_id].items.push(r);
-      m[r.hospital_id].total++;
+      if(!m[r.hospital_id])m[r.hospital_id]={hospital:r.hospital,items:[],total:0,critical:0,empty:0};
+      m[r.hospital_id].items.push(r);m[r.hospital_id].total++;
       if(r.quantity===0)m[r.hospital_id].empty++;
       else if(r.quantity<=(r.urun.min_stock||0))m[r.hospital_id].critical++;
     });
     return Object.values(m).sort((a,b)=>a.hospital.name.localeCompare(b.hospital.name));
   },[rows]);
 
-  // Adjust stock
+  // Stok düzelt (manuel)
   const adjustStock=async()=>{
     if(!adjustModal)return;
     const{error}=await SB.from("stok").update({quantity:Number(af.quantity)}).eq("id",adjustModal.id);
     if(error)return toast(error.message,"error");
-    // Log hareketi
     const diff=Number(af.quantity)-(adjustModal.quantity||0);
     if(diff!==0){
       await SB.from("hareketler").insert({
         urun_id:adjustModal.urun_id,hospital_id:adjustModal.hospital_id,
         type:diff>0?"in":"out",quantity:Math.abs(diff),
-        notes:af.notes||"Manuel düzeltme",created_at:new Date().toISOString()
+        notes:`${MOV_TAGS.ADJUST} ${af.notes||"Manuel düzeltme"}`,
+        created_at:new Date().toISOString()
       });
     }
-    toast("Stok güncellendi","success");
-    setAdjustModal(null);loadAll();loadHareketler();
+    toast("Stok güncellendi ✓","success");
+    setAdjustModal(null);loadAll();loadH();
   };
 
-  // Transfer between hospitals
-  const transfer=async()=>{
-    if(!mf.urun_id||!mf.from_hospital_id||!mf.to_hospital_id)return toast("Tüm alanları doldurun","warning");
-    if(mf.from_hospital_id===mf.to_hospital_id)return toast("Kaynak ve hedef aynı olamaz","warning");
-    const qty=Number(mf.quantity);
-    if(!qty||qty<1)return toast("Geçerli miktar girin","warning");
-    const from=stoklar.find(s=>s.urun_id===mf.urun_id&&s.hospital_id===mf.from_hospital_id);
-    if(!from||from.quantity<qty)return toast("Yeterli stok yok","warning");
-    const to=stoklar.find(s=>s.urun_id===mf.urun_id&&s.hospital_id===mf.to_hospital_id);
-    setLoading(true);
-    await SB.from("stok").update({quantity:from.quantity-qty}).eq("id",from.id);
-    if(to){await SB.from("stok").update({quantity:to.quantity+qty}).eq("id",to.id);}
-    else{await SB.from("stok").insert({urun_id:mf.urun_id,hospital_id:mf.to_hospital_id,quantity:qty});}
-    await SB.from("hareketler").insert([
-      {urun_id:mf.urun_id,hospital_id:mf.from_hospital_id,type:"out",quantity:qty,notes:`Transfer → ${hospitals.find(h=>h.id===mf.to_hospital_id)?.name}`,created_at:new Date().toISOString()},
-      {urun_id:mf.urun_id,hospital_id:mf.to_hospital_id,type:"in",quantity:qty,notes:`Transfer ← ${hospitals.find(h=>h.id===mf.from_hospital_id)?.name}`,created_at:new Date().toISOString()},
-    ]);
-    toast(`${qty} adet transfer edildi ✓`,"success");
-    setMoveModal(false);setLoading(false);loadAll();loadHareketler();
+  // Ana işlem kaydetme
+  const saveOp=async()=>{
+    const qty=Number(op.quantity)||1;
+    if(!op.urun_id)return toast("Ürün seçin","warning");
+    setOpLoading(true);
+
+    const urun=urunler.find(u=>u.id===op.urun_id);
+    const now=new Date().toISOString();
+
+    if(op.op==="shelf_to_hospital"){
+      // Raftan hastaneye çıkış
+      if(!op.to_id)return toast("Hedef hastane seçin","warning");
+      const fromStok=stoklar.find(s=>s.urun_id===op.urun_id&&s.hospital_id===op.from_id);
+      if(op.from_id&&(!fromStok||fromStok.quantity<qty))return toast("Kaynak stok yetersiz","warning");
+      const toStok=stoklar.find(s=>s.urun_id===op.urun_id&&s.hospital_id===op.to_id);
+      if(op.from_id){
+        await SB.from("stok").update({quantity:fromStok.quantity-qty}).eq("id",fromStok.id);
+        await SB.from("hareketler").insert({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,
+          notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${hospitals.find(h=>h.id===op.to_id)?.name||""} ${op.notes||""}`.trim(),created_at:now});
+      }
+      if(toStok){await SB.from("stok").update({quantity:toStok.quantity+qty}).eq("id",toStok.id);}
+      else{await SB.from("stok").insert({urun_id:op.urun_id,hospital_id:op.to_id,quantity:qty});}
+      await SB.from("hareketler").insert({urun_id:op.urun_id,hospital_id:op.to_id,type:"in",quantity:qty,
+        notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${op.notes||""}`.trim(),created_at:now});
+      toast(`${qty} ${urun?.unit||"adet"} hastaneye gönderildi ✓`,"success");
+    }
+
+    else if(op.op==="return"){
+      // Kalıcı geri alım
+      if(!op.from_id)return toast("Kaynak hastane seçin","warning");
+      if(!op.to_id)return toast("Hedef (depo) seçin","warning");
+      const fromStok=stoklar.find(s=>s.urun_id===op.urun_id&&s.hospital_id===op.from_id);
+      if(!fromStok||fromStok.quantity<qty)return toast("Hastanede yeterli stok yok","warning");
+      const toStok=stoklar.find(s=>s.urun_id===op.urun_id&&s.hospital_id===op.to_id);
+      await SB.from("stok").update({quantity:fromStok.quantity-qty}).eq("id",fromStok.id);
+      if(toStok){await SB.from("stok").update({quantity:toStok.quantity+qty}).eq("id",toStok.id);}
+      else{await SB.from("stok").insert({urun_id:op.urun_id,hospital_id:op.to_id,quantity:qty});}
+      await SB.from("hareketler").insert([
+        {urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,
+          notes:`${MOV_TAGS.RETURN} → ${hospitals.find(h=>h.id===op.to_id)?.name||""} ${op.notes||""}`.trim(),created_at:now},
+        {urun_id:op.urun_id,hospital_id:op.to_id,type:"in",quantity:qty,
+          notes:`${MOV_TAGS.RETURN} ← ${hospitals.find(h=>h.id===op.from_id)?.name||""} ${op.notes||""}`.trim(),created_at:now},
+      ]);
+      toast(`${qty} ${urun?.unit||"adet"} geri alındı ✓`,"success");
+    }
+
+    else if(op.op==="temp_return"){
+      // Geçici geri alım (stoktan düşülmez, not olarak kaydedilir)
+      if(!op.from_id)return toast("Kaynak hastane seçin","warning");
+      const note=`${MOV_TAGS.TEMP_RETURN} Geçici alım${op.expectedReturn?` — Tahmini iade: ${op.expectedReturn}`:""} ${op.notes||""}`.trim();
+      await SB.from("hareketler").insert({urun_id:op.urun_id,hospital_id:op.from_id,
+        type:"out",quantity:qty,notes:note,created_at:now});
+      // Stoktan düş — fiziksel olarak geri geldi
+      const fromStok=stoklar.find(s=>s.urun_id===op.urun_id&&s.hospital_id===op.from_id);
+      if(fromStok&&fromStok.quantity>=qty){
+        await SB.from("stok").update({quantity:fromStok.quantity-qty}).eq("id",fromStok.id);
+      }
+      toast(`${qty} ${urun?.unit||"adet"} geçici olarak alındı. ${op.expectedReturn?"İade: "+op.expectedReturn:""}`.trim(),"success");
+    }
+
+    else if(op.op==="loss"){
+      // Kayıp / Eksik bildirimi
+      if(!op.from_id)return toast("Kayıp lokasyonu seçin","warning");
+      const fromStok=stoklar.find(s=>s.urun_id===op.urun_id&&s.hospital_id===op.from_id);
+      const actualQty=Math.min(qty,fromStok?.quantity||0);
+      if(fromStok){
+        await SB.from("stok").update({quantity:Math.max(0,fromStok.quantity-qty)}).eq("id",fromStok.id);
+      }
+      const LOSS_REASONS={"kayboldu":"Kayboldu","hasar":"Hasarlı/Kullanılamaz","fire":"Fire/Bozuk",
+        "ameliyat":"Ameliyatta Kullanıldı","iade":"Üreticiye İade","diger":"Diğer"};
+      const note=`${MOV_TAGS.LOSS} Sebep: ${LOSS_REASONS[op.lossReason]||op.lossReason} ${op.notes||""}`.trim();
+      await SB.from("hareketler").insert({urun_id:op.urun_id,hospital_id:op.from_id,
+        type:"out",quantity:qty,notes:note,created_at:now});
+      toast(`${qty} ${urun?.unit||"adet"} kayıp olarak raporlandı`,"warning");
+    }
+
+    setOpLoading(false);setOpModal(false);setOp(emptyOp);loadAll();loadH();
   };
 
+  // Stats
   const totalItems=rows.length;
   const totalEmpty=rows.filter(r=>r.quantity===0).length;
   const totalCritical=rows.filter(r=>r.quantity>0&&r.quantity<=(r.urun.min_stock||0)).length;
   const totalOk=totalItems-totalEmpty-totalCritical;
 
+  // Kayıp sayısı (son 30 gün)
+  const lossCount=useMemo(()=>{
+    const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
+    return hareketler.filter(h=>h.notes?.startsWith(MOV_TAGS.LOSS)&&new Date(h.created_at)>cutoff)
+      .reduce((a,h)=>a+h.quantity,0);
+  },[hareketler]);
+
   const tabs=[
     {id:"overview",label:"Genel Bakış",icon:"⊞"},
-    {id:"hospital",label:"Hastaneler",icon:"🏥"},
-    {id:"alerts",label:`Uyarılar`,icon:"⚠",badge:alerts.length},
-    {id:"history",label:"Hareket Geçmişi",icon:"◷"},
+    {id:"hospital",label:"Hastaneler",icon:"⊟"},
+    {id:"alerts",label:"Uyarılar",icon:"⚠",badge:alerts.length},
+    {id:"history",label:"Hareketler",icon:"◷"},
   ];
+
+  // İşlem tipi kartları
+  const OPS=[
+    {id:"shelf_to_hospital",icon:"→",label:"Raf → Hastane",desc:"Depo/raftan hastaneye gönder",
+     color:"#3b82f6",bg:"rgba(59,130,246,.12)"},
+    {id:"return",icon:"↩",label:"Geri Alım",desc:"Hastaneden kalıcı olarak geri al",
+     color:"#10b981",bg:"rgba(16,185,129,.12)"},
+    {id:"temp_return",icon:"↻",label:"Geçici Geri Alım",desc:"Sterilizasyon/bakım için geçici al",
+     color:"#f59e0b",bg:"rgba(245,158,11,.12)"},
+    {id:"loss",icon:"✕",label:"Kayıp / Eksik",desc:"Kaybolan, hasarlı veya fire ürün bildir",
+     color:"#f43f5e",bg:"rgba(244,63,94,.12)"},
+  ];
+
+  const selOpMeta=OPS.find(o=>o.id===op.op);
+
+  // History filter
+  const filteredHistory=useMemo(()=>{
+    return hareketler.filter(h=>{
+      const u=urunler.find(x=>x.id===h.urun_id);
+      const ho=hospitals.find(x=>x.id===h.hospital_id);
+      if(!histFilter)return true;
+      const q=histFilter.toLowerCase();
+      return u?.name?.toLowerCase().includes(q)||ho?.name?.toLowerCase().includes(q)||h.notes?.toLowerCase().includes(q);
+    });
+  },[hareketler,histFilter,urunler,hospitals]);
 
   return(
     <div className="space-y-5">
-      {/* Adjust Modal */}
+
+      {/* ── Stok Düzelt Modal ─────────────────────────────────── */}
       {adjustModal&&(
         <Modal title="Stok Miktarını Düzenle" onClose={()=>setAdjustModal(null)} size="sm"
           footer={<div className="flex gap-2">
@@ -1555,22 +2527,22 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           </div>}>
           <div className="space-y-4">
             <div className="bg-navy-800 rounded-xl p-3 border border-white/8">
-              <div className="text-xs text-slate-500 mb-1">Ürün</div>
-              <div className="text-sm font-bold text-white">{adjustModal.urun?.name}</div>
-              <div className="text-xs text-slate-500">{adjustModal.hospital?.name}</div>
+              <p className="text-xs text-slate-500 mb-0.5">Ürün</p>
+              <p className="text-sm font-bold text-white">{adjustModal.urun?.name}</p>
+              <p className="text-xs text-slate-500">{adjustModal.hospital?.name}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-navy-800 rounded-xl p-3 text-center">
-                <div className="text-xs text-slate-500 mb-1">Mevcut</div>
-                <div className="text-2xl font-black text-white">{adjustModal.quantity||0}</div>
-                <div className="text-xs text-slate-500">{adjustModal.urun?.unit}</div>
+                <p className="text-xs text-slate-500 mb-1">Mevcut</p>
+                <p className="text-2xl font-black text-white">{adjustModal.quantity||0}</p>
+                <p className="text-xs text-slate-500">{adjustModal.urun?.unit}</p>
               </div>
               <div className="bg-navy-800 rounded-xl p-3 text-center">
-                <div className="text-xs text-slate-500 mb-1">Fark</div>
-                <div className={`text-2xl font-black ${Number(af.quantity)-(adjustModal.quantity||0)>0?"text-emerald2":Number(af.quantity)-(adjustModal.quantity||0)<0?"text-rose2":"text-slate-400"}`}>
+                <p className="text-xs text-slate-500 mb-1">Fark</p>
+                <p className={`text-2xl font-black ${Number(af.quantity)-(adjustModal.quantity||0)>0?"text-emerald2":Number(af.quantity)-(adjustModal.quantity||0)<0?"text-rose2":"text-slate-400"}`}>
                   {Number(af.quantity)-(adjustModal.quantity||0)>0?"+":""}{Number(af.quantity)-(adjustModal.quantity||0)||"0"}
-                </div>
-                <div className="text-xs text-slate-500">{adjustModal.urun?.unit}</div>
+                </p>
+                <p className="text-xs text-slate-500">{adjustModal.urun?.unit}</p>
               </div>
             </div>
             <div><Label required>Yeni Miktar</Label><Input type="number" min="0" value={af.quantity} onChange={e=>setAf(p=>({...p,quantity:e.target.value}))}/></div>
@@ -1579,88 +2551,242 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         </Modal>
       )}
 
-      {/* Transfer Modal */}
-      {moveModal&&(
-        <Modal title="Hastaneler Arası Transfer" onClose={()=>setMoveModal(false)} size="md"
-          footer={<div className="flex gap-2">
-            <button onClick={()=>setMoveModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
-            <button onClick={transfer} disabled={loading} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold disabled:opacity-60">Transfer Et</button>
-          </div>}>
-          <div className="space-y-4">
-            <div><Label required>Ürün</Label>
-              <Select value={mf.urun_id} onChange={e=>setMf(p=>({...p,urun_id:e.target.value}))}>
-                <option value="">Ürün seçin</option>
-                {urunler.map(u=>{
-                  const tot=stoklar.filter(s=>s.urun_id===u.id).reduce((a,b)=>a+(b.quantity||0),0);
-                  return<option key={u.id} value={u.id}>{u.name} (Toplam: {tot} {u.unit})</option>;
-                })}
-              </Select>
+      {/* ── İşlem Modal ───────────────────────────────────────── */}
+      {opModal&&(
+        <Modal
+          title={op.op?selOpMeta?.label||"İşlem":"İşlem Seçin"}
+          onClose={()=>{setOpModal(false);setOp(emptyOp);}}
+          size="md"
+          footer={op.op?(
+            <div className="flex gap-2">
+              <button onClick={()=>setOp(p=>({...p,op:""}))} className="px-4 py-2.5 rounded-xl bg-navy-800 text-slate-400 text-sm border border-white/8">← Geri</button>
+              <button onClick={saveOp} disabled={opLoading} className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 transition-all"
+                style={{background:selOpMeta?`linear-gradient(135deg,${selOpMeta.color}cc,${selOpMeta.color})`:""}}>
+                {opLoading?"⋯ İşleniyor…":op.op==="loss"?"⚠ Kayıp Bildir":"✓ Onayla"}
+              </button>
             </div>
-            <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+          ):null}>
+
+          {/* Op seçim ekranı */}
+          {!op.op?(
+            <div className="grid grid-cols-2 gap-3">
+              {OPS.map(o=>(
+                <button key={o.id} onClick={()=>setOp(p=>({...p,op:o.id}))}
+                  className="rounded-2xl p-4 text-left border-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{background:o.bg,borderColor:o.color+"40"}}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3 font-bold"
+                    style={{background:o.color+"20",color:o.color}}>{o.icon}</div>
+                  <p className="text-sm font-bold text-white mb-0.5">{o.label}</p>
+                  <p className="text-xs text-slate-400 leading-relaxed">{o.desc}</p>
+                </button>
+              ))}
+            </div>
+          ):(
+            <div className="space-y-4">
+              {/* Ürün seç */}
               <div>
-                <Label required>Kaynak Hastane</Label>
-                <Select value={mf.from_hospital_id} onChange={e=>setMf(p=>({...p,from_hospital_id:e.target.value}))}>
+                <Label required>Ürün</Label>
+                <Select value={op.urun_id} onChange={e=>setOp(p=>({...p,urun_id:e.target.value}))}>
                   <option value="">Seçin</option>
-                  {hospitals.map(h=>{
-                    const s=stoklar.find(x=>x.urun_id===mf.urun_id&&x.hospital_id===h.id);
-                    return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                  {urunler.map(u=>{
+                    const tot=stoklar.filter(s=>s.urun_id===u.id).reduce((a,b)=>a+(b.quantity||0),0);
+                    return<option key={u.id} value={u.id}>{u.name}{u.code?` [${u.code}]`:""} — {tot} {u.unit}</option>;
                   })}
                 </Select>
               </div>
-              <div className="text-slate-400 text-xl mt-5">→</div>
-              <div>
-                <Label required>Hedef Hastane</Label>
-                <Select value={mf.to_hospital_id} onChange={e=>setMf(p=>({...p,to_hospital_id:e.target.value}))}>
-                  <option value="">Seçin</option>
-                  {hospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
-                </Select>
+
+              {/* RAF → HASTANE */}
+              {op.op==="shelf_to_hospital"&&(
+                <>
+                  <div className="grid grid-cols-[1fr_32px_1fr] gap-2 items-end">
+                    <div>
+                      <Label>Kaynak (Raf/Depo)</Label>
+                      <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
+                        <option value="">Ana Stoktan</option>
+                        {hospitals.map(h=>{
+                          const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
+                          return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                        })}
+                      </Select>
+                    </div>
+                    <div className="text-center text-slate-400 pb-3 text-lg">→</div>
+                    <div>
+                      <Label required>Hedef Hastane</Label>
+                      <Select value={op.to_id} onChange={e=>setOp(p=>({...p,to_id:e.target.value}))}>
+                        <option value="">Seçin</option>
+                        {hospitals.filter(h=>h.id!==op.from_id).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+                      </Select>
+                    </div>
+                  </div>
+                  {op.from_id&&op.urun_id&&(()=>{
+                    const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===op.from_id);
+                    return s?<div className="bg-brand/10 rounded-xl p-3 text-xs text-brand-300 border border-brand/20">Kaynak stok: <b>{s.quantity}</b> {urunler.find(u=>u.id===op.urun_id)?.unit}</div>:null;
+                  })()}
+                </>
+              )}
+
+              {/* GERİ ALIM */}
+              {op.op==="return"&&(
+                <div className="grid grid-cols-[1fr_32px_1fr] gap-2 items-end">
+                  <div>
+                    <Label required>Kaynak Hastane</Label>
+                    <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
+                      <option value="">Seçin</option>
+                      {hospitals.map(h=>{
+                        const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
+                        return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                      })}
+                    </Select>
+                  </div>
+                  <div className="text-center text-slate-400 pb-3 text-lg">↩</div>
+                  <div>
+                    <Label required>Hedef (Depo/Raf)</Label>
+                    <Select value={op.to_id} onChange={e=>setOp(p=>({...p,to_id:e.target.value}))}>
+                      <option value="">Seçin</option>
+                      {hospitals.filter(h=>h.id!==op.from_id).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* GEÇİCİ GERİ ALIM */}
+              {op.op==="temp_return"&&(
+                <>
+                  <div>
+                    <Label required>Hangi Hastaneden</Label>
+                    <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
+                      <option value="">Seçin</option>
+                      {hospitals.map(h=>{
+                        const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
+                        return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                      })}
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Geçici Alım Nedeni</Label>
+                      <Select value={op.tempNote} onChange={e=>setOp(p=>({...p,tempNote:e.target.value}))}>
+                        <option value="">Seçin</option>
+                        <option value="Sterilizasyon">Sterilizasyon</option>
+                        <option value="Bakım/Kontrol">Bakım / Kontrol</option>
+                        <option value="Fotoğraflama">Fotoğraflama</option>
+                        <option value="Numune">Numune Gösterimi</option>
+                        <option value="Onarım">Onarım</option>
+                        <option value="Diğer">Diğer</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Tahmini İade Tarihi</Label>
+                      <Input type="date" value={op.expectedReturn} onChange={e=>setOp(p=>({...p,expectedReturn:e.target.value}))}/>
+                    </div>
+                  </div>
+                  <div className="bg-amber2/8 rounded-xl p-3 border border-amber2/20 text-xs text-amber2">
+                    ↻ Stoktan düşülür. İade edildiğinde tekrar giriş yapılmalıdır.
+                  </div>
+                </>
+              )}
+
+              {/* KAYIP */}
+              {op.op==="loss"&&(
+                <>
+                  <div>
+                    <Label required>Kayıp Lokasyonu</Label>
+                    <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
+                      <option value="">Seçin</option>
+                      {hospitals.map(h=>{
+                        const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
+                        return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                      })}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label required>Kayıp Nedeni</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[["kayboldu","Kayboldu"],["hasar","Hasarlı"],["fire","Fire/Bozuk"],
+                        ["ameliyat","Ameliyatta"],["iade","Üreticiye İade"],["diger","Diğer"]].map(([v,l])=>(
+                        <button key={v} type="button" onClick={()=>setOp(p=>({...p,lossReason:v}))}
+                          className={`py-2 rounded-xl text-xs font-semibold border-2 transition-all ${op.lossReason===v?"border-rose2 bg-rose2/20 text-rose2":"border-white/10 bg-navy-800 text-slate-400 hover:border-rose2/40"}`}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {op.from_id&&op.urun_id&&(()=>{
+                    const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===op.from_id);
+                    return s?<div className="bg-rose2/10 rounded-xl p-3 text-xs text-rose2 border border-rose2/20">Mevcut stok: <b>{s.quantity}</b> {urunler.find(u=>u.id===op.urun_id)?.unit} — bu miktardan düşülecek</div>:null;
+                  })()}
+                </>
+              )}
+
+              {/* Ortak alanlar */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label required>Miktar</Label>
+                  <Input type="number" min="1" value={op.quantity} onChange={e=>setOp(p=>({...p,quantity:e.target.value}))}/>
+                </div>
+                <div>
+                  <Label>Not / Açıklama</Label>
+                  <Input value={op.notes} onChange={e=>setOp(p=>({...p,notes:e.target.value}))} placeholder="Opsiyonel..."/>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label required>Miktar</Label><Input type="number" min="1" value={mf.quantity} onChange={e=>setMf(p=>({...p,quantity:e.target.value}))}/></div>
-              <div><Label>Not</Label><Input value={mf.notes} onChange={e=>setMf(p=>({...p,notes:e.target.value}))} placeholder="Opsiyonel"/></div>
-            </div>
-          </div>
+          )}
         </Modal>
       )}
 
-      {/* Header */}
+      {/* ── Başlık ──────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <h1 className="text-xl font-bold text-white">Stok Yönetimi</h1>
         <div className="sm:ml-auto flex flex-wrap gap-2">
-          <button onClick={()=>{setMf({urun_id:"",from_hospital_id:"",to_hospital_id:"",quantity:1,notes:""});setMoveModal(true);}}
-            className="px-4 py-2 rounded-xl bg-violet2/20 hover:bg-violet2/30 text-violet2 text-sm font-semibold border border-violet2/30 flex items-center gap-1.5 transition-colors">
-            ⇄ Transfer
+          <button onClick={()=>{setOp(emptyOp);setOpModal(true);}}
+            className="px-4 py-2 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold border border-brand/30 flex items-center gap-2 transition-colors">
+            ⊕ İşlem Yap
           </button>
-          <button onClick={()=>setActiveTab("alerts")} className={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-colors border ${alerts.length>0?"bg-amber2/20 hover:bg-amber2/30 text-amber2 border-amber2/30":"bg-navy-800 text-slate-400 border-white/8"}`}>
-            ⚠ {alerts.length} Uyarı
-          </button>
+          {alerts.length>0&&(
+            <button onClick={()=>setActiveTab("alerts")}
+              className="px-4 py-2 rounded-xl bg-amber2/20 hover:bg-amber2/30 text-amber2 text-sm font-semibold border border-amber2/30 flex items-center gap-1.5 transition-colors">
+              ⚠ {alerts.length} Uyarı
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* ── Stat kartları ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          {l:"Toplam Kayıt",v:totalItems,c:"#3b82f6",bg:"rgba(59,130,246,.12)"},
-          {l:"Stok Tamam",v:totalOk,c:"#10b981",bg:"rgba(16,185,129,.12)"},
-          {l:"Kritik Stok",v:totalCritical,c:"#f59e0b",bg:"rgba(245,158,11,.12)"},
-          {l:"Tükenmiş",v:totalEmpty,c:"#f43f5e",bg:"rgba(244,63,94,.12)"},
+          {l:"Toplam Kayıt",v:totalItems,c:"#3b82f6"},
+          {l:"Stok Tamam",v:totalOk,c:"#10b981"},
+          {l:"Kritik Stok",v:totalCritical,c:"#f59e0b"},
+          {l:"Tükenmiş",v:totalEmpty,c:"#f43f5e"},
+          {l:"Kayıp (30g)",v:lossCount,c:"#94a3b8"},
         ].map(s=>(
           <div key={s.l} className="stat-card rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="w-3 h-3 rounded-full" style={{background:s.c}}></div>
+              <div className="w-2.5 h-2.5 rounded-full" style={{background:s.c}}></div>
               <span className="text-2xl font-black" style={{color:s.c}}>{s.v}</span>
             </div>
             <div className="h-1 rounded-full bg-navy-700 overflow-hidden mb-2">
-              <div className="h-full rounded-full" style={{width:`${totalItems?Math.round(s.v/totalItems*100):0}%`,background:s.c}}></div>
+              <div className="h-full rounded-full" style={{width:totalItems?`${Math.round(s.v/totalItems*100)}%`:"0%",background:s.c}}></div>
             </div>
             <p className="text-xs text-slate-500">{s.l}</p>
           </div>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-0 border-b border-white/8">
+      {/* ── İşlem kısayolları ──────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        {OPS.map(o=>(
+          <button key={o.id} onClick={()=>{setOp({...emptyOp,op:o.id});setOpModal(true);}}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all hover:scale-[1.01] active:scale-[.99]"
+            style={{background:o.bg,borderColor:o.color+"35"}}>
+            <span className="text-lg font-black" style={{color:o.color}}>{o.icon}</span>
+            <span className="text-xs font-semibold text-white text-left leading-tight">{o.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Sekmeler ─────────────────────────────────────────────── */}
+      <div className="flex border-b border-white/8">
         {tabs.map(t=>(
           <button key={t.id} onClick={()=>setActiveTab(t.id)}
             className={`px-4 py-3 text-sm font-semibold flex items-center gap-1.5 border-b-2 transition-all -mb-px ${activeTab===t.id?"border-brand text-brand-300":"border-transparent text-slate-500 hover:text-slate-300"}`}>
@@ -1671,7 +2797,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         ))}
       </div>
 
-      {/* Overview Tab */}
+      {/* ── Overview ─────────────────────────────────────────────── */}
       {activeTab==="overview"&&(
         <div className="card rounded-2xl overflow-hidden">
           <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
@@ -1679,43 +2805,38 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
               <input value={hFilter} onChange={e=>setHFilter(e.target.value)} placeholder="Ürün ara..." className="pl-7 pr-4 py-2 rounded-xl input-dark text-sm w-56"/>
               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs">⌕</span>
             </div>
-            <span className="text-xs text-slate-500">{productSummary.length} ürün</span>
+            <span className="text-xs text-slate-500">{productSummary.length} ürün çeşidi</span>
           </div>
           {productSummary.filter(p=>!hFilter||p.urun.name.toLowerCase().includes(hFilter.toLowerCase())).map(p=>{
-            const isEmpty=p.total===0;
-            const isLow=p.total>0&&p.total<=p.min;
-            const statusColor=isEmpty?"#f43f5e":isLow?"#f59e0b":"#10b981";
+            const isEmpty=p.total===0,isLow=p.total>0&&p.total<=p.min;
+            const sc=isEmpty?"#f43f5e":isLow?"#f59e0b":"#10b981";
             const pct=p.min>0?Math.min(100,Math.round(p.total/p.min*100)):p.total>0?100:0;
             return(
               <div key={p.urun.id} className="table-row border-b border-white/5 last:border-b-0">
                 <div className="px-5 py-3 flex items-center gap-4">
-                  <div className="w-1.5 h-12 rounded-full flex-shrink-0" style={{background:statusColor}}></div>
+                  <div className="w-1.5 h-10 rounded-full flex-shrink-0" style={{background:sc}}></div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <span className="text-sm font-semibold text-white">{p.urun.name}</span>
                       {p.urun.code&&<span className="text-xs text-slate-600 font-mono">{p.urun.code}</span>}
                     </div>
-                    {/* Per-hospital breakdown */}
                     <div className="flex flex-wrap gap-1.5">
-                      {p.hospitals.map(h=>{
-                        const stokRow=rows.find(r=>r.hospital_id===h.id&&r.urun_id===p.urun.id);
-                        return(
-                          <button key={h.id} onClick={(e)=>{e.stopPropagation();setAf({quantity:h.qty,notes:""});setAdjustModal(stokRow||{urun_id:p.urun.id,hospital_id:h.id,quantity:h.qty,urun:p.urun,hospital:{name:h.name},id:stokRow?.id});}}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-navy-700 hover:bg-navy-600 border border-white/8 text-xs transition-colors group">
-                            <span className="text-slate-400 truncate max-w-[80px]">{h.name}</span>
-                            <span className={`font-bold ${h.qty===0?"text-rose2":h.qty<=(p.min)?"text-amber2":"text-emerald2"}`}>{h.qty}</span>
-                            <span className="text-slate-600 group-hover:text-slate-400">✎</span>
-                          </button>
-                        );
-                      })}
+                      {p.hospitals.map(h=>(
+                        <button key={h.id} onClick={e=>{e.stopPropagation();setAf({quantity:h.qty,notes:""});setAdjustModal(h.row||{urun_id:p.urun.id,hospital_id:h.id,quantity:h.qty,urun:p.urun,hospital:{name:h.name},id:h.row?.id});}}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-navy-700 hover:bg-navy-600 border border-white/8 text-xs transition-colors group">
+                          <span className="text-slate-400 truncate max-w-[90px]">{h.name}</span>
+                          <span className={`font-bold ${h.qty===0?"text-rose2":h.qty<=p.min?"text-amber2":"text-emerald2"}`}>{h.qty}</span>
+                          <span className="text-slate-600 group-hover:text-slate-300 transition-colors">✎</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0 w-28">
-                    <div className="text-lg font-black" style={{color:statusColor}}>{p.total} <span className="text-xs font-normal text-slate-500">{p.urun.unit}</span></div>
+                  <div className="text-right flex-shrink-0 w-24">
+                    <div className="text-lg font-black" style={{color:sc}}>{p.total}<span className="text-xs font-normal text-slate-500 ml-1">{p.urun.unit}</span></div>
                     {p.min>0&&(
                       <div>
-                        <div className="h-1.5 bg-navy-700 rounded-full overflow-hidden mt-1.5 w-full">
-                          <div className="h-full rounded-full transition-all" style={{width:`${pct}%`,background:statusColor}}></div>
+                        <div className="h-1.5 bg-navy-700 rounded-full overflow-hidden mt-1 w-full">
+                          <div className="h-full rounded-full" style={{width:`${pct}%`,background:sc}}></div>
                         </div>
                         <div className="text-[10px] text-slate-600 mt-0.5">Min: {p.min}</div>
                       </div>
@@ -1728,7 +2849,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         </div>
       )}
 
-      {/* Hospital Tab */}
+      {/* ── Hastane görünümü ────────────────────────────────────── */}
       {activeTab==="hospital"&&(
         <div className="space-y-4">
           {hospitalSummary.map(hs=>(
@@ -1745,8 +2866,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
               </div>
               <div className="divide-y divide-white/5 max-h-64 overflow-y-auto">
                 {hs.items.sort((a,b)=>a.urun.name.localeCompare(b.urun.name)).map(r=>{
-                  const isEmpty=r.quantity===0;
-                  const isLow=r.quantity>0&&r.quantity<=(r.urun.min_stock||0);
+                  const isEmpty=r.quantity===0,isLow=r.quantity>0&&r.quantity<=(r.urun.min_stock||0);
                   const sc=isEmpty?"#f43f5e":isLow?"#f59e0b":"#10b981";
                   return(
                     <div key={r.id} className="table-row px-5 py-2.5 flex items-center gap-3 cursor-pointer"
@@ -1754,7 +2874,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                       <div className="w-1.5 h-8 rounded-full flex-shrink-0" style={{background:sc}}></div>
                       <span className="flex-1 text-sm text-slate-200 truncate">{r.urun.name}</span>
                       {r.urun.code&&<span className="text-xs text-slate-600 font-mono hidden sm:block">{r.urun.code}</span>}
-                      <span className="text-sm font-bold" style={{color:sc}}>{r.quantity} <span className="text-xs font-normal text-slate-500">{r.urun.unit}</span></span>
+                      <span className="text-sm font-bold" style={{color:sc}}>{r.quantity}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit}</span></span>
                       <span className="text-slate-600 hover:text-slate-400 text-xs">✎</span>
                     </div>
                   );
@@ -1765,7 +2885,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         </div>
       )}
 
-      {/* Alerts Tab */}
+      {/* ── Uyarılar ────────────────────────────────────────────── */}
       {activeTab==="alerts"&&(
         <div className="space-y-3">
           {alerts.length===0?(
@@ -1776,31 +2896,40 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           ):alerts.map(p=>{
             const isEmpty=p.total===0;
             const sc=isEmpty?"#f43f5e":"#f59e0b";
-            const label=isEmpty?"Stok Tükendi":"Kritik Seviye";
             return(
               <div key={p.urun.id} className="card rounded-2xl p-4 border" style={{borderColor:sc+"40"}}>
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{background:sc+"20",color:sc}}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{background:sc+"20",color:sc}}>
                     {isEmpty?"✕":"⚠"}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className="text-sm font-bold text-white">{p.urun.name}</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-bold border" style={{background:sc+"20",color:sc,borderColor:sc+"40"}}>{label}</span>
+                      {p.urun.code&&<span className="text-xs font-mono text-slate-500">{p.urun.code}</span>}
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold border" style={{background:sc+"20",color:sc,borderColor:sc+"40"}}>
+                        {isEmpty?"Stok Tükendi":"Kritik Seviye"}
+                      </span>
                     </div>
-                    <div className="text-xs text-slate-500 mb-2">
-                      Mevcut: <span className="font-bold" style={{color:sc}}>{p.total} {p.urun.unit}</span>
-                      {p.min>0&&<> · Min: <span className="font-bold text-slate-400">{p.min} {p.urun.unit}</span></>}
+                    <p className="text-xs text-slate-500 mb-2">
+                      Mevcut: <b style={{color:sc}}>{p.total} {p.urun.unit}</b>
+                      {p.min>0&&<> · Min: <b className="text-slate-400">{p.min}</b></>}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {p.hospitals.map(h=>(
+                        <span key={h.id} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-navy-700 text-xs">
+                          <span className="text-slate-400">{h.name}:</span>
+                          <span className="font-bold" style={{color:h.qty===0?"#f43f5e":sc}}>{h.qty}</span>
+                        </span>
+                      ))}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {p.hospitals.map(h=>{
-                        const stokRow=rows.find(r=>r.hospital_id===h.id&&r.urun_id===p.urun.id);
+                    <div className="flex gap-2 flex-wrap">
+                      {["shelf_to_hospital"].map(oid=>{
+                        const o=OPS.find(x=>x.id===oid);
                         return(
-                          <button key={h.id} onClick={()=>{setAf({quantity:h.qty,notes:""});setAdjustModal(stokRow||{urun_id:p.urun.id,hospital_id:h.id,quantity:h.qty,urun:p.urun,hospital:{name:h.name},id:stokRow?.id});}}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-navy-700 hover:bg-navy-600 border border-white/8 text-xs transition-colors">
-                            <span className="text-slate-400">{h.name}:</span>
-                            <span className="font-bold" style={{color:h.qty===0?"#f43f5e":sc}}>{h.qty}</span>
-                            <span className="text-slate-500">→ Düzelt</span>
+                          <button key={oid} onClick={()=>{setOp({...emptyOp,op:oid,urun_id:p.urun.id});setOpModal(true);setActiveTab("overview");}}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                            style={{background:o.bg,borderColor:o.color+"40",color:o.color}}>
+                            {o.icon} {o.label}
                           </button>
                         );
                       })}
@@ -1813,31 +2942,42 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         </div>
       )}
 
-      {/* History Tab */}
+      {/* ── Hareket Geçmişi ─────────────────────────────────────── */}
       {activeTab==="history"&&(
         <div className="card rounded-2xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-white/8">
-            <span className="text-xs text-slate-500">Son 200 hareket</span>
+          <div className="px-4 py-3 border-b border-white/8 flex items-center gap-3">
+            <div className="relative flex-1">
+              <input value={histFilter} onChange={e=>setHistFilter(e.target.value)} placeholder="Ürün, hastane, not ara..." className="w-full pl-7 pr-4 py-2 rounded-xl input-dark text-sm"/>
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs">⌕</span>
+            </div>
+            <span className="text-xs text-slate-500">{filteredHistory.length} kayıt</span>
           </div>
-          {hareketler.length===0?(
-            <div className="py-12 text-center text-slate-500 text-sm">Hareket kaydı yok</div>
-          ):hareketler.map(h=>{
+          {filteredHistory.length===0?(
+            <div className="py-12 text-center text-slate-500 text-sm">Hareket bulunamadı</div>
+          ):filteredHistory.map(h=>{
             const urun=urunler.find(u=>u.id===h.urun_id);
             const hosp=hospitals.find(x=>x.id===h.hospital_id);
+            const tag=getMovTag(h.notes);
+            const meta=tag?MOV_META[tag]:null;
             const isIn=h.type==="in";
             const d=new Date(h.created_at);
+            const cleanNote=tag?h.notes.replace(tag,"").trim():h.notes;
             return(
               <div key={h.id} className="table-row px-5 py-3 flex items-center gap-3 border-b border-white/5 last:border-b-0">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${isIn?"bg-emerald2/20 text-emerald2":"bg-rose2/20 text-rose2"}`}>
-                  {isIn?"↓":"↑"}
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0"
+                  style={meta?{background:meta.bg,color:meta.color}:{background:isIn?"rgba(16,185,129,.18)":"rgba(244,63,94,.18)",color:isIn?"#10b981":"#f43f5e"}}>
+                  {meta?meta.icon:isIn?"↓":"↑"}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{urun?.name||"?"}</div>
-                  <div className="text-xs text-slate-500">{hosp?.name||"?"} · {h.notes||""}</div>
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <span className="text-sm font-semibold text-white truncate">{urun?.name||"?"}</span>
+                    {meta&&<span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{background:meta.bg,color:meta.color}}>{meta.label}</span>}
+                  </div>
+                  <div className="text-xs text-slate-500 truncate">{hosp?.name||"?"}{cleanNote?` · ${cleanNote}`:""}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className={`text-sm font-bold ${isIn?"text-emerald2":"text-rose2"}`}>
-                    {isIn?"+":"-"}{h.quantity} <span className="text-xs font-normal text-slate-500">{urun?.unit}</span>
+                  <div className="text-sm font-bold" style={meta?{color:meta.color}:{color:isIn?"#10b981":"#f43f5e"}}>
+                    {isIn?"+":"-"}{h.quantity}<span className="text-xs font-normal text-slate-500 ml-1">{urun?.unit}</span>
                   </div>
                   <div className="text-xs text-slate-600">{d.toLocaleDateString("tr-TR")} {d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</div>
                 </div>
@@ -1850,10 +2990,12 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   );
 }
 
+
 // ─── MOVEMENTS VIEW ────────────────────────────────────────────────────────────
 function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const toast=useToast();
   const [modal,setModal]=useState(false);
+  const [barcodeModal,setBarcodeModal]=useState(false);
   const [hareketler,setHareketler]=useState([]);
   const [search,setSearch]=useState("");
   const [fType,setFType]=useState("");
@@ -1875,160 +3017,77 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     return true;
   });
 
-  const save=async()=>{
-    if(!f.urun_id||!f.hospital_id)return toast("Ürün ve hastane seçin","warning");
-    if(!f.quantity||f.quantity<1)return toast("Geçerli miktar girin","warning");
-    const{error}=await SB.from("hareketler").insert({...f,quantity:Number(f.quantity),created_at:new Date().toISOString()});
+  const save=async(formData)=>{
+    const d=formData||f;
+    if(!d.urun_id||!d.hospital_id)return toast("Ürün ve hastane seçin","warning");
+    const qty=Number(d.quantity)||1;
+    const{error}=await SB.from("hareketler").insert({urun_id:d.urun_id,hospital_id:d.hospital_id,type:d.type,quantity:qty,notes:d.notes||"",surgery_id:d.surgery_id||null,created_at:new Date().toISOString()});
     if(error)return toast(error.message,"error");
-    const stok=stoklar.find(s=>s.urun_id===f.urun_id&&s.hospital_id===f.hospital_id);
+    const stok=stoklar.find(s=>s.urun_id===d.urun_id&&s.hospital_id===d.hospital_id);
     if(stok){
-      const newQ=f.type==="in"?stok.quantity+Number(f.quantity):Math.max(0,stok.quantity-Number(f.quantity));
+      const newQ=d.type==="in"?stok.quantity+qty:Math.max(0,stok.quantity-qty);
       await SB.from("stok").update({quantity:newQ}).eq("id",stok.id);
-    }else if(f.type==="in"){
-      await SB.from("stok").insert({urun_id:f.urun_id,hospital_id:f.hospital_id,quantity:Number(f.quantity)});
+    }else if(d.type==="in"){
+      await SB.from("stok").insert({urun_id:d.urun_id,hospital_id:d.hospital_id,quantity:qty});
     }
-    toast("Hareket kaydedildi","success");
+    toast("Hareket kaydedildi ✓","success");
     setModal(false);loadAll();load();
   };
 
-  // Stats
+  const handleBarcodeResult=async(result)=>{
+    if(result.expiryDate&&new Date(result.expiryDate)<new Date()){
+      toast("Son kullanma tarihi geçmiş ürün sisteme eklenemez!","error");return;
+    }
+    const note=`Barkod — LOT:${result.lotNumber||""}${result.expiryDate?` SKT:${result.expiryDate}`:""}`;
+    await save({urun_id:result.urun_id,hospital_id:result.hospital_id,type:result.type,quantity:result.quantity,notes:note,surgery_id:""});
+    setBarcodeModal(false);
+  };
+
   const totalIn=hareketler.filter(h=>h.type==="in").reduce((a,h)=>a+h.quantity,0);
   const totalOut=hareketler.filter(h=>h.type==="out").reduce((a,h)=>a+h.quantity,0);
 
   return(
     <div className="space-y-5">
+      {barcodeModal&&<BarcodeScannerModal onResult={handleBarcodeResult} onClose={()=>setBarcodeModal(false)} urunler={urunler} hospitals={hospitals}/>}
       {modal&&(
-        <Modal title="Mal Hareketi Ekle" onClose={()=>setModal(false)} size="md"
-          footer={<div className="flex gap-2">
-            <button onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
-            <button onClick={save} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Kaydet</button>
-          </div>}>
+        <Modal title="Manuel Hareket Ekle" onClose={()=>setModal(false)} size="md"
+          footer={<div className="flex gap-2"><button onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={()=>save(f)} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Kaydet</button></div>}>
           <div className="space-y-4">
-            <div>
-              <Label required>Hareket Tipi</Label>
+            <div><Label required>Hareket Tipi</Label>
               <div className="grid grid-cols-2 gap-2">
                 {["in","out"].map(t=>(
                   <button key={t} type="button" onClick={()=>setF(p=>({...p,type:t}))}
                     className={`py-3 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2 ${f.type===t?(t==="in"?"bg-emerald2/20 border-emerald2 text-emerald2":"bg-rose2/20 border-rose2 text-rose2"):"bg-navy-800 border-white/10 text-slate-400"}`}>
-                    <span>{t==="in"?"↓":"↑"}</span>{t==="in"?"Stok Girişi":"Stok Çıkışı"}
+                    {t==="in"?"↓ Stok Girişi":"↑ Stok Çıkışı"}
                   </button>
                 ))}
               </div>
             </div>
-            <div><Label required>Ürün</Label>
-              <Select value={f.urun_id} onChange={e=>setF(p=>({...p,urun_id:e.target.value}))}>
-                <option value="">Ürün seçin</option>
-                {urunler.map(u=><option key={u.id} value={u.id}>{u.name} ({u.unit})</option>)}
-              </Select>
-            </div>
+            <div><Label required>Ürün</Label><Select value={f.urun_id} onChange={e=>setF(p=>({...p,urun_id:e.target.value}))}><option value="">Ürün seçin</option>{urunler.map(u=><option key={u.id} value={u.id}>{u.name} ({u.unit})</option>)}</Select></div>
             <div><Label required>Hastane</Label>
               <Select value={f.hospital_id} onChange={e=>setF(p=>({...p,hospital_id:e.target.value}))}>
                 <option value="">Hastane seçin</option>
-                {hospitals.map(h=>{
-                  const s=stoklar.find(x=>x.urun_id===f.urun_id&&x.hospital_id===h.id);
-                  return<option key={h.id} value={h.id}>{h.name}{f.urun_id&&s?` (Mevcut: ${s.quantity})`:""}</option>;
-                })}
+                {hospitals.map(h=>{const s=stoklar.find(x=>x.urun_id===f.urun_id&&x.hospital_id===h.id);return<option key={h.id} value={h.id}>{h.name}{f.urun_id&&s?` (${s.quantity})`:""}</option>;})}
               </Select>
             </div>
-            {f.type==="out"&&f.urun_id&&f.hospital_id&&(()=>{
-              const s=stoklar.find(x=>x.urun_id===f.urun_id&&x.hospital_id===f.hospital_id);
-              if(!s)return null;
-              return(
-                <div className="bg-navy-800 rounded-xl p-3 flex items-center gap-2 border border-white/8">
-                  <span className="text-xs text-slate-500">Mevcut stok:</span>
-                  <span className="text-sm font-bold text-white">{s.quantity} {urunler.find(u=>u.id===f.urun_id)?.unit}</span>
-                </div>
-              );
-            })()}
             <div className="grid grid-cols-2 gap-3">
               <div><Label required>Miktar</Label><Input type="number" min="1" value={f.quantity} onChange={e=>setF(p=>({...p,quantity:e.target.value}))}/></div>
-              <div><Label>Ameliyat</Label>
-                <Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value}))}>
-                  <option value="">Opsiyonel</option>
-                  {surgeries.slice(0,30).map(s=><option key={s.id} value={s.id}>{s.type} {s.date}</option>)}
-                </Select>
-              </div>
+              <div><Label>Not</Label><Input value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Açıklama..."/></div>
             </div>
-            <div><Label>Not</Label><Input value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Açıklama..."/></div>
           </div>
         </Modal>
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <h1 className="text-xl font-bold text-white">Mal Hareketleri</h1>
-        <div className="sm:ml-auto">
-          <button onClick={()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",type:"out",quantity:1,notes:""});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Hareket Ekle</button>
+        <div className="sm:ml-auto flex flex-wrap gap-2">
+          <button onClick={()=>setBarcodeModal(true)}
+            className="px-4 py-2 rounded-xl bg-amber2/20 hover:bg-amber2/30 text-amber2 text-sm font-bold border border-amber2/30 flex items-center gap-2 transition-colors">
+            ▦ Barkod ile Ekle
+          </button>
+          <button onClick={()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",type:"out",quantity:1,notes:""});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Manuel Ekle</button>
         </div>
       </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          {l:"Toplam Giriş",v:totalIn,c:"#10b981"},
-          {l:"Toplam Çıkış",v:totalOut,c:"#f43f5e"},
-          {l:"Kayıt Sayısı",v:hareketler.length,c:"#3b82f6"},
-        ].map(s=>(
-          <div key={s.l} className="stat-card rounded-2xl p-4 text-center">
-            <div className="text-2xl font-black mb-1" style={{color:s.c}}>{s.v}</div>
-            <div className="text-xs text-slate-500">{s.l}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="card rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ürün, hastane, not ara..." className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">⌕</span>
-        </div>
-        <Select value={fType} onChange={e=>setFType(e.target.value)} className="sm:w-40">
-          <option value="">Tüm Tipler</option>
-          <option value="in">Giriş</option>
-          <option value="out">Çıkış</option>
-        </Select>
-        <Select value={fHospital} onChange={e=>setFHospital(e.target.value)} className="sm:w-48">
-          <option value="">Tüm Hastaneler</option>
-          {hospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
-        </Select>
-      </div>
-
-      <div className="card rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-white/8">
-          <span className="text-xs text-slate-500">{filtered.length} kayıt</span>
-        </div>
-        {filtered.length===0?(
-          <div className="py-12 text-center text-slate-500 text-sm">Hareket bulunamadı</div>
-        ):filtered.map(h=>{
-          const urun=urunler.find(u=>u.id===h.urun_id);
-          const hosp=hospitals.find(x=>x.id===h.hospital_id);
-          const surg=surgeries.find(s=>s.id===h.surgery_id);
-          const isIn=h.type==="in";
-          const d=new Date(h.created_at);
-          return(
-            <div key={h.id} className="table-row px-5 py-3 flex items-center gap-3 border-b border-white/5 last:border-b-0">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${isIn?"bg-emerald2/15 text-emerald2":"bg-rose2/15 text-rose2"}`}>
-                {isIn?"↓":"↑"}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white truncate">{urun?.name||"?"}</div>
-                <div className="text-xs text-slate-500">
-                  {hosp?.name||"?"}{surg?` · ${surg.type}`:""}{h.notes?` · ${h.notes}`:""}
-                </div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className={`text-base font-black ${isIn?"text-emerald2":"text-rose2"}`}>
-                  {isIn?"+":"-"}{h.quantity} <span className="text-xs font-normal text-slate-500">{urun?.unit}</span>
-                </div>
-                <div className="text-xs text-slate-600">
-                  {d.toLocaleDateString("tr-TR")} {d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── NOTIFICATIONS VIEW ───────────────────────────────────────────────────────
 function NotifsView({notifs,onRead,onReadAll,onDelete,onDeleteAll}){
   const unread=notifs.filter(n=>!n.is_read);
@@ -2332,8 +3391,8 @@ function App(){
     switch(page){
       case"dashboard":return<Dashboard surgeries={surgeries} types={types} profile={profile} setPage={setPage} doctors={doctors}/>;
       case"surgeries":return<SurgeriesView surgeries={surgeries} types={types} hospitals={hospitals} doctors={doctors} profile={profile} onRefresh={loadAll} onAddList={loadAll} onNotif={addNotif}/>;
-      case"program":return<ProgramView surgeries={surgeries} types={types} doctors={doctors} personel={personel} hospitals={hospitals} onRefresh={loadAll}/>;
-      case"products":return<UrunlerView urunler={urunler} stoklar={stoklar} loadAll={loadAll}/>;
+      case"program":return<ProgramView surgeries={surgeries} types={types} doctors={doctors} personel={personel} hospitals={hospitals} onRefresh={loadAll} profile={profile} onAddSurgery={(form)=>SB.from("surgeries").insert({...form,created_by:profile?.id}).then(()=>loadAll())}/>;
+      case"products":return<UrunlerView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"stock":return<StokView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"movements":return<HareketlerView urunler={urunler} stoklar={stoklar} surgeries={surgeries} hospitals={hospitals} loadAll={loadAll}/>;
       case"notifications":return<NotifsView notifs={notifs} onRead={readNotif} onReadAll={readAll} onDelete={delNotif} onDeleteAll={delAllNotifs}/>;
