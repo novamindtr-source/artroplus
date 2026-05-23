@@ -232,7 +232,7 @@ const findStockRow=(stoklar,urunId,hospitalId)=>stoklar.find(s=>
   s.urun_id===urunId&&(!s.hospital_id||!hospitalId||s.hospital_id===hospitalId)
 );
 const updateStockQuantity=(row,quantity)=>SB.from("stok").update({miktar:Number(quantity)||0}).eq("id",row.id);
-const insertStockQuantity=(urunId,hospitalId,quantity)=>SB.from("stok").insert({urun_id:urunId,miktar:Number(quantity)||0});
+const insertStockQuantity=(urunId,hospitalId,quantity)=>SB.from("stok").insert({urun_id:urunId,hospital_id:hospitalId||null,miktar:Number(quantity)||0});
 const normalizeMovement=(h,defaultHospitalId)=>({
   ...h,
   hospital_id:h.hospital_id||defaultHospitalId,
@@ -241,8 +241,9 @@ const normalizeMovement=(h,defaultHospitalId)=>({
   notes:h.notes||h.aciklama||"",
   surgery_id:h.surgery_id||null,
 });
-const movementPayload=({urun_id,type,quantity,notes,surgery_id})=>({
+const movementPayload=({urun_id,hospital_id,type,quantity,notes,surgery_id})=>({
   urun_id,
+  hospital_id:hospital_id||null,
   miktar:type==="out"?-Math.abs(Number(quantity)||0):Math.abs(Number(quantity)||0),
   aciklama:notes||"",
   surgery_id:surgery_id||null,
@@ -1316,7 +1317,7 @@ const buildSurgeryNotes=(notes,personnel=[],docs=[])=>[
   stripSurgeryMeta(notes)
 ].filter(Boolean).join("\n");
 
-function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,profile,onAddSurgery}){
+function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,profile,onAddSurgery,onNotif}){
   const toast=useToast();
   const [tab,setTab]=useState("today");        // today | calendar | mine | list
   const [selDate,setSelDate]=useState(todayStr);
@@ -1421,6 +1422,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
     });
     if(error)return toast(error.message,"error");
     toast("Ameliyat programa eklendi ✓","success");
+    if(onNotif)onNotif(`Yeni ameliyat: ${payload.type} - ${fmtTR(addModal.date)}`);
     setAddModal(null);setAddForm(emptyAddForm);
     onRefresh();
   };
@@ -2112,7 +2114,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       }
       if(stockError)return toast("Ürün eklendi fakat stok kaydedilemedi: "+stockError.message,"error");
       const note=`Ana depo girişi${f.udi?` — UDI:${f.udi}`:""}${f.code?` — REF:${f.code}`:""}${f.lot?` — LOT:${f.lot}`:""}${f.mfgDate?` — ÜRT:${f.mfgDate}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
-      const {error:movementError}=await SB.from("hareketler").insert(movementPayload({urun_id:urunId,type:"in",quantity:qty,notes:note}));
+      const {error:movementError}=await SB.from("hareketler").insert(movementPayload({urun_id:urunId,hospital_id:shelf.id,type:"in",quantity:qty,notes:note}));
       if(movementError)toast("Stok eklendi ama hareket kaydı yazılamadı: "+movementError.message,"warning");
       toast(`${qty} adet ana depoya kaydedildi ✓`,"success");
     }
@@ -2970,6 +2972,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     if(diff!==0){
       await SB.from("hareketler").insert(movementPayload({
         urun_id:adjustModal.urun_id,
+        hospital_id:adjustModal.hospital_id,
         type:diff>0?"in":"out",
         quantity:Math.abs(diff),
         notes:`${MOV_TAGS.ADJUST} ${af.notes||"Manuel düzeltme"}`
@@ -2997,12 +3000,12 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       const toStok=findStockRow(stoklar,op.urun_id,op.to_id);
       if(op.from_id){
         await updateStockQuantity(fromStok,fromStok.quantity-qty);
-        await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,type:"out",quantity:qty,
+        await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,
           notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${hospitals.find(h=>h.id===op.to_id)?.name||""} ${op.notes||""}`.trim()}));
       }
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
       else{await insertStockQuantity(op.urun_id,op.to_id,qty);}
-      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,type:"in",quantity:qty,
+      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.to_id,type:"in",quantity:qty,
         notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${op.notes||""}`.trim()}));
       toast(`${qty} ${urun?.unit||"adet"} hastaneye gönderildi ✓`,"success");
     }
@@ -3027,9 +3030,9 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
       else{await insertStockQuantity(op.urun_id,targetId,qty);}
       await SB.from("hareketler").insert([
-        movementPayload({urun_id:op.urun_id,type:"out",quantity:qty,
+        movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,
           notes:`${MOV_TAGS.RETURN} → ${hospitals.find(h=>h.id===targetId)?.name||COMPANY_SHELF_NAME} ${op.notes||""}`.trim()}),
-        movementPayload({urun_id:op.urun_id,type:"in",quantity:qty,
+        movementPayload({urun_id:op.urun_id,hospital_id:targetId,type:"in",quantity:qty,
           notes:`${MOV_TAGS.RETURN} ← ${hospitals.find(h=>h.id===op.from_id)?.name||""} ${op.notes||""}`.trim()}),
       ]);
       toast(`${qty} ${urun?.unit||"adet"} geri alındı ✓`,"success");
@@ -3039,7 +3042,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       // Geçici geri alım (stoktan düşülmez, not olarak kaydedilir)
       if(!op.from_id){setOpLoading(false);return toast("Kaynak hastane seçin","warning");}
       const note=`${MOV_TAGS.TEMP_RETURN} Geçici alım${op.expectedReturn?` — Tahmini iade: ${op.expectedReturn}`:""} ${op.notes||""}`.trim();
-      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,type:"out",quantity:qty,notes:note}));
+      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,notes:note}));
       // Stoktan düş — fiziksel olarak geri geldi
       const fromStok=findStockRow(stoklar,op.urun_id,op.from_id);
       if(fromStok&&fromStok.quantity>=qty){
@@ -3059,7 +3062,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       const LOSS_REASONS={"kayboldu":"Kayboldu","hasar":"Hasarlı/Kullanılamaz","fire":"Fire/Bozuk",
         "ameliyat":"Ameliyatta Kullanıldı","iade":"Üreticiye İade","diger":"Diğer"};
       const note=`${MOV_TAGS.LOSS} Sebep: ${LOSS_REASONS[op.lossReason]||op.lossReason} ${op.notes||""}`.trim();
-      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,type:"out",quantity:qty,notes:note}));
+      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,notes:note}));
       toast(`${qty} ${urun?.unit||"adet"} kayıp olarak raporlandı`,"warning");
     }
 
@@ -3623,7 +3626,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     const d=formData||f;
     if(!d.urun_id||!d.hospital_id)return toast("Ürün ve hastane seçin","warning");
     const qty=Number(d.quantity)||1;
-    const{error}=await SB.from("hareketler").insert(movementPayload({urun_id:d.urun_id,type:d.type,quantity:qty,notes:d.notes||"",surgery_id:d.surgery_id||null}));
+    const{error}=await SB.from("hareketler").insert(movementPayload({urun_id:d.urun_id,hospital_id:d.hospital_id,type:d.type,quantity:qty,notes:d.notes||"",surgery_id:d.surgery_id||null}));
     if(error)return toast(error.message,"error");
     const stok=findStockRow(stoklar,d.urun_id,d.hospital_id);
     if(stok){
@@ -4175,12 +4178,12 @@ function App(){
 
   const renderPage=()=>{
     if(!canAccessPage(page,profile)){
-      return<ProgramView surgeries={surgeries} types={types} doctors={doctors} personel={personel} hospitals={hospitals} onRefresh={loadAll} profile={profile} onAddSurgery={(form)=>SB.from("surgeries").insert({...form,created_by:profile?.id}).then(()=>loadAll())}/>;
+      return<ProgramView surgeries={surgeries} types={types} doctors={doctors} personel={personel} hospitals={hospitals} onRefresh={loadAll} profile={profile} onNotif={addNotif} onAddSurgery={(form)=>SB.from("surgeries").insert({...form,created_by:profile?.id}).then(()=>loadAll())}/>;
     }
     switch(page){
       case"dashboard":return<Dashboard surgeries={surgeries} types={types} profile={profile} setPage={setPage} doctors={doctors}/>;
       case"surgeries":return<SurgeriesView surgeries={surgeries} types={types} hospitals={hospitals} doctors={doctors} profile={profile} onRefresh={loadAll} onAddList={loadAll} onNotif={addNotif}/>;
-      case"program":return<ProgramView surgeries={surgeries} types={types} doctors={doctors} personel={personel} hospitals={hospitals} onRefresh={loadAll} profile={profile} onAddSurgery={(form)=>SB.from("surgeries").insert({...form,created_by:profile?.id}).then(()=>loadAll())}/>;
+      case"program":return<ProgramView surgeries={surgeries} types={types} doctors={doctors} personel={personel} hospitals={hospitals} onRefresh={loadAll} profile={profile} onNotif={addNotif} onAddSurgery={(form)=>SB.from("surgeries").insert({...form,created_by:profile?.id}).then(()=>loadAll())}/>;
       case"products":return<UrunlerView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"stock":return<StokView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"movements":return<HareketlerView urunler={urunler} stoklar={stoklar} surgeries={surgeries} hospitals={hospitals} loadAll={loadAll}/>;
