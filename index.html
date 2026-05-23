@@ -39,6 +39,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
   <!-- Recharts UMD -->
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <!-- jsPDF -->
@@ -49,7 +50,7 @@
   <meta name="description" content="ARTROPLUS — Medikal Ameliyat Takip ve ERP Sistemi"/>
   <style>
     *{box-sizing:border-box;}
-    body{font-family:'Inter',sans-serif;background:#0a1025;color:#e2e8f0;margin:0;overflow-x:hidden;}
+    body{font-family:'Inter',sans-serif;background:#07111f;color:#e2e8f0;margin:0;overflow-x:hidden;}
     @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
     @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
     @keyframes pulseSoft{0%,100%{opacity:1}50%{opacity:.6}}
@@ -128,6 +129,30 @@
       .sidebar-mobile-open{transform:translateX(0)!important;}
       .table-scroll{overflow-x:auto;}
     }
+    /* Enterprise polish */
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(15,23,42,.92),rgba(7,17,31,1));z-index:-2;}
+    body::after{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(180deg,rgba(0,0,0,.6),transparent 70%);z-index:-1;}
+    .glass{background:rgba(8,17,32,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
+    .card,.stat-card,.card-premium{background:linear-gradient(180deg,rgba(15,26,48,.96),rgba(10,19,36,.98));border:1px solid rgba(148,163,184,.14);box-shadow:0 1px 0 rgba(255,255,255,.03),0 18px 45px rgba(0,0,0,.18);}
+    .card.rounded-2xl,.stat-card.rounded-2xl,.card-premium.rounded-2xl{border-radius:10px!important;}
+    .rounded-xl{border-radius:10px!important;}
+    .rounded-2xl{border-radius:12px!important;}
+    .sidebar-item{border:1px solid transparent;}
+    .sidebar-item:hover{background:rgba(37,99,235,.08);border-color:rgba(148,163,184,.12);color:#dbeafe;}
+    .sidebar-item.active{background:rgba(37,99,235,.16);border-color:rgba(96,165,250,.32);color:#fff;box-shadow:inset 3px 0 0 #60a5fa,0 8px 20px rgba(15,23,42,.22);}
+    .btn-primary,.btn-premium{background:#2563eb;box-shadow:0 1px 0 rgba(255,255,255,.08) inset;}
+    .btn-primary:hover,.btn-premium:hover{background:#1d4ed8;box-shadow:0 10px 24px rgba(37,99,235,.26);transform:translateY(-1px);}
+    .btn-danger{background:#dc2626;}
+    .input-dark{background:#08111f;border-color:rgba(148,163,184,.18);}
+    .input-dark:hover{border-color:rgba(148,163,184,.28);}
+    .table-row{border-bottom-color:rgba(148,163,184,.09);}
+    .table-row:hover{background:rgba(96,165,250,.055);}
+    .modal-bg{background:rgba(2,6,23,.78);backdrop-filter:blur(12px);}
+    .modal-box{background:#0b1528;border:1px solid rgba(148,163,184,.18);box-shadow:0 24px 80px rgba(0,0,0,.42);}
+    .enterprise-topbar{background:rgba(8,17,32,.96);border-bottom:1px solid rgba(148,163,184,.14);box-shadow:0 1px 0 rgba(255,255,255,.03);}
+    .enterprise-kicker{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800;}
+    .enterprise-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.7);color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;}
+    .enterprise-dot{width:7px;height:7px;border-radius:999px;background:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.12);}
   </style>
 </head>
 <body>
@@ -152,7 +177,7 @@ const STATUS_MAP={planned:"Planlandı",done:"Tamamlandı",cancelled:"İptal",pos
 const STATUS_COLOR={planned:"badge-planned",done:"badge-done",cancelled:"badge-cancelled",postponed:"badge-postponed"};
 const DOC_COLORS=["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#ec4899","#84cc16","#a78bfa"];
 const NAV=[
-  {id:"dashboard",icon:"⊞",label:"Dashboard"},
+  {id:"dashboard",icon:"⊞",label:"Yönetim Paneli"},
   {id:"surgeries",icon:"⚕",label:"Ameliyatlar"},
   {id:"program",icon:"◫",label:"Program"},
   {id:"products",icon:"⬡",label:"Ürünler"},
@@ -192,7 +217,7 @@ const normalizeProduct=u=>({
   description:u.description||u.aciklama||"",
 });
 const productPayload=f=>({
-  ad:(f.name||"").trim(),
+  ad:((f.name||"").trim()||f.code||f.gtin||f.udi||"İsimsiz Ürün"),
   kod:f.code||null,
   birim:f.unit||"adet",
   min_stok:Number(f.min_stock)||0,
@@ -425,7 +450,10 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
       <div className={`sidebar-overlay ${mobileOpen?"show":""}`} onClick={onMobileClose}/>
       <div className={`fixed left-0 top-0 h-full w-60 glass border-r border-white/8 z-40 flex flex-col transition-transform ${mobileOpen?"":"sidebar-mobile-hidden"} lg:translate-x-0`}>
         <div className="p-5 border-b border-white/8 flex items-center justify-between">
-          <img src={LOGO_LIGHT_SRC} className="h-7" alt="ARTROPLUS"/>
+          <div className="min-w-0">
+            <img src={LOGO_LIGHT_SRC} className="h-7" alt="ARTROPLUS"/>
+            <div className="enterprise-kicker mt-2">Medikal ERP</div>
+          </div>
           <button onClick={onMobileClose} className="lg:hidden w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-white/10">✕</button>
         </div>
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
@@ -441,13 +469,13 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
           ))}
         </nav>
         <div className="p-3 border-t border-white/8">
-          <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
+          <div className="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl border border-white/8 bg-navy-900/40">
             <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
               {(profile?.full_name||"U")[0].toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-slate-200 truncate">{profile?.full_name||"Kullanıcı"}</div>
-              <div className="text-[10px] text-slate-500 capitalize">{profile?.role||"user"}</div>
+              <div className="text-[10px] text-slate-500 capitalize">{isManager(profile)?"Yetkili kullanıcı":"Operasyon kullanıcısı"}</div>
             </div>
           </div>
           <button onClick={onLogout} className="sidebar-item w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-rose2">
@@ -631,7 +659,7 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Dashboard</h1>
+          <h1 className="text-xl font-bold text-white">Yönetim Paneli</h1>
           <p className="text-sm text-slate-500 mt-0.5">{fmtTR(todayStr)} — Hoşgeldiniz, {profile?.full_name||"Kullanıcı"}</p>
         </div>
         <div className="sm:ml-auto flex flex-wrap gap-2 items-center">
@@ -643,7 +671,7 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
             ))}
           </div>
           <button onClick={()=>{if(exportSurgeriesPDF(filtered,`Ameliyat Raporu — ${period==="week"?"Bu Hafta":period==="month"?"Bu Ay":"Tümü"}`))toast("PDF oluşturuldu ✓","success");else toast("PDF hatası","error");}}
-            className="px-3 py-2 rounded-xl bg-violet2/20 hover:bg-violet2/30 text-violet2 text-sm font-semibold border border-violet2/30 flex items-center gap-1.5 transition-colors">
+            className="px-3 py-2 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-300 text-sm font-semibold border border-brand/25 flex items-center gap-1.5 transition-colors">
             ↓ PDF
           </button>
         </div>
@@ -1037,9 +1065,15 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
   };
 
   const del=async(id)=>{
+    const deleted=surgeries.find(s=>s.id===id);
     const{error}=await SB.from("surgeries").delete().eq("id",id);
     if(error)return toast(error.message,"error");
+    const deletedMsg=deleted
+      ?`Ameliyat silindi: ${deleted.type} - ${fmtTR(deleted.date)}${deleted.time?` ${deleted.time}`:""}`
+      :"Ameliyat silindi";
     toast("Silindi","success");
+    sendTelegram(`🗑️ ${deletedMsg}${deleted?.hospital?` — ${deleted.hospital}`:""}${deleted?.doctor?` — ${deleted.doctor}`:""}`);
+    if(onNotif)onNotif(deletedMsg);
     setDelConf(null);setViewS(null);
     onRefresh();
   };
@@ -1261,6 +1295,18 @@ const getSurgeryDocs=(s)=>{
   const m=(s.notes||"").match(/\[EVRAK\]\s*([^\n]+)/);
   return m?m[1].split(",").map(x=>x.trim()).filter(Boolean).map(name=>({name})):[];
 };
+const normalizePersonName=name=>String(name||"").trim().toLocaleLowerCase("tr-TR");
+const surgeryHasProfilePersonnel=(s,profile)=>{
+  const personnel=getSurgeryPersonnel(s).map(normalizePersonName);
+  if(!personnel.length)return false;
+  const names=[
+    profile?.full_name,
+    profile?.name,
+    profile?.email,
+    profileDisplayName(profile)
+  ].map(normalizePersonName).filter(Boolean);
+  return names.some(name=>personnel.includes(name));
+};
 const stripSurgeryMeta=notes=>String(notes||"").split("\n")
   .filter(line=>!line.startsWith(PERSONNEL_NOTE_PREFIX)&&!line.startsWith(DOC_NOTE_PREFIX))
   .join("\n").trim();
@@ -1296,9 +1342,9 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
     surgeries.filter(s=>s.date===selDate).sort((a,b)=>a.time.localeCompare(b.time))
   ,[surgeries,selDate]);
 
-  // Benim ameliyatlarım
+  // Benim ameliyatlarım: sadece personel listesinde mevcut kullanıcı varsa görünür.
   const mineS=useMemo(()=>
-    surgeries.filter(s=>s.created_by===profile?.id)
+    surgeries.filter(s=>surgeryHasProfilePersonnel(s,profile))
       .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time))
   ,[surgeries,profile]);
 
@@ -1388,7 +1434,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
     {id:"today",label:"Günün Programı",icon:"⏰"},
     {id:"calendar",label:"Takvim",icon:"📅"},
     {id:"mine",label:"Benim Ameliyatlarım",icon:"👤"},
-    {id:"list",label:"Ay Listesi",icon:"≡"},
+    {id:"list",label:"Aylık Liste",icon:"≡"},
   ];
 
   return(
@@ -1733,7 +1779,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
           {/* Stat kartlar */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              {l:"Toplam Girdiğim",v:mineS.length,c:"#3b82f6",icon:"⚕"},
+              {l:"Atandığım",v:mineS.length,c:"#3b82f6",icon:"⚕"},
               {l:"Bu Ay",v:mineThisMonth.length,c:"#8b5cf6",icon:"📅"},
               {l:"Yaklaşan",v:mineUpcoming.length,c:"#f59e0b",icon:"◷"},
               {l:"Tamamlanan",v:mineS.filter(s=>s.status==="done").length,c:"#10b981",icon:"✓"},
@@ -1788,8 +1834,8 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
             {mineS.length===0?(
               <div className="px-5 py-12 text-center">
                 <div className="text-3xl opacity-20 mb-3">⚕</div>
-                <p className="text-slate-500 text-sm">Henüz ameliyat girmediniz</p>
-                <p className="text-xs text-slate-600 mt-1">Ameliyatlar sekmesinden ekleyebilirsiniz</p>
+                <p className="text-slate-500 text-sm">Size atanmış ameliyat yok</p>
+                <p className="text-xs text-slate-600 mt-1">Programdan personel olarak seçildiğiniz ameliyatlar burada görünür</p>
               </div>
             ):(
               <div className="divide-y divide-white/5 max-h-96 overflow-y-auto">
@@ -1880,7 +1926,6 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   const [modal,setModal]=useState(null);          // null | true | urun_obj
   const [delConf,setDelConf]=useState(null);
   const [search,setSearch]=useState("");
-  const [catFilter,setCatFilter]=useState("");
   const [scanInput,setScanInput]=useState("");
   const [scanResult,setScanResult]=useState(null); // parsed GS1
   const [scanStatus,setScanStatus]=useState("");   // "" | "new" | "exists"
@@ -1896,11 +1941,9 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     lot:"",expiryDate:"",mfgDate:""};
   const [f,setF]=useState(emptyForm);
 
-  const categories=[...new Set(urunler.map(u=>u.category).filter(Boolean))];
   const filtered=urunler.filter(u=>{
     const q=search.toLowerCase();
-    const ms=!search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.category?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q);
-    return ms&&(!catFilter||u.category===catFilter);
+    return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q);
   });
 
   // ── Barkod okuma ─────────────────────────────────────────────────────────
@@ -1978,18 +2021,25 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     }));
     toast("UDI bilgileri forma aktarıldı","success");
   };
+  const productNameForSave=()=>(
+    (f.name||"").trim()||
+    (f.code?`Ürün ${f.code}`:"")||
+    (f.gtin?`Ürün ${f.gtin.replace(/^0+/,"")}`:"")||
+    (f.udi?`UDI ${String(f.udi).slice(0,32)}`:"")||
+    "İsimsiz Ürün"
+  );
 
   // ── Kaydet ───────────────────────────────────────────────────────────────
   const save=async()=>{
-    if(!f.name.trim())return toast("Ürün adı gerekli","warning");
+    const normalizedForm={...f,name:productNameForSave()};
 
     let urunId=null;
     const isNew=modal===true&&!matchedUrun;
 
     if(isNew){
       const duplicate=urunler.find(u=>
-        (f.code&&u.code&&u.code.toLocaleLowerCase("tr-TR")===f.code.toLocaleLowerCase("tr-TR"))||
-        (f.gtin&&u.gtin&&u.gtin===f.gtin)
+        (normalizedForm.code&&u.code&&u.code.toLocaleLowerCase("tr-TR")===normalizedForm.code.toLocaleLowerCase("tr-TR"))||
+        (normalizedForm.gtin&&u.gtin&&u.gtin===normalizedForm.gtin)
       );
       if(duplicate){
         setMatchedUrun(duplicate);
@@ -2000,15 +2050,15 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       }
       // Yeni ürün ekle
       const detailLines=[
-        f.description||"",
-        f.manufacturer?`Üretici: ${f.manufacturer}`:"",
-        f.gtin?`GTIN: ${f.gtin}`:"",
-        f.udi?`UDI/Barkod: ${f.udi}`:"",
-        f.lot?`LOT: ${f.lot}`:"",
-        f.mfgDate?`Üretim: ${f.mfgDate}`:"",
-        f.expiryDate?`SKT: ${f.expiryDate}`:"",
+        normalizedForm.description||"",
+        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
+        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
+        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
+        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
+        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
+        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
       ].filter(Boolean);
-      const payload=productPayload({...f,description:detailLines.join("\n")});
+      const payload=productPayload({...normalizedForm,description:detailLines.join("\n")});
       const{data,error}=await SB.from("urunler").insert(payload).select().single();
       if(error)return toast(error.message,"error");
       urunId=data.id;
@@ -2016,30 +2066,30 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     }else if(matchedUrun){
       // Mevcut ürünü güncelle
       const detailLines=[
-        f.description||"",
-        f.manufacturer?`Üretici: ${f.manufacturer}`:"",
-        f.gtin?`GTIN: ${f.gtin}`:"",
-        f.udi?`UDI/Barkod: ${f.udi}`:"",
-        f.lot?`LOT: ${f.lot}`:"",
-        f.mfgDate?`Üretim: ${f.mfgDate}`:"",
-        f.expiryDate?`SKT: ${f.expiryDate}`:"",
+        normalizedForm.description||"",
+        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
+        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
+        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
+        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
+        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
+        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
       ].filter(Boolean);
-      const{error}=await SB.from("urunler").update(productPayload({...f,description:detailLines.join("\n")})).eq("id",matchedUrun.id);
+      const{error}=await SB.from("urunler").update(productPayload({...normalizedForm,description:detailLines.join("\n")})).eq("id",matchedUrun.id);
       if(error)return toast(error.message,"error");
       urunId=matchedUrun.id;
       toast("Ürün güncellendi ✓","success");
     }else{
       // Edit mode
       const detailLines=[
-        f.description||"",
-        f.manufacturer?`Üretici: ${f.manufacturer}`:"",
-        f.gtin?`GTIN: ${f.gtin}`:"",
-        f.udi?`UDI/Barkod: ${f.udi}`:"",
-        f.lot?`LOT: ${f.lot}`:"",
-        f.mfgDate?`Üretim: ${f.mfgDate}`:"",
-        f.expiryDate?`SKT: ${f.expiryDate}`:"",
+        normalizedForm.description||"",
+        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
+        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
+        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
+        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
+        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
+        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
       ].filter(Boolean);
-      const{error}=await SB.from("urunler").update(productPayload({...f,description:detailLines.join("\n")})).eq("id",modal.id);
+      const{error}=await SB.from("urunler").update(productPayload({...normalizedForm,description:detailLines.join("\n")})).eq("id",modal.id);
       if(error)return toast(error.message,"error");
       urunId=modal.id;
       toast("Güncellendi ✓","success");
@@ -2061,10 +2111,10 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         stockError=error;
       }
       if(stockError)return toast("Ürün eklendi fakat stok kaydedilemedi: "+stockError.message,"error");
-      const note=`Şirket raf girişi${f.udi?` — UDI:${f.udi}`:""}${f.code?` — REF:${f.code}`:""}${f.lot?` — LOT:${f.lot}`:""}${f.mfgDate?` — ÜRT:${f.mfgDate}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
+      const note=`Ana depo girişi${f.udi?` — UDI:${f.udi}`:""}${f.code?` — REF:${f.code}`:""}${f.lot?` — LOT:${f.lot}`:""}${f.mfgDate?` — ÜRT:${f.mfgDate}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
       const {error:movementError}=await SB.from("hareketler").insert(movementPayload({urun_id:urunId,type:"in",quantity:qty,notes:note}));
       if(movementError)toast("Stok eklendi ama hareket kaydı yazılamadı: "+movementError.message,"warning");
-      toast(`${qty} adet şirket rafına kaydedildi ✓`,"success");
+      toast(`${qty} adet ana depoya kaydedildi ✓`,"success");
     }
 
     setModal(null);setScanResult(null);setScanStatus("");setMatchedUrun(null);
@@ -2157,8 +2207,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
             {/* Ürün adı — düzenlenemez alandır eğer mevcut ürünse */}
             {scanStatus!=="exists"&&(
               <div>
-                <Label required>Ürün Adı</Label>
-                <Input value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} placeholder="Örn: BioComposite SwiveLock 5.5x19.1mm"/>
+                <Label>Ürün Adı</Label>
+                <Input value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} placeholder="Boş bırakılırsa REF/UDI üzerinden otomatik ad verilir"/>
                 {scanResult?.ref&&!f.name&&(
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {["Suture Anchor","Interference Screw","Button","Repair Kit","Anchor System"].map(s=>(
@@ -2174,15 +2224,10 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
 
             {scanStatus!=="exists"&&(
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div>
                   <div>
                     <Label>REF / Ürün Kodu</Label>
                     <Input value={f.code} onChange={e=>setF(p=>({...p,code:e.target.value}))} placeholder="AR-2323BCC"/>
-                  </div>
-                  <div>
-                    <Label>Kategori</Label>
-                    <Input value={f.category} onChange={e=>setF(p=>({...p,category:e.target.value}))} placeholder="İmplant, Protez..." list="cat-list2"/>
-                    <datalist id="cat-list2">{[...new Set([...categories,"İmplant","Protez","Cerrahi Alet","Sarf Malzeme","Suture Anchor"])].map(c=><option key={c} value={c}/>)}</datalist>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -2325,19 +2370,15 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       {/* Filters */}
       <div className="card rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ürün ara (ad, kod, kategori, üretici)..." className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ürün ara (ad, kod, üretici)..." className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">⌕</span>
         </div>
-        <Select value={catFilter} onChange={e=>setCatFilter(e.target.value)} className="sm:w-48">
-          <option value="">Tüm Kategoriler</option>
-          {categories.map(c=><option key={c} value={c}>{c}</option>)}
-        </Select>
       </div>
 
       {/* Table */}
       <div className="card rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] px-5 py-3 border-b border-white/8 bg-navy-900/50">
-          {["Ürün / Üretici","REF Kodu","Kategori","Birim","Stok Durumu",""].map((h,i)=>(
+        <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_auto] px-5 py-3 border-b border-white/8 bg-navy-900/50">
+          {["Ürün / Üretici","REF Kodu","Birim","Stok Durumu",""].map((h,i)=>(
             <div key={i} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>
           ))}
         </div>
@@ -2359,18 +2400,17 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{background:sc+"20",color:sc}}>⬡</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{u.name}</div>
-                  <div className="text-xs text-slate-500">{u.code||"—"}{u.manufacturer?` · ${u.manufacturer}`:""}{u.category?` · ${u.category}`:""}</div>
+                  <div className="text-xs text-slate-500">{u.code||"—"}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sb} flex-shrink-0`}>{stok} {u.unit}</span>
               </div>
               {/* Desktop */}
-              <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] items-center gap-4">
+              <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{u.name}</div>
                   <div className="text-xs text-slate-500">{u.manufacturer||""}</div>
                 </div>
                 <div className="text-sm text-slate-400 font-mono">{u.code||"—"}</div>
-                <div className="text-sm text-slate-400">{u.category||"—"}</div>
                 <div className="text-sm text-slate-400">{u.unit}</div>
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
@@ -3831,9 +3871,9 @@ function ListGroup({title,items,isDoc,onAdd,onEdit,onDel,color}){
 function ListsView({types,doctors,hospitals,onRefresh}){
   const toast=useToast();
   const crud=(table)=>({
-    add:async(name)=>{const{e}=await SB.from(table).insert({name});if(e)toast(e.message,"error");else{toast("Eklendi","success");onRefresh();}},
-    edit:async(id,name)=>{const{e}=await SB.from(table).update({name}).eq("id",id);if(e)toast(e.message,"error");else{toast("Güncellendi","success");onRefresh();}},
-    del:async(id)=>{const{e}=await SB.from(table).delete().eq("id",id);if(e)toast(e.message,"error");else{toast("Silindi","success");onRefresh();}},
+    add:async(name)=>{const{error}=await SB.from(table).insert({name});if(error)toast(error.message,"error");else{toast("Eklendi","success");onRefresh();}},
+    edit:async(id,name)=>{const{error}=await SB.from(table).update({name}).eq("id",id);if(error)toast(error.message,"error");else{toast("Güncellendi","success");onRefresh();}},
+    del:async(id)=>{const{error}=await SB.from(table).delete().eq("id",id);if(error)toast(error.message,"error");else{toast("Silindi","success");onRefresh();}},
   });
   const tc=crud("surgery_types"),dc=crud("doctors"),hc=crud("hospitals");
   return(
@@ -3842,7 +3882,7 @@ function ListsView({types,doctors,hospitals,onRefresh}){
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <ListGroup title="Ameliyat Türleri" items={types} color="#3b82f6" onAdd={tc.add} onEdit={tc.edit} onDel={tc.del}/>
         <ListGroup title="Doktorlar" items={doctors} isDoc color="#8b5cf6" onAdd={dc.add} onEdit={dc.edit} onDel={dc.del}/>
-        <ListGroup title="Hastaneler" items={hospitals} color="#10b981" onAdd={hc.add} onEdit={hc.edit} onDel={hc.del}/>
+        <ListGroup title="Hastaneler" items={selectableHospitals(hospitals)} color="#10b981" onAdd={hc.add} onEdit={hc.edit} onDel={hc.del}/>
       </div>
     </div>
   );
@@ -3852,8 +3892,9 @@ function ListsView({types,doctors,hospitals,onRefresh}){
 function UsersView({profile}){
   const toast=useToast();
   const [users,setUsers]=useState([]);
-  const [modal,setModal]=useState(false);
-  const [f,setF]=useState({email:"",password:"",full_name:"",role:"user"});
+  const [modal,setModal]=useState(null);
+  const emptyUserForm={id:null,email:"",password:"",full_name:"",role:"user",status:"active",pending:false};
+  const [f,setF]=useState(emptyUserForm);
   const [loading,setLoading]=useState(false);
 
   const pendingKey="artroplus_pending_users";
@@ -3867,6 +3908,8 @@ function UsersView({profile}){
     [...(pending||[]),...(remote||[])].forEach(u=>{
       const key=u.id||u.email;
       const normalized={...u};
+      normalized.full_name=normalized.full_name||normalized.name||normalized.email||"";
+      normalized.status=normalized.status||"active";
       if(!("pending" in normalized))normalized.pending=false;
       if(key)byKey.set(key,{...byKey.get(key),...normalized});
     });
@@ -3886,6 +3929,29 @@ function UsersView({profile}){
 
   useEffect(()=>{loadUsers();},[]);
 
+  const openCreate=()=>{
+    setF(emptyUserForm);
+    setModal("create");
+  };
+
+  const openEdit=(u)=>{
+    setF({
+      id:u.id,
+      email:u.email||"",
+      password:"",
+      full_name:u.full_name||u.name||"",
+      role:u.role||"user",
+      status:u.status||"active",
+      pending:!!u.pending,
+    });
+    setModal("edit");
+  };
+
+  const closeModal=()=>{
+    setModal(null);
+    setF(emptyUserForm);
+  };
+
   const create=async()=>{
     if(!f.email||!f.password||!f.full_name)return toast("Tüm alanlar gerekli","warning");
     setLoading(true);
@@ -3898,7 +3964,7 @@ function UsersView({profile}){
     });
     if(error){toast(error.message,"error");setLoading(false);return;}
     const uid=data?.user?.id;
-    const newUser={id:uid||`pending-${Date.now()}`,full_name:f.full_name,name:f.full_name,role:f.role,email:f.email,created_at:createdAt,pending:!uid};
+    const newUser={id:uid||`pending-${Date.now()}`,full_name:f.full_name,name:f.full_name,role:f.role,email:f.email,status:"active",created_at:createdAt,pending:!uid};
     const pending=mergeUsers([newUser],readPending());
     writePending(pending);
     setUsers(prev=>mergeUsers(prev,[newUser]));
@@ -3907,25 +3973,54 @@ function UsersView({profile}){
       if(profileError)toast("Auth kullanıcısı oluştu, profil listesi yerel olarak eklendi: "+profileError.message,"warning");
     }
     toast("Kullanıcı oluşturuldu","success");
-    setModal(false);
-    setF({email:"",password:"",full_name:"",role:"user"});
+    closeModal();
     setLoading(false);
     loadUsers();
   };
 
+  const updateUser=async()=>{
+    if(!f.id||!f.full_name)return toast("Ad Soyad gerekli","warning");
+    setLoading(true);
+    const patch={name:f.full_name,role:f.role,status:f.status||"active",updated_at:new Date().toISOString()};
+    if(f.pending||String(f.id).startsWith("pending-")){
+      const pending=readPending().map(u=>u.id===f.id?{...u,...patch,full_name:f.full_name}:u);
+      writePending(pending);
+      setUsers(prev=>prev.map(u=>u.id===f.id?{...u,...patch,full_name:f.full_name}:u));
+      toast("Yerel kullanıcı güncellendi","success");
+      closeModal();
+      setLoading(false);
+      return;
+    }
+    const {error}=await SB.from("profiles").update(patch).eq("id",f.id);
+    if(error){
+      toast(error.message,"error");
+      setLoading(false);
+      return;
+    }
+    setUsers(prev=>prev.map(u=>u.id===f.id?{...u,...patch,full_name:f.full_name}:u));
+    toast("Kullanıcı güncellendi","success");
+    closeModal();
+    setLoading(false);
+    loadUsers();
+  };
+
+  const saveUser=()=>modal==="edit"?updateUser():create();
+
   const roleColors={admin:"bg-violet2/20 text-violet2 border-violet2/30",yonetici:"bg-amber-500/20 text-amber-300 border-amber-500/30","yönetici":"bg-amber-500/20 text-amber-300 border-amber-500/30",user:"bg-brand/20 text-brand-300 border-brand/30"};
   const roleLabel=role=>isManager({role})?(role==="admin"?"Admin":"Yönetici"):"Kullanıcı";
+  const statusLabel=status=>status==="inactive"?"Pasif":"Aktif";
 
   return(
     <div className="space-y-4">
       {modal&&(
-        <Modal title="Yeni Kullanıcı" onClose={()=>setModal(false)} size="sm"
-          footer={<div className="flex gap-2"><button onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={create} disabled={loading} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold disabled:opacity-60">{loading?"⋯":"Oluştur"}</button></div>}>
+        <Modal title={modal==="edit"?"Kullanıcı Düzenle":"Yeni Kullanıcı"} onClose={closeModal} size="sm"
+          footer={<div className="flex gap-2"><button onClick={closeModal} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={saveUser} disabled={loading} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold disabled:opacity-60">{loading?"⋯":modal==="edit"?"Kaydet":"Oluştur"}</button></div>}>
           <div className="space-y-4">
             <div><Label required>Ad Soyad</Label><Input value={f.full_name} onChange={e=>setF(p=>({...p,full_name:e.target.value}))}/></div>
-            <div><Label required>E-posta</Label><Input type="email" value={f.email} onChange={e=>setF(p=>({...p,email:e.target.value}))}/></div>
-            <div><Label required>Şifre</Label><Input type="password" value={f.password} onChange={e=>setF(p=>({...p,password:e.target.value}))}/></div>
+            <div><Label required={modal!=="edit"}>E-posta</Label><Input type="email" value={f.email} disabled={modal==="edit"} onChange={e=>setF(p=>({...p,email:e.target.value}))}/></div>
+            {modal!=="edit"&&<div><Label required>Şifre</Label><Input type="password" value={f.password} onChange={e=>setF(p=>({...p,password:e.target.value}))}/></div>}
             <div><Label>Rol</Label><Select value={f.role} onChange={e=>setF(p=>({...p,role:e.target.value}))}><option value="user">Kullanıcı</option><option value="yonetici">Yönetici</option><option value="admin">Admin</option></Select></div>
+            {modal==="edit"&&<div><Label>Durum</Label><Select value={f.status} onChange={e=>setF(p=>({...p,status:e.target.value}))}><option value="active">Aktif</option><option value="inactive">Pasif</option></Select></div>}
           </div>
         </Modal>
       )}
@@ -3934,7 +4029,7 @@ function UsersView({profile}){
         <h1 className="text-xl font-bold text-white">Kullanıcılar</h1>
         <div className="flex gap-2">
           <button onClick={loadUsers} className="px-3 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-300 text-sm font-semibold border border-white/8">Yenile</button>
-          <button onClick={()=>{setF({email:"",password:"",full_name:"",role:"user"});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Yeni Kullanıcı</button>
+          <button onClick={openCreate} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Yeni Kullanıcı</button>
         </div>
       </div>
 
@@ -3952,8 +4047,10 @@ function UsersView({profile}){
             </div>
             <div className="flex items-center gap-2">
               <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${roleColors[u.role]||roleColors.user}`}>{roleLabel(u.role)}</span>
+              <span className={`px-2 py-0.5 rounded-full text-xs border ${u.status==="inactive"?"bg-slate-700/60 text-slate-300 border-white/10":"bg-emerald2/20 text-emerald2 border-emerald2/30"}`}>{statusLabel(u.status)}</span>
               {u.pending&&<span className="px-2 py-0.5 rounded-full text-xs bg-amber2/20 text-amber2 border border-amber2/30">Yerel</span>}
               {u.id===profile?.id&&<span className="px-2 py-0.5 rounded-full text-xs bg-emerald2/20 text-emerald2 border border-emerald2/30">Siz</span>}
+              <button onClick={()=>openEdit(u)} className="px-3 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 text-xs font-semibold border border-white/8">Düzenle</button>
             </div>
           </div>
         ))}
@@ -4101,15 +4198,25 @@ function App(){
         {/* Main content */}
         <div className="flex-1 lg:ml-60 min-h-screen">
           {/* Top bar */}
-          <div className="sticky top-0 z-30 glass border-b border-white/8 px-4 py-3 flex items-center justify-between">
+          <div className="sticky top-0 z-30 enterprise-topbar px-4 lg:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button onClick={()=>setMobileOpen(true)} className="lg:hidden w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                 <svg width="18" height="14" fill="none"><rect width="18" height="2" rx="1" fill="currentColor"/><rect y="6" width="14" height="2" rx="1" fill="currentColor"/><rect y="12" width="18" height="2" rx="1" fill="currentColor"/></svg>
               </button>
-              <span className="text-lg leading-none">{NAV.find(n=>n.id===page)?.icon}</span>
-              <span className="text-sm font-semibold text-slate-200">{NAV.find(n=>n.id===page)?.label}</span>
+              <div className="w-9 h-9 rounded-xl border border-white/8 bg-navy-900/60 flex items-center justify-center text-slate-300">
+                <span className="text-base leading-none">{NAV.find(n=>n.id===page)?.icon}</span>
+              </div>
+              <div>
+                <div className="enterprise-kicker">ARTROPLUS</div>
+                <div className="text-sm font-bold text-slate-100">{NAV.find(n=>n.id===page)?.label}</div>
+              </div>
             </div>
             <div className="flex items-center gap-2">
+              <div className="hidden md:inline-flex enterprise-badge">
+                <span className="enterprise-dot"></span>
+                Sistem aktif
+              </div>
+              <div className="hidden lg:inline-flex enterprise-badge">{fmtTR(todayStr)}</div>
               <button onClick={()=>setPage("notifications")} className="relative w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
                 <span>⌀</span>
                 {unread>0&&<span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose2"></span>}
