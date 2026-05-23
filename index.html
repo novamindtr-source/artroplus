@@ -1801,7 +1801,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
 
   // Form state — genişletildi: lot, expiryDate, mfgDate, initialStockQty, initialStockHospital
   const emptyForm={name:"",code:"",unit:"adet",min_stock:0,category:"",description:"",
-    manufacturer:"",gtin:"",
+    manufacturer:"",gtin:"",udi:"",
     addInitialStock:false,initialStockQty:1,initialStockHospital:"",
     lot:"",expiryDate:"",mfgDate:""};
   const [f,setF]=useState(emptyForm);
@@ -1834,6 +1834,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         ...existing,
         addInitialStock:true,
         initialStockQty:p.qty||1,
+        udi:p.udi||raw.trim(),
+        gtin:p.gtin||existing.gtin||"",
         lot:p.lot||"",
         expiryDate:p.expiryDate||"",
         mfgDate:p.mfgDate||"",
@@ -1845,6 +1847,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       setF({...emptyForm,
         code:p.ref||"",
         gtin:p.gtin||"",
+        udi:p.udi||raw.trim(),
         lot:p.lot||"",
         expiryDate:p.expiryDate||"",
         mfgDate:p.mfgDate||"",
@@ -1853,6 +1856,27 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       });
     }
     setModal(true);
+  };
+
+  const applyUdiToForm=(raw)=>{
+    if(!raw?.trim())return;
+    const p=parseGS1(raw.trim());
+    const hasData=!!(p.ref||p.gtin||p.lot||p.serial||p.expiryDate||p.mfgDate||p.qty>1);
+    if(!hasData)return;
+    setScanResult(p);
+    setScanStatus(prev=>prev||"new");
+    setF(prev=>({
+      ...prev,
+      code:p.ref||prev.code,
+      gtin:p.gtin||prev.gtin,
+      udi:p.udi||raw.trim(),
+      lot:p.lot||prev.lot,
+      expiryDate:p.expiryDate||prev.expiryDate,
+      mfgDate:p.mfgDate||prev.mfgDate,
+      initialStockQty:p.qty||prev.initialStockQty,
+      addInitialStock:true
+    }));
+    toast("UDI bilgileri forma aktarıldı","success");
   };
 
   // ── Kaydet ───────────────────────────────────────────────────────────────
@@ -1868,6 +1892,10 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         f.description||"",
         f.manufacturer?`Üretici: ${f.manufacturer}`:"",
         f.gtin?`GTIN: ${f.gtin}`:"",
+        f.udi?`UDI/Barkod: ${f.udi}`:"",
+        f.lot?`LOT: ${f.lot}`:"",
+        f.mfgDate?`Üretim: ${f.mfgDate}`:"",
+        f.expiryDate?`SKT: ${f.expiryDate}`:"",
       ].filter(Boolean);
       const payload=productPayload({...f,description:detailLines.join("\n")});
       const{data,error}=await SB.from("urunler").insert(payload).select().single();
@@ -1880,6 +1908,10 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         f.description||"",
         f.manufacturer?`Üretici: ${f.manufacturer}`:"",
         f.gtin?`GTIN: ${f.gtin}`:"",
+        f.udi?`UDI/Barkod: ${f.udi}`:"",
+        f.lot?`LOT: ${f.lot}`:"",
+        f.mfgDate?`Üretim: ${f.mfgDate}`:"",
+        f.expiryDate?`SKT: ${f.expiryDate}`:"",
       ].filter(Boolean);
       const{error}=await SB.from("urunler").update(productPayload({...f,description:detailLines.join("\n")})).eq("id",matchedUrun.id);
       if(error)return toast(error.message,"error");
@@ -1891,6 +1923,10 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         f.description||"",
         f.manufacturer?`Üretici: ${f.manufacturer}`:"",
         f.gtin?`GTIN: ${f.gtin}`:"",
+        f.udi?`UDI/Barkod: ${f.udi}`:"",
+        f.lot?`LOT: ${f.lot}`:"",
+        f.mfgDate?`Üretim: ${f.mfgDate}`:"",
+        f.expiryDate?`SKT: ${f.expiryDate}`:"",
       ].filter(Boolean);
       const{error}=await SB.from("urunler").update(productPayload({...f,description:detailLines.join("\n")})).eq("id",modal.id);
       if(error)return toast(error.message,"error");
@@ -1914,7 +1950,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         stockError=error;
       }
       if(stockError)return toast("Ürün eklendi fakat stok kaydedilemedi: "+stockError.message,"error");
-      const note=`Şirket raf girişi${f.lot?` — LOT:${f.lot}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
+      const note=`Şirket raf girişi${f.udi?` — UDI:${f.udi}`:""}${f.code?` — REF:${f.code}`:""}${f.lot?` — LOT:${f.lot}`:""}${f.mfgDate?` — ÜRT:${f.mfgDate}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
       const {error:movementError}=await SB.from("hareketler").insert(movementPayload({urun_id:urunId,type:"in",quantity:qty,notes:note}));
       if(movementError)toast("Stok eklendi ama hareket kaydı yazılamadı: "+movementError.message,"warning");
       toast(`${qty} adet şirket rafına kaydedildi ✓`,"success");
@@ -1927,7 +1963,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   const openEdit=(u)=>{setScanResult(null);setScanStatus("");setMatchedUrun(null);
     setF({name:u.name,code:u.code||"",unit:u.unit||"adet",min_stock:u.min_stock||0,
       category:u.category||"",description:u.description||"",manufacturer:u.manufacturer||"",
-      gtin:u.gtin||"",addInitialStock:false,initialStockQty:1,initialStockHospital:"",
+      gtin:u.gtin||"",udi:u.udi||"",addInitialStock:false,initialStockQty:1,initialStockHospital:"",
       lot:"",expiryDate:"",mfgDate:""});
     setModal(u);
   };
@@ -1990,6 +2026,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
                     {l:"REF",v:scanResult.ref||scanResult.gtin?.slice(-8)||"—"},
+                    {l:"UDI",v:scanResult.udi||"—"},
                     {l:"Lot",v:scanResult.lot||"—"},
                     {l:"Seri",v:scanResult.serial||"—"},
                     {l:"SKT",v:scanResult.expiryDate||"—",warn:isExpiredScan},
@@ -2060,8 +2097,15 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
             )}
 
             {/* Lot / SKT bilgileri */}
-            {(scanResult||scanStatus==="exists")&&(
-              <div className="grid grid-cols-3 gap-3">
+            {(scanResult||scanStatus==="exists"||modal===true)&&(
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <Label>UDI / Barkod No</Label>
+                  <div className="flex gap-2">
+                    <Input value={f.udi} onChange={e=>setF(p=>({...p,udi:e.target.value}))} onBlur={e=>applyUdiToForm(e.target.value)} className="font-mono" placeholder="UDI barkod numarası"/>
+                    <button type="button" onClick={()=>applyUdiToForm(f.udi)} className="px-3 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-xs font-bold border border-brand/25">Oku</button>
+                  </div>
+                </div>
                 <div>
                   <Label>Lot Numarası</Label>
                   <Input value={f.lot} onChange={e=>setF(p=>({...p,lot:e.target.value}))} className="font-mono" placeholder="15485965"/>
@@ -2251,12 +2295,44 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
  * Format: 010088886702672817290731101548596521
  * AI (01)=GTIN  (17)=SKT  (10)=Lot  (11)=Üretim  (21)=Seri  (30)=Adet
  */
+const normalizeBarcodeDate=(val)=>{
+  if(!val)return null;
+  const s=String(val).trim();
+  let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if(m)return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if(m)return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+  m=s.match(/^(\d{6})$/);
+  if(m){
+    const yy=s.slice(0,2),mm=s.slice(2,4),dd=s.slice(4,6);
+    const year=parseInt(yy,10)+(parseInt(yy,10)<50?2000:1900);
+    return `${year}-${mm}-${dd==="00"?"01":dd}`;
+  }
+  m=s.match(/^(\d{8})$/);
+  if(m)return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  return null;
+};
+
+const readLabeledValue=(text,labels)=>{
+  const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  const joined=[...labels].sort((a,b)=>b.length-a.length).map(esc).join("|");
+  const re=new RegExp(`(?:^|[\\s;,|])(?:${joined})\\s*(?:[:=#-]|=)?\\s*([^\\s;,|]+)`,"i");
+  const m=text.match(re);
+  return m?m[1].replace(/^["']|["']$/g,"").trim():"";
+};
+
 function parseGS1(raw){
-  const result={gtin:"",lot:"",serial:"",expiryDate:null,mfgDate:null,qty:1,ref:""};
+  const result={gtin:"",lot:"",serial:"",expiryDate:null,mfgDate:null,qty:1,ref:"",udi:String(raw||"").trim()};
   if(!raw||raw.length<4)return result;
 
   // Remove GS1 prefix identifiers ]d2 ]C1 ]e0 etc.
   let s=raw.replace(/^\].[0-9]/,"").replace(/^\][a-zA-Z][0-9]/,"").trim();
+  const original=s;
+  const aiPairs=[];
+  original.replace(/\((\d{2,4})\)\s*([^\(]+)/g,(_,ai,val)=>{
+    aiPairs.push([ai,val.trim()]);
+    return "";
+  });
 
   // GS char (ASCII 29) as separator
   const GS="\x1d";
@@ -2269,52 +2345,23 @@ function parseGS1(raw){
     "41":14,
   };
 
-  let i=0;
-  let safety=0;
-  while(i<s.length&&safety<20){
-    safety++;
-    const ai2=s.slice(i,i+2);
-    const ai3=s.slice(i,i+3);
-    const ai4=s.slice(i,i+4);
-
-    let ai="",len=0;
-    if(FIXED[ai2]!==undefined){ai=ai2;len=FIXED[ai2];}
-    else{ai=ai2;len=-1;} // variable
-
-    if(!ai){i++;continue;}
-
-    let val;
-    if(len>0){
-      val=s.slice(i+ai.length,i+ai.length+len);
-      i+=ai.length+len;
-    }else{
-      // variable length — read until GS or end
-      const gsIdx=s.indexOf(GS,i+ai.length);
-      const end=gsIdx===-1?s.length:gsIdx;
-      val=s.slice(i+ai.length,end);
-      i=end+(gsIdx===-1?0:1);
-    }
-
+  const applyAI=(ai,val)=>{
     switch(ai){
       case"01":case"02":
         result.gtin=val;
         // Last 4-8 chars of GTIN often map to REF
-        result.ref=val.replace(/^0+/,"");
+        if(!result.ref)result.ref=val.replace(/^0+/,"");
         break;
       case"10": result.lot=val; break;
       case"21": result.serial=val; break;
       case"17":{
-        // YYMMDD
-        const yy=val.slice(0,2),mm=val.slice(2,4),dd=val.slice(4,6);
-        const year=parseInt(yy)+(parseInt(yy)<50?2000:1900);
-        const realDD=dd==="00"?"28":dd;
-        result.expiryDate=`${year}-${mm}-${realDD}`;
+        const d=normalizeBarcodeDate(val);
+        if(d)result.expiryDate=d.replace(/-00$/,"-28");
         break;
       }
       case"11":{
-        const yy=val.slice(0,2),mm=val.slice(2,4),dd=val.slice(4,6);
-        const year=parseInt(yy)+(parseInt(yy)<50?2000:1900);
-        result.mfgDate=`${year}-${mm}-${dd==="00"?"01":dd}`;
+        const d=normalizeBarcodeDate(val);
+        if(d)result.mfgDate=d;
         break;
       }
       case"30":case"37":
@@ -2322,7 +2369,61 @@ function parseGS1(raw){
         break;
       default: break;
     }
+  };
+
+  if(aiPairs.length){
+    aiPairs.forEach(([ai,val])=>applyAI(ai,FIXED[ai]?val.slice(0,FIXED[ai]):val));
+  }else{
+    let i=0;
+    let safety=0;
+    while(i<s.length&&safety<30){
+      safety++;
+      const ai2=s.slice(i,i+2);
+
+      let ai="",len=0;
+      if(FIXED[ai2]!==undefined){ai=ai2;len=FIXED[ai2];}
+      else{ai=ai2;len=-1;} // variable
+
+      if(!ai){i++;continue;}
+
+      let val;
+      if(len>0){
+        val=s.slice(i+ai.length,i+ai.length+len);
+        i+=ai.length+len;
+      }else{
+        // variable length — read until GS or end
+        const gsIdx=s.indexOf(GS,i+ai.length);
+        const end=gsIdx===-1?s.length:gsIdx;
+        val=s.slice(i+ai.length,end);
+        i=end+(gsIdx===-1?0:1);
+      }
+
+      applyAI(ai,val);
+    }
   }
+
+  const labeledRef=readLabeledValue(original,["REF","REF NO","REFERANS","REFERENCE","KOD","CODE"]);
+  const labeledLot=readLabeledValue(original,["LOT","LOT NO","LOTE","BATCH"]);
+  const labeledSerial=readLabeledValue(original,["SN","S\\/N","SERIAL","SERİ","SERI"]);
+  const labeledUdi=readLabeledValue(original,["UDI","UDI-DI","BARKOD","BARCODE","BARKOD NO"]);
+  const labeledQty=readLabeledValue(original,["QTY","QT","MİKTAR","MIKTAR","ADET"]);
+  const labeledExp=readLabeledValue(original,["SKT","EXP","EXPIRY","SON KULLANMA","USE BY"]);
+  const labeledMfg=readLabeledValue(original,["ÜRT","URT","MFG","MFD","ÜRETİM","URETIM","MANUFACTURE"]);
+  if(labeledRef)result.ref=labeledRef;
+  if(labeledLot)result.lot=labeledLot;
+  if(labeledSerial)result.serial=labeledSerial;
+  if(labeledUdi)result.udi=labeledUdi;
+  if(labeledQty)result.qty=parseInt(labeledQty,10)||result.qty;
+  const expDate=normalizeBarcodeDate(labeledExp);
+  const mfgDate=normalizeBarcodeDate(labeledMfg);
+  if(expDate)result.expiryDate=expDate;
+  if(mfgDate)result.mfgDate=mfgDate;
+
+  if(!result.gtin){
+    const gtin=readLabeledValue(original,["GTIN","UDI-DI","DI"]);
+    if(gtin)result.gtin=gtin;
+  }
+  if(!result.ref&&result.gtin)result.ref=result.gtin.replace(/^0+/,"");
   return result;
 }
 
@@ -2463,6 +2564,9 @@ function BarcodeScannerModal({onResult,onClose,urunler,hospitals}){
       urun_id:selUrun,hospital_id:targetHospital,
       lotNumber:parsed?.lot||"",
       serialNumber:parsed?.serial||"",
+      udiNumber:parsed?.udi||input||"",
+      refNumber:parsed?.ref||"",
+      mfgDate:parsed?.mfgDate||null,
       expiryDate:parsed?.expiryDate||null,
       quantity:qty,
       type:movType,
@@ -2520,6 +2624,7 @@ function BarcodeScannerModal({onResult,onClose,urunler,hospitals}){
             <div className="grid grid-cols-2 gap-2">
               {[
                 {l:"REF / GTIN",v:parsed.ref||parsed.gtin||"—"},
+                {l:"UDI / Barkod",v:parsed.udi||"—"},
                 {l:"Lot Numarası",v:parsed.lot||"—"},
                 {l:"Seri No",v:parsed.serial||"—"},
                 {l:"Son Kullanma",v:parsed.expiryDate?`${parsed.expiryDate}${daysLeft!==null?` (${daysLeft>0?daysLeft+" gün kaldı":"GEÇMIŞ"})`:""}` :"—"},
@@ -3344,7 +3449,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     if(result.expiryDate&&new Date(result.expiryDate)<new Date()){
       toast("Son kullanma tarihi geçmiş ürün sisteme eklenemez!","error");return;
     }
-    const note=`Barkod — LOT:${result.lotNumber||""}${result.expiryDate?` SKT:${result.expiryDate}`:""}`;
+    const note=`Barkod${result.udiNumber?` — UDI:${result.udiNumber}`:""}${result.refNumber?` — REF:${result.refNumber}`:""}${result.lotNumber?` — LOT:${result.lotNumber}`:""}${result.mfgDate?` — ÜRT:${result.mfgDate}`:""}${result.expiryDate?` — SKT:${result.expiryDate}`:""}`;
     await save({urun_id:result.urun_id,hospital_id:result.hospital_id,type:result.type,quantity:result.quantity,notes:note,surgery_id:""});
     setBarcodeModal(false);
   };
