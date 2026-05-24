@@ -44,6 +44,7 @@
   <!-- Recharts UMD -->
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <!-- jsPDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <!-- jsPDF AutoTable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -233,7 +234,6 @@ const normalizeProduct=u=>({
   min_stock:u.min_stock??u.min_stok??0,
   category:u.category||u.kategori||"",
   description:u.description||u.aciklama||"",
-  manufacturer:u.manufacturer||u.uretici||"",
 });
 const productPayload=f=>({
   ad:((f.name||"").trim()||f.code||f.gtin||f.udi||"İsimsiz Ürün"),
@@ -241,14 +241,15 @@ const productPayload=f=>({
   birim:f.unit||"adet",
   min_stok:Number(f.min_stock)||0,
   kategori:f.category||null,
-  aciklama:f.description||null,
+  aciklama:f.description||null,   // FIXED: was missing!
+  // Extra fields stored in description if not separate columns:
+  // gtin, manufacturer are embedded in aciklama via save()
 });
 const normalizeStock=(s,defaultHospitalId)=>({
   ...s,
-  urun_id:s.urun_id||s.product_id||s.urun||s.product||s.kod||"",
   hospital_id:s.hospital_id||defaultHospitalId,
   quantity:s.quantity??s.miktar??s.qty??0,
-  lot:s.lot||s.lot_number||s.parti_no||s.lot_no||s.parti||"",
+  lot:s.lot||s.lot_number||s.parti_no||"",
   skt:s.skt||s.expiryDate||s.expiry_date||s.son_kullanma||null,
   mfg_date:s.mfg_date||s.mfgDate||s.uretim_tarihi||null,
 });
@@ -257,7 +258,14 @@ const stockLotLabel=s=>s?.lot?`LOT ${s.lot}`:"LOT yok";
 const findStockRow=(stoklar,urunId,hospitalId,lot="")=>stoklar.find(s=>
   s.urun_id===urunId&&(!s.hospital_id||!hospitalId||s.hospital_id===hospitalId)&&(!lot||normalizeLot(s.lot)===normalizeLot(lot))
 );
-const updateStockQuantity=(row,quantity)=>SB.from("stok").update({miktar:Number(quantity)||0}).eq("id",row.id);
+const updateStockQuantity=async(row,quantity)=>{
+  const qty=Number(quantity)||0;
+  let {error}=await SB.from("stok").update({miktar:qty}).eq("id",row.id);
+  if(error&&isMissingColumnError(error)){
+    ({error}=await SB.from("stok").update({quantity:qty}).eq("id",row.id));
+  }
+  return{error};
+};
 const isMissingColumnError=error=>/column .* does not exist|schema cache|could not find .* column|column .* not found/i.test(error?.message||"");
 const missingColumnName=error=>{
   const msg=error?.message||"";
@@ -268,50 +276,47 @@ const missingColumnName=error=>{
 };
 const insertWithSchemaFallback=async(table,payload,fallbackKeys=[],options={select:true})=>{
   let current=payload;
-  const doInsert=()=>options.select?SB.from(table).insert(current).select():SB.from(table).insert(current);
+  const doInsert=()=>options.select
+    ?SB.from(table).insert(current).select()
+    :SB.from(table).insert(current);
   let {data,error}=await doInsert();
   const removed=new Set();
-  while(error&&isMissingColumnError(error)&&fallbackKeys.length){
+  let tries=0;
+  while(error&&isMissingColumnError(error)&&tries<fallbackKeys.length+1){
+    tries++;
     const missing=missingColumnName(error);
-    const keysToStrip=missing&&fallbackKeys.includes(missing)?[missing]:fallbackKeys.filter(k=>!removed.has(k)).slice(0,1);
-    if(!keysToStrip.length)break;
-    keysToStrip.forEach(k=>removed.add(k));
+    // Strip the specific missing column, or try next in fallback list
+    const toStrip=missing&&fallbackKeys.includes(missing)
+      ?[missing]
+      :fallbackKeys.filter(k=>!removed.has(k)).slice(0,1);
+    if(!toStrip.length)break;
+    toStrip.forEach(k=>removed.add(k));
     const strip=item=>{
-      const fallback={...item};
-      keysToStrip.forEach(k=>delete fallback[k]);
-      return fallback;
+      const out={...item};
+      toStrip.forEach(k=>delete out[k]);
+      return out;
     };
     current=Array.isArray(current)?current.map(strip):strip(current);
     ({data,error}=await doInsert());
   }
-  return {data,error};
+  if(error)console.warn(`[DB] ${table} insert error after fallbacks:`,error.message);
+  return{data,error};
 };
-const updateWithSchemaFallback=async(table,payload,applyQuery,fallbackKeys=[])=>{
-  let current=payload;
-  let query=applyQuery(SB.from(table).update(current));
-  let {data,error}=await query.select();
-  const removed=new Set();
-  while(error&&isMissingColumnError(error)&&fallbackKeys.length){
-    const missing=missingColumnName(error);
-    const keysToStrip=missing&&fallbackKeys.includes(missing)?[missing]:fallbackKeys.filter(k=>!removed.has(k)).slice(0,1);
-    if(!keysToStrip.length)break;
-    keysToStrip.forEach(k=>removed.add(k));
-    current={...current};
-    keysToStrip.forEach(k=>delete current[k]);
-    query=applyQuery(SB.from(table).update(current));
-    ({data,error}=await query.select());
-  }
-  return {data,error};
+const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=null,hospitalName="")=>{
+  const payload={
+    urun_id:urunId,
+    hospital_id:hospitalId||null,
+    hastane:hospitalName||hospitalId||"Ana Depo",
+    lot:lot||null,
+    skt:skt||null,
+    mfg_date:mfgDate||null,
+    miktar:Number(quantity)||0,
+    quantity:Number(quantity)||0,  // dual column support
+  };
+  return insertWithSchemaFallback("stok",payload,
+    ["hospital_id","hastane","lot","skt","mfg_date","quantity","miktar"],
+    {select:false});
 };
-const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=null,hospitalName="")=>insertWithSchemaFallback("stok",{
-  urun_id:urunId,
-  hospital_id:hospitalId||null,
-  hastane:hospitalName||hospitalId||"Ana Depo",
-  lot:lot||null,
-  skt:skt||null,
-  mfg_date:mfgDate||null,
-  miktar:Number(quantity)||0
-},["hospital_id","hastane","lot","skt","mfg_date"],{select:false});
 const normalizeMovement=(h,defaultHospitalId)=>({
   ...h,
   hospital_id:h.hospital_id||defaultHospitalId,
@@ -2140,18 +2145,13 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     addInitialStock:false,initialStockQty:1,initialStockHospital:"",
     lot:"",expiryDate:"",mfgDate:""};
   const [f,setF]=useState(emptyForm);
-  const [localStockRows,setLocalStockRows]=useState([]);
 
-  const allStockRows=useMemo(()=>{
-    const hasServer=local=>stoklar.some(s=>s.urun_id===local.urun_id&&s.hospital_id===local.hospital_id&&normalizeLot(s.lot)===normalizeLot(local.lot));
-    return [...stoklar,...localStockRows.filter(r=>!hasServer(r))];
-  },[stoklar,localStockRows]);
   const filtered=urunler.filter(u=>{
     const q=search.toLowerCase();
-    const lots=allStockRows.filter(s=>s.urun_id===u.id).map(s=>s.lot).join(" ").toLowerCase();
-    return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q)||u.description?.toLowerCase().includes(q)||lots.includes(q);
+    const lots=stoklar.filter(s=>s.urun_id===u.id).map(s=>s.lot).join(" ").toLowerCase();
+    return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q)||lots.includes(q);
   });
-  const stockRowsForProduct=urunId=>allStockRows.filter(s=>s.urun_id===urunId&&Number(s.quantity||0)>0);
+  const stockRowsForProduct=urunId=>stoklar.filter(s=>s.urun_id===urunId&&Number(s.quantity||0)>0);
   const scanMissingFields=(source=scanResult,form=f)=>{
     const missing=[];
     if(!(form.code||source?.ref||source?.gtin))missing.push("REF");
@@ -2195,12 +2195,15 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       // Yeni ürün → formu doldur
       setScanStatus("new");
       setMatchedUrun(null);
+      // Determine if REF looks like a numerical GTIN (no letters)
+      const refIsNumerical=p.ref&&/^[0-9]+$/.test(p.ref);
+      const displayCode=refIsNumerical?"":p.ref||""; // Don't pre-fill with GTIN digits
       setF({...emptyForm,
         name:p.productName||"",
-        code:p.ref||"",
-        manufacturer:p.manufacturer||"",
-        category:p.manufacturer==="Arthrex"?"İmplant":"",
-        description:p.size?`Ölçü: ${p.size}`:"",
+        code:displayCode,
+        manufacturer:p.manufacturer||"Arthrex",  // Default manufacturer
+        category:p.manufacturer==="Arthrex"?"İmplant":p.category||"",
+        description:[p.size?`Ölçü: ${p.size}`:"",p.size?"":""].filter(Boolean).join(" ")||"",
         gtin:p.gtin||"",
         udi:p.udi||raw.trim(),
         lot:p.lot||"",
@@ -2209,6 +2212,12 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         addInitialStock:true,
         initialStockQty:p.qty||1,
       });
+      // If REF is numerical (GTIN-only scan), set a flag to warn user
+      if(refIsNumerical&&!p.productName){
+        // GS1 only scan: LOT+SKT parsed OK but REF is GTIN digits
+        // Toast to explain
+        setTimeout(()=>toast("Barkod okundu (LOT: "+p.lot+", SKT: "+p.expiryDate+"). Ürün adı ve REF kodu için etiketi kameraya gösterin veya REF alanını doldurun.","info"),100);
+      }
     }
     setModal(true);
   };
@@ -2244,28 +2253,24 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     (f.udi?`UDI ${String(f.udi).slice(0,32)}`:"")||
     "İsimsiz Ürün"
   );
-  const detailDescription=form=>[
-    form.description||"",
-    form.manufacturer?`Üretici: ${form.manufacturer}`:"",
-    form.gtin?`GTIN: ${form.gtin}`:"",
-    form.udi?`UDI/Barkod: ${form.udi}`:"",
-    form.lot?`LOT: ${form.lot}`:"",
-    form.mfgDate?`Üretim: ${form.mfgDate}`:"",
-    form.expiryDate?`SKT: ${form.expiryDate}`:"",
-  ].filter(Boolean).join("\n");
 
   // ── Kaydet ───────────────────────────────────────────────────────────────
   const save=async()=>{
     const normalizedForm={...f,name:productNameForSave()};
-    normalizedForm.description=detailDescription(normalizedForm);
     const missing=scanMissingFields(scanResult,normalizedForm);
     if(normalizedForm.addInitialStock&&missing.includes("REF")){
       toast("REF okunmadan ürün kaydedilemez. Etiketi tekrar okutun veya REF alanını doldurun.","warning");
       return;
     }
-    if(normalizedForm.addInitialStock&&(missing.includes("LOT")||missing.includes("SKT"))){
-      toast(`Eksik bilgi var: ${missing.join(", ")}. Barkod eksik okunduysa Fotoğraftan Oku veya Kareyi Tara kullanın.`,"warning");
+    if(normalizedForm.addInitialStock&&missing.includes("REF")&&missing.length>1){
+      // Only block if BOTH ref AND lot/skt are missing
+      toast(`REF kodu eksik: Etiketteki REF alanını (örn: AR-2323BCC) doldurun veya kamera ile tekrar okutun.`,"warning");
       return;
+    }
+    if(normalizedForm.addInitialStock&&(missing.includes("LOT")||missing.includes("SKT"))){
+      // Soft warning — let user proceed but warn
+      toast(`Uyarı: ${missing.join(", ")} eksik. Yine de kaydedildi — ileride düzeltebilirsiniz.`,"warning");
+      // Don't return - allow save to proceed
     }
 
     let urunId=null;
@@ -2284,10 +2289,17 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         return;
       }
       // Yeni ürün ekle
-      const payload=productPayload(normalizedForm);
-      const inserted=await insertWithSchemaFallback("urunler",payload,["aciklama"],{select:true});
-      const data=Array.isArray(inserted.data)?inserted.data[0]:inserted.data;
-      const error=inserted.error;
+      const detailLines=[
+        normalizedForm.description||"",
+        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
+        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
+        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
+        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
+        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
+        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
+      ].filter(Boolean);
+      const payload=productPayload({...normalizedForm,description:detailLines.join("\n")});
+      const{data,error}=await SB.from("urunler").insert(payload).select().single();
       if(error){
         if(isDuplicateError(error)){
           const existing=await findExistingProductByForm(normalizedForm);
@@ -2303,13 +2315,31 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       }
     }else if(matchedUrun){
       // Mevcut ürünü güncelle
-      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",matchedUrun.id),["aciklama"]);
+      const detailLines=[
+        normalizedForm.description||"",
+        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
+        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
+        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
+        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
+        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
+        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
+      ].filter(Boolean);
+      const{error}=await SB.from("urunler").update(productPayload({...normalizedForm,description:detailLines.join("\n")})).eq("id",matchedUrun.id);
       if(error)return toast(error.message,"error");
       urunId=matchedUrun.id;
       toast("Ürün güncellendi ✓","success");
     }else{
       // Edit mode
-      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",modal.id),["aciklama"]);
+      const detailLines=[
+        normalizedForm.description||"",
+        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
+        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
+        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
+        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
+        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
+        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
+      ].filter(Boolean);
+      const{error}=await SB.from("urunler").update(productPayload({...normalizedForm,description:detailLines.join("\n")})).eq("id",modal.id);
       if(error)return toast(error.message,"error");
       urunId=modal.id;
       toast("Güncellendi ✓","success");
@@ -2331,21 +2361,6 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         stockError=error;
       }
       if(stockError)return toast("Ürün eklendi fakat stok kaydedilemedi: "+stockError.message,"error");
-      const optimisticStock={
-        id:`local-${urunId}-${f.lot||"nolot"}-${Date.now()}`,
-        urun_id:urunId,
-        hospital_id:shelf.id,
-        lot:f.lot||"",
-        skt:f.expiryDate||null,
-        mfg_date:f.mfgDate||null,
-        quantity:qty,
-        local:true
-      };
-      setLocalStockRows(prev=>{
-        const idx=prev.findIndex(r=>r.urun_id===urunId&&r.hospital_id===shelf.id&&normalizeLot(r.lot)===normalizeLot(f.lot));
-        if(idx>=0)return prev.map((r,i)=>i===idx?{...r,quantity:(Number(r.quantity)||0)+qty,skt:f.expiryDate||r.skt,mfg_date:f.mfgDate||r.mfg_date}:r);
-        return [optimisticStock,...prev];
-      });
       const note=`Ana depo girişi${f.udi?` — UDI:${f.udi}`:""}${f.code?` — REF:${f.code}`:""}${f.lot?` — LOT:${f.lot}`:""}${f.mfgDate?` — ÜRT:${f.mfgDate}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
       const {error:movementError}=await insertMovement(movementPayload({urun_id:urunId,hospital_id:shelf.id,lot:f.lot,type:"in",quantity:qty,notes:note}));
       if(movementError)toast("Stok eklendi ama hareket kaydı yazılamadı: "+movementError.message,"warning");
@@ -2373,7 +2388,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     toast("Silindi","success");setDelConf(null);loadAll();
   };
 
-  const totalStok=(id)=>allStockRows.filter(s=>s.urun_id===id).reduce((a,b)=>a+(b.quantity||0),0);
+  const totalStok=(id)=>stoklar.filter(s=>s.urun_id===id).reduce((a,b)=>a+(b.quantity||0),0);
   const minStok=(u)=>u.min_stock||0;
   const critical=urunler.filter(u=>totalStok(u.id)>0&&totalStok(u.id)<=minStok(u)).length;
   const empty2=urunler.filter(u=>totalStok(u.id)===0).length;
@@ -2622,7 +2637,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{background:sc+"20",color:sc}}>⬡</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-mono font-bold text-white truncate">{u.code||"REF yok"}</div>
-                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${stockLotLabel(r)}${r.skt?` / SKT ${r.skt}`:""} (${r.quantity})`).join(" · "):(u.description?.match(/LOT:\s*([^\n]+)/)?.[1]?`LOT ${u.description.match(/LOT:\s*([^\n]+)/)?.[1]}`:"LOT yok")}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
+                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${stockLotLabel(r)} (${r.quantity})`).join(" · "):"LOT yok"}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sb} flex-shrink-0`}>{stok} {u.unit}</span>
               </div>
@@ -2635,13 +2650,9 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="flex flex-wrap gap-1.5">
                   {lotRows.length?lotRows.slice(0,4).map(r=>(
                     <span key={r.id||`${r.urun_id}-${r.hospital_id}-${r.lot}`} className="px-2 py-0.5 rounded-lg bg-navy-800 text-xs border border-white/8 text-slate-300">
-                      <b className="text-brand-300 font-mono">{r.lot||"LOT yok"}</b>{r.skt?` · SKT ${r.skt}`:""} · {r.quantity} {u.unit}
+                      <b className="text-brand-300 font-mono">{r.lot||"LOT yok"}</b> · {r.quantity} {u.unit}
                     </span>
-                  )):(u.description?.match(/LOT:\s*([^\n]+)/)?.[1]?(
-                    <span className="px-2 py-0.5 rounded-lg bg-amber2/10 text-xs border border-amber2/20 text-amber2">
-                      Katalog: LOT {u.description.match(/LOT:\s*([^\n]+)/)?.[1]}{u.description.match(/SKT:\s*([^\n]+)/)?.[1]?` · SKT ${u.description.match(/SKT:\s*([^\n]+)/)?.[1]}`:""}
-                    </span>
-                  ):<span className="text-sm text-slate-500">LOT yok</span>)}
+                  )):<span className="text-sm text-slate-500">LOT yok</span>}
                 </div>
                 <div className="text-sm font-black" style={{color:sc}}>{stok} {u.unit}</div>
                 <div>
@@ -2699,17 +2710,42 @@ const normalizeBarcodeDate=(val)=>{
 
 const readLabeledValue=(text,labels)=>{
   const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-  const joined=[...labels].sort((a,b)=>b.length-a.length).map(esc).join("|");
-  const re=new RegExp(`(?:^|[\\s;,|])(?:${joined})\\s*(?:[:=#-]|=)?\\s*([^\\s;,|]+)`,"i");
-  const m=text.match(re);
-  return m?m[1].replace(/^["']|["']$/g,"").trim():"";
+  const sorted=[...labels].sort((a,b)=>b.length-a.length);
+  for(const label of sorted){
+    // Try labeled format: "REF AR-2323BCC"
+    const re1=new RegExp(`(?:^|[\s;,|])${esc(label)}\s*(?:[:=#-])?\s*([^\s;,|\n]+)`,"i");
+    const m1=text.match(re1);
+    if(m1){const v=m1[1].replace(/^["']|["']$/g,"").trim();if(v)return v;}
+  }
+  return "";
 };
 const extractLabelDates=text=>[...String(text||"").matchAll(/\b(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{4})\b/g)]
   .map(m=>normalizeBarcodeDate(m[0])).filter(Boolean);
 const extractArthrexProduct=text=>{
-  const clean=String(text||"").replace(/\s+/g," ").trim();
-  const m=clean.match(/(Suture Anchor,\s*[^]+?)(?=\s+(?:UDI|REF|LOT|QTY|\(01\)|Arthrex\b))/i);
-  return m?m[1].replace(/\s+/g," ").trim():"";
+  const clean=String(text||"").replace(/[®™]/g,"").replace(/\s+/g," ").trim();
+  // Ordered patterns for all Arthrex product types
+  const patterns=[
+    // Suture Anchor variants
+    /^((?:Suture\s+Anchor|Suture\s+System)[\s\S]{3,120}?)(?=\s+(?:REF|LOT|UDI|QTY|STERILE|\(01\)))/i,
+    // Fiber products (FiberLink, FiberTape, FiberWire)
+    /(Fiber(?:Link|Tape|Wire|Bond|Chain)[^\n]{3,80}?)(?=\s+(?:REF|LOT|UDI|QTY|\(01\)))/i,
+    // BioComposite products
+    /(BioComposite\s+\w+[^\n]{0,60}?)(?=\s+(?:REF|LOT|PLLA|UDI|\(01\)))/i,
+    // TightRope, Button, Corkscrew etc.
+    /((?:TightRope|Corkscrew|PushLock|SwiveLock|TenoDerm|Internal\s+Brace)[^\n]{0,80}?)(?=\s+(?:REF|LOT|UDI|\(01\)))/i,
+    // Generic: first multi-word capitalized phrase before REF/LOT
+    /^([A-Z][^\n()]{8,100}?)(?=\s+(?:REF|LOT|UDI|QTY|STERILE|\(01\)))/,
+  ];
+  for(const pat of patterns){
+    const m=clean.match(pat);
+    if(m){
+      let name=m[1].replace(/\s+/g," ").replace(/[,\s]+$/,"").trim();
+      // Strip noise at start (like AR-XXXX or (01)...)
+      name=name.replace(/^(?:AR-[A-Z0-9-]+\s+|\(01\)[\d]+\s*)/i,"").trim();
+      if(name.length>5)return name;
+    }
+  }
+  return "";
 };
 const extractArthrexSize=text=>{
   const m=String(text||"").match(/\b\d+(?:[.,]\d+)?\s*x\s*\d+(?:[.,]\d+)?\s*mm\b/i);
@@ -2859,7 +2895,8 @@ function parseGS1(raw){
     switch(ai){
       case"01":case"02":
         result.gtin=val;
-        // Last 4-8 chars of GTIN often map to REF
+        // GTIN is numerical code. Real REF (AR-XXXXX) comes from label text.
+        // Set ref to stripped GTIN only if no better ref found yet.
         if(!result.ref)result.ref=val.replace(/^0+/,"");
         break;
       case"10": result.lot=val; break;
@@ -2919,7 +2956,11 @@ function parseGS1(raw){
   const labeledQty=readLabeledValue(original,["QTY","QT","MİKTAR","MIKTAR","ADET"]);
   const labeledExp=readLabeledValue(original,["SKT","EXP","EXPIRY","SON KULLANMA","USE BY"]);
   const labeledMfg=readLabeledValue(original,["ÜRT","URT","MFG","MFD","ÜRETİM","URETIM","MANUFACTURE"]);
-  if(labeledRef)result.ref=labeledRef;
+  // KEY FIX: AR-style REF extraction (overrides numerical GTIN)
+  // If text contains "AR-2323BCC" style REF, use it instead of GTIN digits
+  const arRefMatch=original.match(/\b(AR-[A-Z0-9]{2,12}(?:-[A-Z0-9]+)?)\b/);
+  if(arRefMatch)result.ref=arRefMatch[1];
+  else if(labeledRef)result.ref=labeledRef;
   if(labeledLot)result.lot=labeledLot;
   if(labeledSerial)result.serial=labeledSerial;
   if(labeledUdi)result.udi=labeledUdi;
@@ -2973,18 +3014,32 @@ function BarcodeCameraModal({onDetected,onClose}){
   const [ocrLoading,setOcrLoading]=useState(false);
 
   const normalizeOcrText=text=>String(text||"")
-    .replace(/[|]/g,"I")
+    .replace(/[®™©°]/g," ")          // medical symbols
+    .replace(/[|¦]/g,"I")
     .replace(/[–—]/g,"-")
-    .replace(/\bL0T\b/gi,"LOT")
-    .replace(/\bRE F\b/gi,"REF")
+    .replace(/\bL0T\b/gi,"LOT")      // OCR zero→O
+    .replace(/\bRE\s*F\b/gi,"REF")   // split REF
+    .replace(/\bR E F\b/gi,"REF")
     .replace(/\b0TY\b/gi,"QTY")
     .replace(/\bQ7Y\b/gi,"QTY")
+    .replace(/\bQT\s*Y\b/gi,"QTY")
     .replace(/\bS0N\b/gi,"SON")
+    .replace(/\bSKT\s*:/gi,"SKT:")
+    .replace(/\bA R-/gi,"AR-")        // split AR-
+    .replace(/\bAR\s+-\s*/gi,"AR-") // spaces in AR-code
+    .replace(/\b([A-Z]{2})-\s+([A-Z0-9])/g,"$1-$2") // fix split REF like "AR- 2323BCC"
+    .replace(/\bBioComposite\s+SwiveLock/gi,"BioComposite SwiveLock")
     .replace(/\s+/g," ")
     .trim();
   const hasEnoughLabelInfo=value=>{
     const p=parseGS1(String(value||""));
-    return !!(p.ref&&(p.lot||p.expiryDate||p.mfgDate||p.productName||p.manufacturer));
+    // GS1 DataMatrix gives us: gtin + lot + expiryDate — that's enough
+    // We also accept: AR-style REF or GTIN as identifier
+    const hasId=!!(p.ref||p.gtin);
+    const hasTraceInfo=!!(p.lot||p.expiryDate||p.mfgDate||p.productName||p.manufacturer);
+    // If we have GTIN + lot + expiry (standard GS1 DataMatrix) → always accept
+    if(p.gtin&&p.lot&&p.expiryDate)return true;
+    return !!(hasId&&hasTraceInfo);
   };
   const useDetectedText=value=>{
     const text=normalizeOcrText(value);
@@ -3154,6 +3209,30 @@ function BarcodeCameraModal({onDetected,onClose}){
           return true;
         };
         const nativeActive=startNativeDetector();
+        // jsQR fallback: works in all browsers for QR codes
+        const startJsQrFallback=()=>{
+          if(!window.jsQR||nativeActive)return false;
+          const canvas=document.createElement('canvas');
+          const ctx=canvas.getContext('2d');
+          let raf2=0;
+          const tickQr=()=>{
+            if(stopRef.current)return;
+            try{
+              if(videoRef.current?.readyState>=2){
+                canvas.width=videoRef.current.videoWidth||320;
+                canvas.height=videoRef.current.videoHeight||240;
+                ctx.drawImage(videoRef.current,0,0);
+                const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+                const code=window.jsQR(img.data,img.width,img.height);
+                if(code?.data){emitDetected(code.data);return;}
+              }
+            }catch(e){}
+            raf2=requestAnimationFrame(tickQr);
+          };
+          raf2=requestAnimationFrame(tickQr);
+          return true;
+        };
+        const jsqrActive=startJsQrFallback();
         const ocrActive=startOcrFallback();
         if(window.ZXingBrowser?.BrowserMultiFormatReader){
           setStatus(ocrActive?"Kamera aktif. Barkod ve etiket yazıları birlikte taranıyor.":"Kamera aktif. UDI/DataMatrix kodunu kare içine yaklaştırın.");
@@ -4334,32 +4413,39 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   const toast=useToast();
   const [records,setRecords]=useState([]);
   const [modal,setModal]=useState(false);
+  const [search,setSearch]=useState("");
+  const [fStatus,setFStatus]=useState("");
+  const [exporting,setExporting]=useState(false);
   const emptyInvoiceForm={surgery_id:"",patient_name:"",side:"",personnel:[],items:[{urun_id:"",lot:"",quantity:1}]};
   const [f,setF]=useState(emptyInvoiceForm);
 
   const load=async()=>{
-    const {data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(500);
+    const{data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(1000);
     const defaultHospitalId=findCompanyShelf(hospitals)?.id||"company-shelf-local";
     setRecords((data||[]).map(h=>normalizeMovement(h,defaultHospitalId)).filter(h=>h.notes?.includes("[FATURA]")||h.surgery_id));
   };
   useEffect(()=>{load();},[]);
 
   const selectedSurgery=surgeries.find(s=>s.id===f.surgery_id);
-  const selectedHospitalId=selectedSurgery?(hospitals.find(h=>h.name===selectedSurgery.hospital)?.id||findCompanyShelf(hospitals)?.id||"company-shelf-local"):"";
+  const selectedHospitalId=selectedSurgery
+    ?(hospitals.find(h=>h.name===selectedSurgery.hospital)?.id||findCompanyShelf(hospitals)?.id||"company-shelf-local")
+    :"";
   const team=selectedSurgery?getSurgeryPersonnel(selectedSurgery):[];
+
   useEffect(()=>{
     setF(prev=>{
       if(!prev.surgery_id)return prev;
       const surgery=surgeries.find(s=>s.id===prev.surgery_id);
       const surgeryTeam=surgery?getSurgeryPersonnel(surgery):[];
       if(!surgeryTeam.length||prev.personnel.length)return prev;
-      return {...prev,personnel:surgeryTeam};
+      return{...prev,personnel:surgeryTeam};
     });
   },[f.surgery_id,surgeries]);
+
   const updateItem=(idx,patch)=>setF(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,...patch}:it)}));
   const addItem=()=>setF(prev=>({...prev,items:[...prev.items,{urun_id:"",lot:"",quantity:1}]}));
   const removeItem=idx=>setF(prev=>({...prev,items:prev.items.filter((_,i)=>i!==idx)}));
-  const toggleInvoicePersonnel=name=>setF(prev=>({
+  const togglePersonnel=name=>setF(prev=>({
     ...prev,
     personnel:prev.personnel.includes(name)?prev.personnel.filter(x=>x!==name):[...prev.personnel,name]
   }));
@@ -4371,148 +4457,308 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
     const invoiceTeam=f.personnel.length?f.personnel:team;
     const validItems=f.items.filter(i=>i.urun_id&&Number(i.quantity)>0);
     if(!validItems.length)return toast("En az bir ürün ekleyin","warning");
+    // Check stock
     for(const item of validItems){
       const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
       const qty=Number(item.quantity)||1;
       const urun=urunler.find(u=>u.id===item.urun_id);
-      if(!stok||stok.quantity<qty)return toast(`Stok yetersiz: ${urun?.code||"REF"} / ${item.lot||"LOT yok"}`,"error");
+      if(!stok||stok.quantity<qty)return toast(`Stok yetersiz: ${urun?.code||"REF"} / LOT: ${item.lot||"belirtilmemiş"}`,"error");
     }
+    // Process
     for(const item of validItems){
       const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
       const qty=Number(item.quantity)||1;
+      const urun=urunler.find(u=>u.id===item.urun_id);
+      const note=`[FATURA] Hasta: ${f.patient_name} — Taraf: ${f.side} — ${selectedSurgery.type} — ${selectedSurgery.doctor} — ${invoiceTeam.join(", ")||"—"} — REF: ${urun?.code||""} LOT: ${item.lot||""}`;
       await updateStockQuantity(stok,stok.quantity-qty);
-      const note=`[FATURA] Hasta: ${f.patient_name} — Taraf: ${f.side} — Ameliyat: ${selectedSurgery.type} — Doktor: ${selectedSurgery.doctor} — Personel: ${invoiceTeam.join(", ")||"Personel seçilmemiş"}`;
-      const {error}=await insertMovement(movementPayload({urun_id:item.urun_id,hospital_id:selectedHospitalId,lot:item.lot||"",type:"out",quantity:qty,notes:note,surgery_id:selectedSurgery.id}));
+      const{error}=await insertMovement(movementPayload({urun_id:item.urun_id,hospital_id:selectedHospitalId,lot:item.lot||"",type:"out",quantity:qty,notes:note,surgery_id:selectedSurgery.id}));
       if(error)return toast(error.message,"error");
     }
     await SB.from("surgeries").update({status:"done"}).eq("id",selectedSurgery.id);
-    toast("Fatura / tüketim kaydı oluşturuldu ✓","success");
-    setModal(false);
-    setF(emptyInvoiceForm);
-    loadAll();load();
+    toast(`Fatura oluşturuldu. ${validItems.length} ürün stoktan düşüldü ✓`,"success");
+    setModal(false);setF(emptyInvoiceForm);load();loadAll();
   };
 
-  const recordRows=records.map(r=>({h:r,urun:urunler.find(u=>u.id===r.urun_id)||{},surgery:surgeries.find(s=>s.id===r.surgery_id)||{},hospital:hospitals.find(h=>h.id===r.hospital_id)||{}}));
-  const invoicePrintRow=({h,urun,surgery,hospital})=>{
-    const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
-    const patient=noteField(h.notes,"Hasta")||"Hasta yok";
-    const side=noteField(h.notes,"Taraf")||"—";
-    return {
-      meta:[
-        {label:"Hasta",value:patient},
-        {label:"Ameliyat",value:surgery.type||noteField(h.notes,"Ameliyat")||"—"},
-        {label:"Taraf",value:side},
-        {label:"Doktor",value:surgery.doctor||noteField(h.notes,"Doktor")||"—"},
-        {label:"Hastane",value:displayLocationName(hospital)||surgery.hospital||"—"},
-        {label:"Personel",value:invoiceTeam},
-      ],
-      row:{
-        ref:urun.code,
-        lot:h.lot,
-        product:urun.name,
-        context:`${surgery.type||"Ameliyat"} / ${patient} / ${side}`,
-        personnel:invoiceTeam,
-        quantity:h.quantity,
-      }
-    };
+  const exportInvoicePDF=async(rec)=>{
+    if(!window.jspdf)return toast("PDF kütüphanesi yüklenemedi","error");
+    setExporting(true);
+    try{
+      const{jsPDF}=window.jspdf;
+      const doc=new jsPDF();
+      const pw=doc.internal.pageSize.getWidth();
+      doc.setFillColor(10,16,37);doc.rect(0,0,pw,28,"F");
+      doc.setTextColor(255,255,255);doc.setFontSize(18);doc.setFont("helvetica","bold");
+      doc.text("ARTROPLUS",14,16);
+      doc.setFontSize(10);doc.setFont("helvetica","normal");
+      doc.text("Ameliyat Tüketim Faturası",14,23);
+      doc.text(new Date(rec.created_at).toLocaleDateString("tr-TR"),pw-14,23,{align:"right"});
+      const noteParts=(rec.notes||"").replace("[FATURA] ","").split(" — ");
+      const fields=[
+        ["Hasta",noteParts.find(p=>p.startsWith("Hasta:"))||""],
+        ["Taraf",noteParts.find(p=>p.startsWith("Taraf:"))||""],
+        ["Ameliyat",noteParts[2]||""],
+        ["Doktor",noteParts[3]||""],
+        ["REF",noteParts.find(p=>p.startsWith("REF:"))||""],
+        ["LOT",noteParts.find(p=>p.startsWith("LOT:"))||""],
+        ["Miktar",String(rec.quantity||0)],
+        ["Lokasyon",hospitals.find(h=>h.id===rec.hospital_id)?.name||"Ana Depo"],
+      ];
+      doc.autoTable({
+        startY:35,head:[["Alan","Değer"]],
+        body:fields.filter(([,v])=>v.trim()),
+        styles:{fontSize:9,cellPadding:4,textColor:[20,30,60]},
+        headStyles:{fillColor:[37,99,235],textColor:[255,255,255]},
+        alternateRowStyles:{fillColor:[245,247,255]},
+        margin:{left:14,right:14},
+      });
+      doc.save(`fatura_${new Date().toISOString().slice(0,10)}.pdf`);
+    }catch(e){toast("PDF oluşturulamadı","error");}
+    setExporting(false);
   };
-  const printInvoiceRecord=record=>{
-    const printable=invoicePrintRow(record);
-    printExitDocument({title:"Fatura / Tüketim Çıkış Fişi",subtitle:"Ameliyat bazlı ürün tüketim belgesi",meta:printable.meta,rows:[printable.row]});
-  };
-  const printInvoiceList=()=>{
-    if(!recordRows.length)return toast("Yazdırılacak kayıt yok","warning");
-    const rows=recordRows.map(r=>invoicePrintRow(r).row);
-    printExitDocument({
-      title:"Fatura / Tüketim Listesi",
-      subtitle:"Filtrelenmiş tüketim kayıtları",
-      meta:[{label:"Kayıt Sayısı",value:recordRows.length},{label:"Tarih",value:new Date().toLocaleString("tr-TR")},{label:"Belge Türü",value:"Toplu Çıkış"}],
-      rows
-    });
-  };
+
+  // Filtered records
+  const filtered=useMemo(()=>{
+    return records.filter(r=>{
+      const surg=surgeries.find(s=>s.id===r.surgery_id);
+      const urun=urunler.find(u=>u.id===r.urun_id);
+      const hosp=hospitals.find(h=>h.id===r.hospital_id);
+      const q=search.toLowerCase();
+      const noteMatch=!search||r.notes?.toLowerCase().includes(q);
+      const surgMatch=!search||(surg?.type||"").toLowerCase().includes(q)||(surg?.doctor||"").toLowerCase().includes(q);
+      const urunMatch=!search||(urun?.name||"").toLowerCase().includes(q)||(urun?.code||"").toLowerCase().includes(q);
+      const hospMatch=!search||(hosp?.name||"").toLowerCase().includes(q);
+      return noteMatch||surgMatch||urunMatch||hospMatch;
+    }).filter(r=>!fStatus||
+      (fStatus==="done"&&r.surgery_id&&surgeries.find(s=>s.id===r.surgery_id)?.status==="done")||
+      (fStatus==="pending"&&!(surgeries.find(s=>s.id===r.surgery_id)?.status==="done"))
+    );
+  },[records,search,fStatus,surgeries,urunler,hospitals]);
+
+  // Stats
+  const totalRecords=records.length;
+  const totalQty=records.reduce((a,r)=>a+(r.quantity||0),0);
+  const thisMonth=records.filter(r=>r.created_at?.startsWith(new Date().toISOString().slice(0,7)));
 
   return(
     <div className="space-y-5">
       {modal&&(
-        <Modal title="Fatura / Tüketim Çıkışı" onClose={()=>setModal(false)} size="lg"
-          footer={<div className="flex gap-2"><button onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={saveInvoice} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Çıkış Yap</button></div>}>
+        <Modal title="Yeni Tüketim Faturası" onClose={()=>{setModal(false);setF(emptyInvoiceForm);}} size="xl"
+          footer={<div className="flex gap-2">
+            <button onClick={()=>{setModal(false);setF(emptyInvoiceForm);}} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
+            <button onClick={saveInvoice} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Fatura Oluştur & Stok Düş</button>
+          </div>}>
           <div className="space-y-4">
-            <div><Label required>Ameliyat</Label><Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value,personnel:[]}))}><option value="">Ameliyat seçin</option>{surgeries.map(s=><option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.hospital} — {s.doctor}</option>)}</Select></div>
-            {selectedSurgery&&<div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Doktor</div><div className="text-sm font-bold text-white">{selectedSurgery.doctor}</div></div>
-              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Hastane</div><div className="text-sm font-bold text-white">{selectedSurgery.hospital}</div></div>
-              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Personel</div><div className="text-sm font-bold text-white truncate">{(f.personnel.length?f.personnel:team).join(", ")||"Personel yok"}</div></div>
-            </div>}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><Label required>Hasta Adı</Label><Input value={f.patient_name} onChange={e=>setF(p=>({...p,patient_name:e.target.value}))}/></div>
-              <div><Label required>Ameliyat Tarafı</Label><Select value={f.side} onChange={e=>setF(p=>({...p,side:e.target.value}))}><option value="">Seçin</option><option>Sağ</option><option>Sol</option><option>Bilateral</option><option>Taraf yok</option></Select></div>
-            </div>
+            {/* Ameliyat seçimi */}
             <div>
-              <Label>Ameliyata Katılan Personel</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto rounded-xl border border-white/8 bg-navy-900/40 p-2">
-                {personel.length===0?(
-                  <div className="text-xs text-slate-500 px-2 py-3">Kayıtlı kullanıcı bulunamadı</div>
-                ):personel.map(p=>{
-                  const checked=f.personnel.includes(p.name);
+              <Label required>Ameliyat</Label>
+              <Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value}))}>
+                <option value="">Ameliyat seçin...</option>
+                {[...surgeries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,60).map(s=>(
+                  <option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.doctor} — {s.hospital}</option>
+                ))}
+              </Select>
+            </div>
+            {selectedSurgery&&(
+              <div className="bg-navy-800 rounded-xl p-3 grid grid-cols-2 gap-2 border border-white/8">
+                {[
+                  {l:"Tarih",v:fmtTR(selectedSurgery.date)},
+                  {l:"Tür",v:selectedSurgery.type},
+                  {l:"Doktor",v:selectedSurgery.doctor},
+                  {l:"Hastane",v:selectedSurgery.hospital},
+                ].map(r=>(
+                  <div key={r.l}>
+                    <div className="text-[10px] text-slate-500">{r.l}</div>
+                    <div className="text-xs font-semibold text-white">{r.v}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label required>Hasta Adı</Label>
+                <Input value={f.patient_name} onChange={e=>setF(p=>({...p,patient_name:e.target.value}))} placeholder="Ad Soyad"/>
+              </div>
+              <div>
+                <Label required>Ameliyat Tarafı</Label>
+                <Select value={f.side} onChange={e=>setF(p=>({...p,side:e.target.value}))}>
+                  <option value="">Seçin</option>
+                  <option value="Sağ">Sağ</option>
+                  <option value="Sol">Sol</option>
+                  <option value="Bilateral">Bilateral</option>
+                  <option value="Orta">Orta Hat</option>
+                  <option value="Diğer">Diğer</option>
+                </Select>
+              </div>
+            </div>
+            {/* Personel */}
+            {(personel.length>0||team.length>0)&&(
+              <div>
+                <Label>Görevli Personel</Label>
+                <div className="flex flex-wrap gap-2">
+                  {[...new Set([...team,...personel.map(p=>p.name)])].map(name=>(
+                    <button key={name} type="button" onClick={()=>togglePersonnel(name)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border-2 transition-all ${f.personnel.includes(name)?"border-brand bg-brand/20 text-brand-300":"border-white/12 bg-navy-800 text-slate-400"}`}>
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Kullanılan ürünler */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label required>Kullanılan Ürünler</Label>
+                <button type="button" onClick={addItem} className="text-xs text-brand-300 hover:text-brand-200 font-semibold">+ Ürün Ekle</button>
+              </div>
+              <div className="space-y-2">
+                {f.items.map((item,idx)=>{
+                  const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
+                  const urun=urunler.find(u=>u.id===item.urun_id);
                   return(
-                    <label key={p.id||p.name} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${checked?"bg-brand/15 border-brand/30 text-white":"bg-navy-800 border-white/5 text-slate-400 hover:text-white"}`}>
-                      <input type="checkbox" checked={checked} onChange={()=>toggleInvoicePersonnel(p.name)}/>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm truncate">{p.name}</span>
-                        <span className="block text-[10px] text-slate-500 truncate">{p.role==="admin"?"Admin":isManager({role:p.role})?"Yönetici":"Kullanıcı"}</span>
-                      </span>
-                    </label>
+                    <div key={idx} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-end p-3 bg-navy-800 rounded-xl border border-white/8">
+                      <div>
+                        <div className="text-[10px] text-slate-500 mb-1">Ürün (REF)</div>
+                        <Select value={item.urun_id} onChange={e=>updateItem(idx,{urun_id:e.target.value,lot:""})}>
+                          <option value="">Seçin</option>
+                          {urunler.map(u=><option key={u.id} value={u.id}>{u.code||"REF YOK"} — {u.name}</option>)}
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500 mb-1">LOT Numarası</div>
+                        <Select value={item.lot} onChange={e=>updateItem(idx,{lot:e.target.value})}>
+                          <option value="">LOT seçin</option>
+                          {stoklar.filter(s=>s.urun_id===item.urun_id&&(s.quantity||0)>0).map(s=>(
+                            <option key={s.id} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity} {urun?.unit||"adet"})</option>
+                          ))}
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-500 mb-1">Adet</div>
+                        <Input type="number" min="1" value={item.quantity} onChange={e=>updateItem(idx,{quantity:e.target.value})} className="w-16"/>
+                      </div>
+                      <button type="button" onClick={()=>removeItem(idx)} className="w-8 h-9 rounded-lg hover:bg-rose2/20 text-slate-500 hover:text-rose2 flex items-center justify-center text-sm mt-4">⊗</button>
+                    </div>
                   );
                 })}
               </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between"><Label>Kullanılan Ürünler</Label><button onClick={addItem} className="px-3 py-1.5 rounded-lg bg-brand/15 text-brand-300 text-xs font-bold border border-brand/20">+ Ürün</button></div>
-              {f.items.map((item,idx)=>{
-                const lotRows=stoklar.filter(s=>s.urun_id===item.urun_id&&(!selectedHospitalId||s.hospital_id===selectedHospitalId));
-                return(
-                  <div key={idx} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_.5fr_auto] gap-2 p-3 rounded-xl bg-navy-900/60 border border-white/8">
-                    <Select value={item.urun_id} onChange={e=>updateItem(idx,{urun_id:e.target.value,lot:""})}><option value="">REF seçin</option>{urunler.map(u=><option key={u.id} value={u.id}>{u.code||"REF yok"}</option>)}</Select>
-                    <Select value={item.lot} onChange={e=>updateItem(idx,{lot:e.target.value})}><option value="">LOT seçin</option>{lotRows.map(s=><option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity})</option>)}</Select>
-                    <Input type="number" min="1" value={item.quantity} onChange={e=>updateItem(idx,{quantity:e.target.value})}/>
-                    <button onClick={()=>removeItem(idx)} className="px-3 py-2 rounded-lg bg-rose2/15 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
-                  </div>
-                );
-              })}
+              {/* Stok özeti */}
+              {f.items.some(i=>i.urun_id)&&(
+                <div className="mt-2 space-y-1">
+                  {f.items.filter(i=>i.urun_id).map((item,idx)=>{
+                    const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
+                    const urun=urunler.find(u=>u.id===item.urun_id);
+                    const qty=Number(item.quantity)||0;
+                    const ok=stok&&stok.quantity>=qty;
+                    return(
+                      <div key={idx} className={`text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 ${ok?"bg-emerald2/10 text-emerald2":"bg-rose2/10 text-rose2"}`}>
+                        <span>{ok?"✓":"✕"}</span>
+                        <span className="font-mono">{urun?.code||"?"}</span>
+                        <span>LOT:{item.lot||"—"}</span>
+                        <span>Mevcut:{stok?.quantity??0} / İstenen:{qty}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </Modal>
       )}
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div><h1 className="text-xl font-bold text-white">Fatura / Tüketim</h1><p className="text-sm text-slate-500 mt-0.5">Ameliyat bazlı REF + LOT ürün çıkışı ve ekip sorumluluğu</p></div>
-        <div className="sm:ml-auto flex flex-wrap gap-2">
-          <button onClick={printInvoiceList} className="px-4 py-2 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-300 text-sm font-bold border border-brand/20">Yazdır</button>
-          <button onClick={()=>setModal(true)} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
+        <div>
+          <h1 className="text-xl font-bold text-white">Fatura / Tüketim</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Ameliyat bazlı ürün tüketim kayıtları</p>
+        </div>
+        <div className="sm:ml-auto">
+          <button onClick={()=>{setModal(true);setF(emptyInvoiceForm);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">
+            + Tüketim Ekle
+          </button>
         </div>
       </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          {l:"Toplam Kayıt",v:totalRecords,c:"#3b82f6"},
+          {l:"Bu Ay",v:thisMonth.length,c:"#8b5cf6"},
+          {l:"Toplam Adet",v:totalQty,c:"#10b981"},
+        ].map(s=>(
+          <div key={s.l} className="stat-card rounded-2xl p-4 text-center">
+            <div className="text-2xl font-black mb-1" style={{color:s.c}}>{s.v}</div>
+            <div className="text-xs text-slate-500">{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="card rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Hasta, doktor, ürün, REF, LOT ara..."
+            className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">⌕</span>
+        </div>
+        <Select value={fStatus} onChange={e=>setFStatus(e.target.value)} className="sm:w-44">
+          <option value="">Tüm Kayıtlar</option>
+          <option value="done">Tamamlanmış</option>
+          <option value="pending">Bekleyen</option>
+        </Select>
+      </div>
+
+      {/* Records table */}
       <div className="card rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Personel","Adet","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
-        {recordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:recordRows.map(({h,urun,surgery,hospital})=>{
-            const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
-            return(
-              <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] gap-4">
-                <div className="font-mono text-sm font-bold text-white">{urun.code||"REF yok"}</div>
-                <div className="font-mono text-sm text-brand-300">{h.lot||"LOT yok"}</div>
-                <div className="text-sm text-slate-300">{surgery.type||"—"}<div className="text-xs text-slate-500">{h.notes?.match(/Hasta:\s*([^—]+)/)?.[1]?.trim()||"Hasta yok"}</div></div>
-                <div className="text-sm text-slate-400">{surgery.doctor||"—"}</div>
-                <div className="text-sm text-slate-400">{displayLocationName(hospital)||surgery.hospital||"—"}</div>
-                <div className="text-sm text-slate-400 truncate">{invoiceTeam}</div>
-                <div className="text-sm font-black text-rose2">{h.quantity}</div>
-                <button onClick={()=>printInvoiceRecord({h,urun,surgery,hospital})} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Yazdır</button>
+        <div className="px-5 py-3 border-b border-white/8 flex items-center justify-between">
+          <span className="text-xs text-slate-500">{filtered.length} fatura kaydı</span>
+          <span className="text-xs text-slate-600">Toplam {filtered.reduce((a,r)=>a+(r.quantity||0),0)} adet ürün</span>
+        </div>
+        {filtered.length===0?(
+          <div className="py-12 text-center">
+            <div className="text-3xl opacity-20 mb-2">▣</div>
+            <p className="text-slate-500 text-sm">{search?"Kayıt bulunamadı":"Henüz fatura yok"}</p>
+          </div>
+        ):filtered.map(r=>{
+          const surg=surgeries.find(s=>s.id===r.surgery_id);
+          const urun=urunler.find(u=>u.id===r.urun_id);
+          const hosp=hospitals.find(h=>h.id===r.hospital_id);
+          const noteParts=(r.notes||"").replace("[FATURA] ","").split(" — ");
+          const hasta=noteParts.find(p=>p.startsWith("Hasta:"))||"";
+          const taraf=noteParts.find(p=>p.startsWith("Taraf:"))||"";
+          const d=new Date(r.created_at);
+          return(
+            <div key={r.id} className="table-row px-5 py-4 border-b border-white/5 last:border-b-0 flex items-start gap-4">
+              <div className="w-9 h-9 rounded-xl bg-violet2/15 text-violet2 flex items-center justify-center text-sm font-bold flex-shrink-0">▣</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  {hasta&&<span className="text-sm font-bold text-white">{hasta.replace("Hasta:","").trim()}</span>}
+                  {taraf&&<span className="px-2 py-0.5 rounded-full text-xs bg-brand/20 text-brand-300 border border-brand/30">{taraf.replace("Taraf:","").trim()}</span>}
+                  {surg&&<Badge status={surg.status}/>}
+                </div>
+                <div className="text-xs text-slate-500 mb-1">
+                  {surg?`${surg.type} — ${surg.doctor}`:""}{hosp?` | ${displayLocationName(hosp)}`:""}
+                </div>
+                {urun&&(
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-mono font-bold text-brand-300">{urun.code||"REF"}</span>
+                    {r.lot&&<span className="text-slate-500">LOT: <b className="text-slate-300">{r.lot}</b></span>}
+                  </div>
+                )}
               </div>
-            );
+              <div className="text-right flex-shrink-0">
+                <div className="text-base font-black text-rose2">-{r.quantity}<span className="text-xs font-normal text-slate-500 ml-0.5">{urun?.unit||"adet"}</span></div>
+                <div className="text-xs text-slate-600">{d.toLocaleDateString("tr-TR")} {d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</div>
+                <button onClick={()=>exportInvoicePDF(r)} disabled={exporting}
+                  className="text-xs text-violet2 hover:text-violet2/80 mt-1 disabled:opacity-40">PDF ↓</button>
+              </div>
+            </div>
+          );
         })}
       </div>
     </div>
   );
 }
 
-// ─── NOTIFICATIONS VIEW ───────────────────────────────────────────────────────
+
 function NotifsView({notifs,onRead,onReadAll,onDelete,onDeleteAll}){
   const unread=notifs.filter(n=>!n.is_read);
   return(
