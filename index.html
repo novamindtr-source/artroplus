@@ -241,7 +241,6 @@ const productPayload=f=>({
   birim:f.unit||"adet",
   min_stok:Number(f.min_stock)||0,
   kategori:f.category||null,
-  aciklama:f.description||null,
 });
 const normalizeStock=(s,defaultHospitalId)=>({
   ...s,
@@ -289,7 +288,7 @@ const insertWithSchemaFallback=async(table,payload,fallbackKeys=[],options={sele
 const updateWithSchemaFallback=async(table,payload,applyQuery,fallbackKeys=[])=>{
   let current=payload;
   let query=applyQuery(SB.from(table).update(current));
-  let {data,error}=await query.select();
+  let {data,error}=await query;
   const removed=new Set();
   while(error&&isMissingColumnError(error)&&fallbackKeys.length){
     const missing=missingColumnName(error);
@@ -299,23 +298,22 @@ const updateWithSchemaFallback=async(table,payload,applyQuery,fallbackKeys=[])=>
     current={...current};
     keysToStrip.forEach(k=>delete current[k]);
     query=applyQuery(SB.from(table).update(current));
-    ({data,error}=await query.select());
+    ({data,error}=await query);
   }
   return {data,error};
 };
-const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=null,hospitalName="")=>insertWithSchemaFallback("stok",{
-  urun_id:urunId,
-  hospital_id:hospitalId||null,
-  hastane:hospitalName||hospitalId||"Ana Depo",
-  lot:lot||null,
-  skt:skt||null,
-  mfg_date:mfgDate||null,
-  miktar:Number(quantity)||0
-},["hospital_id","hastane","lot","skt","mfg_date"],{select:false});
+const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=null,hospitalName="")=>{
+  const legacySafePayload={
+    urun_id:urunId,
+    hastane:displayLocationName(hospitalName)||hospitalName||hospitalId||"Ana Depo",
+    miktar:Number(quantity)||0
+  };
+  return insertWithSchemaFallback("stok",legacySafePayload,[],{select:false});
+};
 const normalizeMovement=(h,defaultHospitalId)=>({
   ...h,
-  hospital_id:h.hospital_id||defaultHospitalId,
-  lot:h.lot||h.lot_number||"",
+  hospital_id:h.hospital_id||String(h.notes||h.aciklama||"").match(/HOSPITAL_ID:([^—\s]+)/)?.[1]?.trim()||defaultHospitalId,
+  lot:h.lot||h.lot_number||String(h.notes||h.aciklama||"").match(/LOT:([^—\s]+)/)?.[1]?.trim()||"",
   fatura_id:h.fatura_id||null,
   type:h.type||(Number(h.miktar)<0?"out":"in"),
   quantity:Math.abs(h.quantity??h.miktar??0),
@@ -324,14 +322,16 @@ const normalizeMovement=(h,defaultHospitalId)=>({
 });
 const movementPayload=({urun_id,hospital_id,lot,type,quantity,notes,surgery_id,fatura_id})=>({
   urun_id,
-  hospital_id:hospital_id||null,
-  lot:lot||null,
   miktar:type==="out"?-Math.abs(Number(quantity)||0):Math.abs(Number(quantity)||0),
-  aciklama:notes||"",
-  surgery_id:surgery_id||null,
-  fatura_id:fatura_id||null,
+  aciklama:[
+    notes||"",
+    hospital_id?`HOSPITAL_ID:${hospital_id}`:"",
+    lot?`LOT:${lot}`:"",
+    surgery_id?`SURGERY_ID:${surgery_id}`:"",
+    fatura_id?`FATURA_ID:${fatura_id}`:"",
+  ].filter(Boolean).join(" — "),
 });
-const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,["hospital_id","lot","surgery_id","fatura_id"],{select:false});
+const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,[],{select:false});
 const isDuplicateError=error=>String(error?.message||"").toLowerCase().includes("duplicate")||String(error?.code||"")==="23505";
 const findExistingProductByForm=async(form)=>{
   if(form.code){
@@ -1185,7 +1185,7 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
 
   const save=async(form)=>{
     if(form.id){
-      const{error}=await SB.from("surgeries").update({...form,updated_at:new Date().toISOString()}).eq("id",form.id);
+      const{error}=await updateWithSchemaFallback("surgeries",{...form,updated_at:new Date().toISOString()},q=>q.eq("id",form.id),["updated_at"]);
       if(error)return toast(error.message,"error");
       toast("Ameliyat güncellendi","success");
       sendTelegram(`✏️ Güncellendi: ${form.type} — ${fmtTR(form.date)} ${form.time}`);
@@ -1580,7 +1580,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
   const saveViewPersonnel=async()=>{
     if(!viewS)return;
     const newNotes=buildSurgeryNotes(stripSurgeryMeta(viewS.notes),viewPersonnel,getSurgeryDocs(viewS));
-    const {error}=await SB.from("surgeries").update({notes:newNotes,updated_at:new Date().toISOString()}).eq("id",viewS.id);
+    const {error}=await updateWithSchemaFallback("surgeries",{notes:newNotes,updated_at:new Date().toISOString()},q=>q.eq("id",viewS.id),["updated_at"]);
     if(error)return toast(error.message,"error");
     const updated={...viewS,notes:newNotes};
     setViewS(updated);
@@ -2285,7 +2285,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       }
       // Yeni ürün ekle
       const payload=productPayload(normalizedForm);
-      const inserted=await insertWithSchemaFallback("urunler",payload,["aciklama"],{select:true});
+      const inserted=await insertWithSchemaFallback("urunler",payload,[],{select:false});
       const data=Array.isArray(inserted.data)?inserted.data[0]:inserted.data;
       const error=inserted.error;
       if(error){
@@ -2298,18 +2298,20 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
           toast("Bu REF zaten kayıtlı. Stok mevcut ürüne eklenecek.","warning");
         }else return toast(error.message,"error");
       }else{
-        urunId=data.id;
+        const existing=await findExistingProductByForm(normalizedForm);
+        urunId=data?.id||existing?.id;
+        if(!urunId)return toast("Ürün eklendi fakat kayıt ID'si okunamadı. Sayfayı yenileyip stok eklemeyi tekrar deneyin.","warning");
         toast("Ürün kataloğa eklendi ✓","success");
       }
     }else if(matchedUrun){
       // Mevcut ürünü güncelle
-      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",matchedUrun.id),["aciklama"]);
+      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",matchedUrun.id),[]);
       if(error)return toast(error.message,"error");
       urunId=matchedUrun.id;
       toast("Ürün güncellendi ✓","success");
     }else{
       // Edit mode
-      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",modal.id),["aciklama"]);
+      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",modal.id),[]);
       if(error)return toast(error.message,"error");
       urunId=modal.id;
       toast("Güncellendi ✓","success");
@@ -4764,7 +4766,8 @@ function UsersView({profile}){
     writePending(pending);
     setUsers(prev=>mergeUsers(prev,[newUser]));
     if(uid){
-      const {error:profileError}=await SB.from("profiles").upsert({id:uid,name:f.full_name,role:f.role,status:"active"});
+      const profilePayload={id:uid,name:f.full_name,role:f.role,status:"active",created_at:createdAt};
+      const {error:profileError}=await insertWithSchemaFallback("profiles",profilePayload,["status","created_at"],{select:false});
       if(profileError)toast("Auth kullanıcısı oluştu, profil listesi yerel olarak eklendi: "+profileError.message,"warning");
     }
     toast("Kullanıcı oluşturuldu","success");
@@ -4776,7 +4779,7 @@ function UsersView({profile}){
   const updateUser=async()=>{
     if(!f.id||!f.full_name)return toast("Ad Soyad gerekli","warning");
     setLoading(true);
-    const patch={name:f.full_name,role:f.role,status:f.status||"active",updated_at:new Date().toISOString()};
+    const patch={name:f.full_name,role:f.role,status:f.status||"active"};
     if(f.pending||String(f.id).startsWith("pending-")){
       const pending=readPending().map(u=>u.id===f.id?{...u,...patch,full_name:f.full_name}:u);
       writePending(pending);
@@ -4786,7 +4789,7 @@ function UsersView({profile}){
       setLoading(false);
       return;
     }
-    const {error}=await SB.from("profiles").update(patch).eq("id",f.id);
+    const {error}=await updateWithSchemaFallback("profiles",patch,q=>q.eq("id",f.id),["status"]);
     if(error){
       toast(error.message,"error");
       setLoading(false);
