@@ -263,9 +263,10 @@ const missingColumnName=error=>{
     msg.match(/["']([a-zA-Z0-9_]+)["'] column/i)?.[1]||
     "";
 };
-const insertWithSchemaFallback=async(table,payload,fallbackKeys=[])=>{
+const insertWithSchemaFallback=async(table,payload,fallbackKeys=[],options={select:true})=>{
   let current=payload;
-  let {data,error}=await SB.from(table).insert(current).select();
+  const doInsert=()=>options.select?SB.from(table).insert(current).select():SB.from(table).insert(current);
+  let {data,error}=await doInsert();
   const removed=new Set();
   while(error&&isMissingColumnError(error)&&fallbackKeys.length){
     const missing=missingColumnName(error);
@@ -278,7 +279,7 @@ const insertWithSchemaFallback=async(table,payload,fallbackKeys=[])=>{
       return fallback;
     };
     current=Array.isArray(current)?current.map(strip):strip(current);
-    ({data,error}=await SB.from(table).insert(current).select());
+    ({data,error}=await doInsert());
   }
   return {data,error};
 };
@@ -290,7 +291,7 @@ const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=nu
   skt:skt||null,
   mfg_date:mfgDate||null,
   miktar:Number(quantity)||0
-},["hospital_id","hastane","lot","skt","mfg_date"]);
+},["hospital_id","hastane","lot","skt","mfg_date"],{select:false});
 const normalizeMovement=(h,defaultHospitalId)=>({
   ...h,
   hospital_id:h.hospital_id||defaultHospitalId,
@@ -310,7 +311,19 @@ const movementPayload=({urun_id,hospital_id,lot,type,quantity,notes,surgery_id,f
   surgery_id:surgery_id||null,
   fatura_id:fatura_id||null,
 });
-const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,["hospital_id","lot","surgery_id","fatura_id"]);
+const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,["hospital_id","lot","surgery_id","fatura_id"],{select:false});
+const isDuplicateError=error=>String(error?.message||"").toLowerCase().includes("duplicate")||String(error?.code||"")==="23505";
+const findExistingProductByForm=async(form)=>{
+  if(form.code){
+    const {data}=await SB.from("urunler").select("*").eq("kod",form.code).maybeSingle();
+    if(data)return normalizeProduct(data);
+  }
+  if(form.gtin){
+    const {data}=await SB.from("urunler").select("*").ilike("ad",`%${form.gtin}%`).limit(1);
+    if(data?.[0])return normalizeProduct(data[0]);
+  }
+  return null;
+};
 const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
 const noteField=(notes,label)=>{
   const m=String(notes||"").match(new RegExp(`${label}:\\s*([^—\\n]+)`,"i"));
@@ -2247,9 +2260,19 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       ].filter(Boolean);
       const payload=productPayload({...normalizedForm,description:detailLines.join("\n")});
       const{data,error}=await SB.from("urunler").insert(payload).select().single();
-      if(error)return toast(error.message,"error");
-      urunId=data.id;
-      toast("Ürün kataloğa eklendi ✓","success");
+      if(error){
+        if(isDuplicateError(error)){
+          const existing=await findExistingProductByForm(normalizedForm);
+          if(!existing)return toast("Bu REF zaten kayıtlı fakat mevcut ürün okunamadı. Sayfayı yenileyip tekrar deneyin.","error");
+          urunId=existing.id;
+          setMatchedUrun(existing);
+          setScanStatus("exists");
+          toast("Bu REF zaten kayıtlı. Stok mevcut ürüne eklenecek.","warning");
+        }else return toast(error.message,"error");
+      }else{
+        urunId=data.id;
+        toast("Ürün kataloğa eklendi ✓","success");
+      }
     }else if(matchedUrun){
       // Mevcut ürünü güncelle
       const detailLines=[
@@ -3509,7 +3532,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           notes:`${MOV_TAGS.RETURN} → ${hospitals.find(h=>h.id===targetId)?.name||COMPANY_SHELF_NAME} ${op.notes||""}`.trim()}),
         movementPayload({urun_id:op.urun_id,hospital_id:targetId,lot:op.lot,type:"in",quantity:qty,
           notes:`${MOV_TAGS.RETURN} ← ${hospitals.find(h=>h.id===op.from_id)?.name||""} ${op.notes||""}`.trim()}),
-      ]);
+      ],["hospital_id","lot","surgery_id","fatura_id"],{select:false});
       toast(`${qty} ${urun?.unit||"adet"} geri alındı ✓`,"success");
     }
 
