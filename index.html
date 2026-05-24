@@ -153,6 +153,22 @@
     .enterprise-kicker{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800;}
     .enterprise-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.7);color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;}
     .enterprise-dot{width:7px;height:7px;border-radius:999px;background:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.12);}
+    .card,.stat-card,.card-premium{width:100%!important;max-width:100%!important;box-sizing:border-box;}
+    .flex-responsive{display:flex;flex-wrap:wrap;gap:.75rem;}
+    .timeline-container{display:flex;flex-direction:column;max-height:560px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .timeline-row{display:grid;grid-template-columns:64px 1fr;align-items:stretch;min-height:60px;border-bottom:1px solid rgba(255,255,255,.05);}
+    .timeline-hour{font-family:monospace;font-size:.82rem;color:#64748b;font-weight:700;}
+    .timeline-cell{position:relative;width:100%;min-width:0;padding:4px;}
+    .surgery-block{width:100%;cursor:pointer;}
+    .surgery-block:hover{background:rgba(37,99,235,.22)!important;transform:translateY(-1px);}
+    @media(max-width:768px){
+      .flex-responsive{flex-direction:column;}
+      .timeline-row{grid-template-columns:52px 1fr;}
+      .timeline-hour{font-size:.72rem;}
+      .toast-stack{left:12px;right:12px;top:12px;}
+      .toast{min-width:0;width:100%;}
+      input,select,textarea,button{max-width:100%;}
+    }
   </style>
 </head>
 <body>
@@ -183,6 +199,7 @@ const NAV=[
   {id:"products",icon:"⬡",label:"Ürünler"},
   {id:"stock",icon:"⬢",label:"Stok"},
   {id:"movements",icon:"⟷",label:"Hareketler"},
+  {id:"invoices",icon:"▣",label:"Fatura / Tüketim"},
   {id:"notifications",icon:"⌀",label:"Bildirimler"},
   {id:"lists",icon:"≡",label:"Listeler"},
   {id:"users",icon:"⊙",label:"Kullanıcılar"},
@@ -227,27 +244,58 @@ const normalizeStock=(s,defaultHospitalId)=>({
   ...s,
   hospital_id:s.hospital_id||defaultHospitalId,
   quantity:s.quantity??s.miktar??s.qty??0,
+  lot:s.lot||s.lot_number||s.parti_no||"",
+  skt:s.skt||s.expiryDate||s.expiry_date||s.son_kullanma||null,
+  mfg_date:s.mfg_date||s.mfgDate||s.uretim_tarihi||null,
 });
-const findStockRow=(stoklar,urunId,hospitalId)=>stoklar.find(s=>
-  s.urun_id===urunId&&(!s.hospital_id||!hospitalId||s.hospital_id===hospitalId)
+const normalizeLot=lot=>String(lot||"").trim().toLocaleUpperCase("tr-TR");
+const stockLotLabel=s=>s?.lot?`LOT ${s.lot}`:"LOT yok";
+const findStockRow=(stoklar,urunId,hospitalId,lot="")=>stoklar.find(s=>
+  s.urun_id===urunId&&(!s.hospital_id||!hospitalId||s.hospital_id===hospitalId)&&(!lot||normalizeLot(s.lot)===normalizeLot(lot))
 );
 const updateStockQuantity=(row,quantity)=>SB.from("stok").update({miktar:Number(quantity)||0}).eq("id",row.id);
-const insertStockQuantity=(urunId,hospitalId,quantity)=>SB.from("stok").insert({urun_id:urunId,hospital_id:hospitalId||null,miktar:Number(quantity)||0});
+const isMissingColumnError=error=>/column .* does not exist|schema cache|could not find .* column|column .* not found/i.test(error?.message||"");
+const insertWithSchemaFallback=async(table,payload,fallbackKeys=[])=>{
+  let {data,error}=await SB.from(table).insert(payload).select();
+  if(error&&isMissingColumnError(error)&&fallbackKeys.length){
+    const strip=item=>{
+      const fallback={...item};
+      fallbackKeys.forEach(k=>delete fallback[k]);
+      return fallback;
+    };
+    const fallback=Array.isArray(payload)?payload.map(strip):strip(payload);
+    ({data,error}=await SB.from(table).insert(fallback).select());
+  }
+  return {data,error};
+};
+const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=null)=>insertWithSchemaFallback("stok",{
+  urun_id:urunId,
+  hospital_id:hospitalId||null,
+  lot:lot||null,
+  skt:skt||null,
+  mfg_date:mfgDate||null,
+  miktar:Number(quantity)||0
+},["hospital_id","lot","skt","mfg_date"]);
 const normalizeMovement=(h,defaultHospitalId)=>({
   ...h,
   hospital_id:h.hospital_id||defaultHospitalId,
+  lot:h.lot||h.lot_number||"",
+  fatura_id:h.fatura_id||null,
   type:h.type||(Number(h.miktar)<0?"out":"in"),
   quantity:Math.abs(h.quantity??h.miktar??0),
   notes:h.notes||h.aciklama||"",
   surgery_id:h.surgery_id||null,
 });
-const movementPayload=({urun_id,hospital_id,type,quantity,notes,surgery_id})=>({
+const movementPayload=({urun_id,hospital_id,lot,type,quantity,notes,surgery_id,fatura_id})=>({
   urun_id,
   hospital_id:hospital_id||null,
+  lot:lot||null,
   miktar:type==="out"?-Math.abs(Number(quantity)||0):Math.abs(Number(quantity)||0),
   aciklama:notes||"",
   surgery_id:surgery_id||null,
+  fatura_id:fatura_id||null,
 });
+const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,["hospital_id","lot","surgery_id","fatura_id"]);
 const isCompanyShelfName=name=>{
   const n=(name||"").toLocaleLowerCase("tr-TR");
   return n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
@@ -1274,16 +1322,16 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
 }
 
 // ─── PROGRAM VIEW ────────────────────────────────────────────────────────────
-// Saat dilimleri: 07:00 → 20:00
-const HOURS=Array.from({length:14},(_,i)=>`${String(i+7).padStart(2,"0")}:00`);
+// Saat dilimleri: 00:00 → 23:00 tam gün program desteği
+const HOURS=Array.from({length:24},(_,i)=>`${String(i).padStart(2,"0")}:00`);
 const ROOMS=["Ameliyathane 1","Ameliyathane 2","Ameliyathane 3","Ameliyathane 4"];
 
 // Ameliyat zaman dilimini bul
 const getSurgerySlot=(time)=>{
   if(!time||time==="??:??")return null;
   const h=parseInt(time.split(":")[0]);
-  if(h<7||h>20)return null;
-  return h-7; // 0..13 index
+  if(h<0||h>23)return null;
+  return h;
 };
 
 const PERSONNEL_NOTE_PREFIX="[PERSONEL]";
@@ -1324,6 +1372,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
   const [year,setYear]=useState(today.getFullYear());
   const [month,setMonth]=useState(today.getMonth());
   const [sending,setSending]=useState(false);
+  const [viewS,setViewS]=useState(null);
 
   // Ameliyat ekle modalı (program sekmesinden)
   const [addModal,setAddModal]=useState(null); // {date, time, hospital}
@@ -1539,6 +1588,23 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
         </Modal>
       )}
 
+      {viewS&&(
+        <Modal title="Ameliyat Detayı" onClose={()=>setViewS(null)} size="md"
+          footer={<button onClick={()=>setViewS(null)} className="w-full py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Kapat</button>}>
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Tarih</div><div className="font-bold text-white">{fmtTR(viewS.date)}</div></div>
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Saat</div><div className="font-bold text-white">{viewS.time||"??:??"}</div></div>
+            </div>
+            <div><Label>Ameliyat</Label><div className="text-white font-semibold">{viewS.type}</div></div>
+            <div><Label>Doktor</Label><div className="text-slate-300">{viewS.doctor}</div></div>
+            <div><Label>Hastane</Label><div className="text-slate-300">{viewS.hospital}</div></div>
+            <div><Label>Personel</Label><div className="text-slate-300">{getSurgeryPersonnel(viewS).join(", ")||"Personel seçilmemiş"}</div></div>
+            <div><Label>Durum</Label><Badge status={viewS.status}/></div>
+          </div>
+        </Modal>
+      )}
+
       {/* Başlık */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <h1 className="text-xl font-bold text-white">Ameliyat Programı</h1>
@@ -1632,12 +1698,12 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
             )}
 
             {/* Saatlik slotlar */}
-            <div className="divide-y divide-white/5">
+            <div className="timeline-container divide-y divide-white/5">
               {HOURS.map((hour,hi)=>{
                 const slotS=dayS.filter(s=>{
                   if(s.time==="??:??")return false;
                   const h=parseInt(s.time.split(":")[0]);
-                  return h===hi+7;
+                  return h===hi;
                 });
                 const hasOp=slotS.length>0;
                 return(
@@ -1664,7 +1730,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                           const dc=docColorMap[s.doctor]||"#3b82f6";
                           const surgeryPersonnel=getSurgeryPersonnel(s);
                           return(
-                            <div key={s.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-all hover:border-opacity-60"
+                            <div key={s.id} onClick={()=>setViewS(s)} className="surgery-block flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-all hover:border-opacity-60 cursor-pointer"
                               style={{background:dc+"12",borderColor:dc+"30"}}>
                               <div className="w-1 h-10 rounded-full flex-shrink-0" style={{background:dc}}></div>
                               <div className="flex-1 min-w-0">
@@ -1945,8 +2011,10 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
 
   const filtered=urunler.filter(u=>{
     const q=search.toLowerCase();
-    return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q);
+    const lots=stoklar.filter(s=>s.urun_id===u.id).map(s=>s.lot).join(" ").toLowerCase();
+    return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q)||lots.includes(q);
   });
+  const stockRowsForProduct=urunId=>stoklar.filter(s=>s.urun_id===urunId&&Number(s.quantity||0)>0);
 
   // ── Barkod okuma ─────────────────────────────────────────────────────────
   const doScan=(raw)=>{
@@ -2025,8 +2093,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   };
   const productNameForSave=()=>(
     (f.name||"").trim()||
-    (f.code?`Ürün ${f.code}`:"")||
-    (f.gtin?`Ürün ${f.gtin.replace(/^0+/,"")}`:"")||
+    (f.code?`REF ${f.code}`:"")||
+    (f.gtin?`REF ${f.gtin.replace(/^0+/,"")}`:"")||
     (f.udi?`UDI ${String(f.udi).slice(0,32)}`:"")||
     "İsimsiz Ürün"
   );
@@ -2103,18 +2171,18 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       let shelf;
       try{shelf=f.initialStockHospital?{id:f.initialStockHospital}:await ensureCompanyShelf(hospitals);}
       catch(e){toast(e.message,"error");return;}
-      const existing=findStockRow(stoklar,urunId,shelf.id);
+      const existing=findStockRow(stoklar,urunId,shelf.id,f.lot);
       let stockError=null;
       if(existing){
         const {error}=await updateStockQuantity(existing,(existing.quantity||0)+qty);
         stockError=error;
       }else{
-        const {error}=await insertStockQuantity(urunId,shelf.id,qty);
+        const {error}=await insertStockQuantity(urunId,shelf.id,qty,f.lot,f.expiryDate,f.mfgDate);
         stockError=error;
       }
       if(stockError)return toast("Ürün eklendi fakat stok kaydedilemedi: "+stockError.message,"error");
       const note=`Ana depo girişi${f.udi?` — UDI:${f.udi}`:""}${f.code?` — REF:${f.code}`:""}${f.lot?` — LOT:${f.lot}`:""}${f.mfgDate?` — ÜRT:${f.mfgDate}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
-      const {error:movementError}=await SB.from("hareketler").insert(movementPayload({urun_id:urunId,hospital_id:shelf.id,type:"in",quantity:qty,notes:note}));
+      const {error:movementError}=await insertMovement(movementPayload({urun_id:urunId,hospital_id:shelf.id,lot:f.lot,type:"in",quantity:qty,notes:note}));
       if(movementError)toast("Stok eklendi ama hareket kaydı yazılamadı: "+movementError.message,"warning");
       toast(`${qty} adet ana depoya kaydedildi ✓`,"success");
     }
@@ -2206,31 +2274,12 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
               </div>
             )}
 
-            {/* Ürün adı — düzenlenemez alandır eğer mevcut ürünse */}
-            {scanStatus!=="exists"&&(
-              <div>
-                <Label>Ürün Adı</Label>
-                <Input value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} placeholder="Boş bırakılırsa REF/UDI üzerinden otomatik ad verilir"/>
-                {scanResult?.ref&&!f.name&&(
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {["Suture Anchor","Interference Screw","Button","Repair Kit","Anchor System"].map(s=>(
-                      <button key={s} type="button" onClick={()=>setF(p=>({...p,name:`${s} ${scanResult.ref}`}))}
-                        className="text-xs px-2.5 py-1 rounded-full bg-brand/15 hover:bg-brand/25 text-brand-300 border border-brand/25 transition-colors">
-                        {s} {scanResult.ref}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {scanStatus!=="exists"&&(
               <>
-                <div>
-                  <div>
-                    <Label>REF / Ürün Kodu</Label>
-                    <Input value={f.code} onChange={e=>setF(p=>({...p,code:e.target.value}))} placeholder="AR-2323BCC"/>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div><Label>REF / Referans Numarası</Label><Input value={f.code} onChange={e=>setF(p=>({...p,code:e.target.value}))} className="font-mono" placeholder="AR-2323BCC"/></div>
+                  <div><Label>LOT Numarası</Label><Input value={f.lot} onChange={e=>setF(p=>({...p,lot:e.target.value}))} className="font-mono" placeholder="15485965"/></div>
+                  <div><Label>Adet</Label><Input type="number" min="1" value={f.initialStockQty} onChange={e=>setF(p=>({...p,initialStockQty:e.target.value,addInitialStock:true}))}/></div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
@@ -2248,10 +2297,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                     <Input value={f.manufacturer} onChange={e=>setF(p=>({...p,manufacturer:e.target.value}))} placeholder="Arthrex, Stryker…"/>
                   </div>
                 </div>
-                <div>
-                  <Label>Açıklama</Label>
-                  <Textarea value={f.description} onChange={e=>setF(p=>({...p,description:e.target.value}))} rows={2} placeholder="Ürün detayları…"/>
-                </div>
+                <input type="hidden" value={f.name} readOnly/>
               </>
             )}
 
@@ -2379,8 +2425,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
 
       {/* Table */}
       <div className="card rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_auto] px-5 py-3 border-b border-white/8 bg-navy-900/50">
-          {["Ürün / Üretici","REF Kodu","Birim","Stok Durumu",""].map((h,i)=>(
+        <div className="hidden lg:grid grid-cols-[1.2fr_1.6fr_.7fr_1fr_auto] px-5 py-3 border-b border-white/8 bg-navy-900/50">
+          {["REF / Referans","LOT / Depo","Adet","Stok Durumu",""].map((h,i)=>(
             <div key={i} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>
           ))}
         </div>
@@ -2388,6 +2434,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
           <div className="py-16 text-center"><div className="text-3xl opacity-20 mb-2">⬡</div><p className="text-slate-500 text-sm">Ürün bulunamadı</p></div>
         ):filtered.map(u=>{
           const stok=totalStok(u.id);
+          const lotRows=stockRowsForProduct(u.id);
           const min=minStok(u);
           const isEmpty=stok===0;
           const isLow=stok>0&&stok<=min;
@@ -2401,19 +2448,25 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
               <div className="lg:hidden flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{background:sc+"20",color:sc}}>⬡</div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{u.name}</div>
-                  <div className="text-xs text-slate-500">{u.code||"—"}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
+                  <div className="text-sm font-mono font-bold text-white truncate">{u.code||"REF yok"}</div>
+                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${stockLotLabel(r)} (${r.quantity})`).join(" · "):"LOT yok"}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sb} flex-shrink-0`}>{stok} {u.unit}</span>
               </div>
               {/* Desktop */}
-              <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4">
+              <div className="hidden lg:grid grid-cols-[1.2fr_1.6fr_.7fr_1fr_auto] items-center gap-4">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{u.name}</div>
-                  <div className="text-xs text-slate-500">{u.manufacturer||""}</div>
+                  <div className="text-sm font-mono font-bold text-white truncate">{u.code||"REF yok"}</div>
+                  <div className="text-xs text-slate-500 truncate">{u.manufacturer||""}{u.name?` · ${u.name}`:""}</div>
                 </div>
-                <div className="text-sm text-slate-400 font-mono">{u.code||"—"}</div>
-                <div className="text-sm text-slate-400">{u.unit}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {lotRows.length?lotRows.slice(0,4).map(r=>(
+                    <span key={r.id||`${r.urun_id}-${r.hospital_id}-${r.lot}`} className="px-2 py-0.5 rounded-lg bg-navy-800 text-xs border border-white/8 text-slate-300">
+                      <b className="text-brand-300 font-mono">{r.lot||"LOT yok"}</b> · {r.quantity} {u.unit}
+                    </span>
+                  )):<span className="text-sm text-slate-500">LOT yok</span>}
+                </div>
+                <div className="text-sm font-black" style={{color:sc}}>{stok} {u.unit}</div>
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${sb}`}>{sl}</span>
@@ -2484,6 +2537,26 @@ const extractArthrexProduct=text=>{
 const extractArthrexSize=text=>{
   const m=String(text||"").match(/\b\d+(?:[.,]\d+)?\s*x\s*\d+(?:[.,]\d+)?\s*mm\b/i);
   return m?m[0].replace(/\s+/g," ").replace(",","."):"";
+};
+const KNOWN_UDI_CATALOG={
+  "00888867026728":{
+    ref:"AR-2323BCC",
+    lot:"15485965",
+    mfgDate:"2025-08-21",
+    expiryDate:"2029-07-31",
+    qty:1,
+    manufacturer:"Arthrex",
+    productName:"Suture Anchor, BioComposite SwiveLock C"
+  }
+};
+const applyKnownUdiCatalog=result=>{
+  const key=(result.gtin||"").replace(/\D/g,"");
+  const known=KNOWN_UDI_CATALOG[key];
+  if(!known)return result;
+  Object.entries(known).forEach(([k,v])=>{
+    if(v!==undefined&&(k==="ref"||result[k]===undefined||result[k]===null||result[k]===""||(k==="qty"&&result[k]===1)))result[k]=v;
+  });
+  return result;
 };
 
 function parseGS1(raw){
@@ -2596,7 +2669,7 @@ function parseGS1(raw){
     if(gtin)result.gtin=gtin;
   }
   if(!result.ref&&result.gtin)result.ref=result.gtin.replace(/^0+/,"");
-  return result;
+  return applyKnownUdiCatalog(result);
 }
 
 // ─── BARCODE SCANNER MODAL ────────────────────────────────────────────────────
@@ -2921,7 +2994,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   const [af,setAf]=useState({quantity:0,notes:""});
 
   // İşlem form
-  const emptyOp={op:"",urun_id:"",from_id:"",to_id:"",quantity:1,notes:"",
+  const emptyOp={op:"",urun_id:"",from_id:"",to_id:"",lot:"",quantity:1,notes:"",
     lossReason:"kayboldu",expectedReturn:"",tempNote:""};
   const [op,setOp]=useState(emptyOp);
   const [opLoading,setOpLoading]=useState(false);
@@ -2970,7 +3043,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     if(error)return toast(error.message,"error");
     const diff=Number(af.quantity)-(adjustModal.quantity||0);
     if(diff!==0){
-      await SB.from("hareketler").insert(movementPayload({
+      await insertMovement(movementPayload({
         urun_id:adjustModal.urun_id,
         hospital_id:adjustModal.hospital_id,
         type:diff>0?"in":"out",
@@ -2995,17 +3068,17 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     if(op.op==="shelf_to_hospital"){
       // Raftan hastaneye çıkış
       if(!op.to_id){setOpLoading(false);return toast("Hedef hastane seçin","warning");}
-      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id);
+      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
       if(op.from_id&&(!fromStok||fromStok.quantity<qty)){setOpLoading(false);return toast("Kaynak stok yetersiz","warning");}
-      const toStok=findStockRow(stoklar,op.urun_id,op.to_id);
+      const toStok=findStockRow(stoklar,op.urun_id,op.to_id,op.lot);
       if(op.from_id){
         await updateStockQuantity(fromStok,fromStok.quantity-qty);
-        await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,
+        await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,
           notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${hospitals.find(h=>h.id===op.to_id)?.name||""} ${op.notes||""}`.trim()}));
       }
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
-      else{await insertStockQuantity(op.urun_id,op.to_id,qty);}
-      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.to_id,type:"in",quantity:qty,
+      else{await insertStockQuantity(op.urun_id,op.to_id,qty,op.lot);}
+      await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.to_id,lot:op.lot,type:"in",quantity:qty,
         notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${op.notes||""}`.trim()}));
       toast(`${qty} ${urun?.unit||"adet"} hastaneye gönderildi ✓`,"success");
     }
@@ -3023,16 +3096,16 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           return toast(e.message,"error");
         }
       }
-      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id);
+      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
       if(!fromStok||fromStok.quantity<qty){setOpLoading(false);return toast("Hastanede yeterli stok yok","warning");}
-      const toStok=findStockRow(stoklar,op.urun_id,targetId);
+      const toStok=findStockRow(stoklar,op.urun_id,targetId,op.lot);
       await updateStockQuantity(fromStok,fromStok.quantity-qty);
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
-      else{await insertStockQuantity(op.urun_id,targetId,qty);}
-      await SB.from("hareketler").insert([
-        movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,
+      else{await insertStockQuantity(op.urun_id,targetId,qty,op.lot);}
+      await insertWithSchemaFallback("hareketler",[
+        movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,
           notes:`${MOV_TAGS.RETURN} → ${hospitals.find(h=>h.id===targetId)?.name||COMPANY_SHELF_NAME} ${op.notes||""}`.trim()}),
-        movementPayload({urun_id:op.urun_id,hospital_id:targetId,type:"in",quantity:qty,
+        movementPayload({urun_id:op.urun_id,hospital_id:targetId,lot:op.lot,type:"in",quantity:qty,
           notes:`${MOV_TAGS.RETURN} ← ${hospitals.find(h=>h.id===op.from_id)?.name||""} ${op.notes||""}`.trim()}),
       ]);
       toast(`${qty} ${urun?.unit||"adet"} geri alındı ✓`,"success");
@@ -3042,9 +3115,9 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       // Geçici geri alım (stoktan düşülmez, not olarak kaydedilir)
       if(!op.from_id){setOpLoading(false);return toast("Kaynak hastane seçin","warning");}
       const note=`${MOV_TAGS.TEMP_RETURN} Geçici alım${op.expectedReturn?` — Tahmini iade: ${op.expectedReturn}`:""} ${op.notes||""}`.trim();
-      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,notes:note}));
+      await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,notes:note}));
       // Stoktan düş — fiziksel olarak geri geldi
-      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id);
+      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
       if(fromStok&&fromStok.quantity>=qty){
         await updateStockQuantity(fromStok,fromStok.quantity-qty);
       }
@@ -3054,7 +3127,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     else if(op.op==="loss"){
       // Kayıp / Eksik bildirimi
       if(!op.from_id){setOpLoading(false);return toast("Kayıp lokasyonu seçin","warning");}
-      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id);
+      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
       const actualQty=Math.min(qty,fromStok?.quantity||0);
       if(fromStok){
         await updateStockQuantity(fromStok,Math.max(0,fromStok.quantity-qty));
@@ -3062,7 +3135,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       const LOSS_REASONS={"kayboldu":"Kayboldu","hasar":"Hasarlı/Kullanılamaz","fire":"Fire/Bozuk",
         "ameliyat":"Ameliyatta Kullanıldı","iade":"Üreticiye İade","diger":"Diğer"};
       const note=`${MOV_TAGS.LOSS} Sebep: ${LOSS_REASONS[op.lossReason]||op.lossReason} ${op.notes||""}`.trim();
-      await SB.from("hareketler").insert(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,type:"out",quantity:qty,notes:note}));
+      await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,notes:note}));
       toast(`${qty} ${urun?.unit||"adet"} kayıp olarak raporlandı`,"warning");
     }
 
@@ -3188,13 +3261,22 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
             <div className="space-y-4">
               {/* Ürün seç */}
               <div>
-                <Label required>Ürün</Label>
-                <Select value={op.urun_id} onChange={e=>setOp(p=>({...p,urun_id:e.target.value}))}>
-                  <option value="">Seçin</option>
+                <Label required>REF / Referans</Label>
+                <Select value={op.urun_id} onChange={e=>setOp(p=>({...p,urun_id:e.target.value,lot:""}))}>
+                  <option value="">REF seçin</option>
                   {urunler.map(u=>{
                     const tot=stoklar.filter(s=>s.urun_id===u.id).reduce((a,b)=>a+(b.quantity||0),0);
-                    return<option key={u.id} value={u.id}>{u.name}{u.code?` [${u.code}]`:""} — {tot} {u.unit}</option>;
+                    return<option key={u.id} value={u.id}>{u.code||"REF yok"} — {tot} {u.unit}</option>;
                   })}
+                </Select>
+              </div>
+              <div>
+                <Label>LOT Numarası</Label>
+                <Select value={op.lot} onChange={e=>setOp(p=>({...p,lot:e.target.value}))}>
+                  <option value="">LOT seçin / yok</option>
+                  {stoklar.filter(s=>s.urun_id===op.urun_id&&(!op.from_id||s.hospital_id===op.from_id)).map(s=>(
+                    <option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity})</option>
+                  ))}
                 </Select>
               </div>
 
@@ -3207,8 +3289,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                       <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                         <option value="">Ana Stoktan</option>
                         {visibleHospitals.map(h=>{
-                          const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
-                          return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                          const total=stoklar.filter(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id&&(!op.lot||normalizeLot(x.lot)===normalizeLot(op.lot))).reduce((a,x)=>a+(Number(x.quantity)||0),0);
+                          return<option key={h.id} value={h.id}>{h.name} ({total})</option>;
                         })}
                       </Select>
                     </div>
@@ -3222,7 +3304,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     </div>
                   </div>
                   {op.from_id&&op.urun_id&&(()=>{
-                    const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===op.from_id);
+                    const s=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
                     return s?<div className="bg-brand/10 rounded-xl p-3 text-xs text-brand-300 border border-brand/20">Kaynak stok: <b>{s.quantity}</b> {urunler.find(u=>u.id===op.urun_id)?.unit}</div>:null;
                   })()}
                 </>
@@ -3236,8 +3318,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                       <option value="">Seçin</option>
                       {visibleHospitals.map(h=>{
-                        const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
-                        return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                        const total=stoklar.filter(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id&&(!op.lot||normalizeLot(x.lot)===normalizeLot(op.lot))).reduce((a,x)=>a+(Number(x.quantity)||0),0);
+                        return<option key={h.id} value={h.id}>{h.name} ({total})</option>;
                       })}
                     </Select>
                   </div>
@@ -3260,8 +3342,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                       <option value="">Seçin</option>
                       {visibleHospitals.map(h=>{
-                        const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
-                        return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                        const total=stoklar.filter(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id&&(!op.lot||normalizeLot(x.lot)===normalizeLot(op.lot))).reduce((a,x)=>a+(Number(x.quantity)||0),0);
+                        return<option key={h.id} value={h.id}>{h.name} ({total})</option>;
                       })}
                     </Select>
                   </div>
@@ -3297,8 +3379,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
                       <option value="">Seçin</option>
                       {visibleHospitals.map(h=>{
-                        const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id);
-                        return<option key={h.id} value={h.id}>{h.name} ({s?.quantity||0})</option>;
+                        const total=stoklar.filter(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id&&(!op.lot||normalizeLot(x.lot)===normalizeLot(op.lot))).reduce((a,x)=>a+(Number(x.quantity)||0),0);
+                        return<option key={h.id} value={h.id}>{h.name} ({total})</option>;
                       })}
                     </Select>
                   </div>
@@ -3315,7 +3397,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     </div>
                   </div>
                   {op.from_id&&op.urun_id&&(()=>{
-                    const s=stoklar.find(x=>x.urun_id===op.urun_id&&x.hospital_id===op.from_id);
+                    const s=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
                     return s?<div className="bg-rose2/10 rounded-xl p-3 text-xs text-rose2 border border-rose2/20">Mevcut stok: <b>{s.quantity}</b> {urunler.find(u=>u.id===op.urun_id)?.unit} — bu miktardan düşülecek</div>:null;
                   })()}
                 </>
@@ -3604,7 +3686,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const [search,setSearch]=useState("");
   const [fType,setFType]=useState("");
   const [fHospital,setFHospital]=useState("");
-  const [f,setF]=useState({urun_id:"",hospital_id:"",surgery_id:"",type:"out",quantity:1,notes:""});
+  const [f,setF]=useState({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});
 
   useEffect(()=>{load();},[]);
   const load=async()=>{
@@ -3618,7 +3700,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     const hosp=hospitals.find(x=>x.id===h.hospital_id);
     if(fType&&h.type!==fType)return false;
     if(fHospital&&h.hospital_id!==fHospital)return false;
-    if(search){const q=search.toLowerCase();return urun?.name?.toLowerCase().includes(q)||displayLocationName(hosp).toLowerCase().includes(q)||h.notes?.toLowerCase().includes(q);}
+    if(search){const q=search.toLowerCase();return urun?.code?.toLowerCase().includes(q)||h.lot?.toLowerCase().includes(q)||displayLocationName(hosp).toLowerCase().includes(q)||h.notes?.toLowerCase().includes(q);}
     return true;
   });
 
@@ -3626,14 +3708,14 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     const d=formData||f;
     if(!d.urun_id||!d.hospital_id)return toast("Ürün ve hastane seçin","warning");
     const qty=Number(d.quantity)||1;
-    const{error}=await SB.from("hareketler").insert(movementPayload({urun_id:d.urun_id,hospital_id:d.hospital_id,type:d.type,quantity:qty,notes:d.notes||"",surgery_id:d.surgery_id||null}));
+    const{error}=await insertMovement(movementPayload({urun_id:d.urun_id,hospital_id:d.hospital_id,lot:d.lot||"",type:d.type,quantity:qty,notes:d.notes||"",surgery_id:d.surgery_id||null}));
     if(error)return toast(error.message,"error");
-    const stok=findStockRow(stoklar,d.urun_id,d.hospital_id);
+    const stok=findStockRow(stoklar,d.urun_id,d.hospital_id,d.lot||"");
     if(stok){
       const newQ=d.type==="in"?stok.quantity+qty:Math.max(0,stok.quantity-qty);
       await updateStockQuantity(stok,newQ);
     }else if(d.type==="in"){
-      await insertStockQuantity(d.urun_id,d.hospital_id,qty);
+      await insertStockQuantity(d.urun_id,d.hospital_id,qty,d.lot||"");
     }
     toast("Hareket kaydedildi ✓","success");
     setModal(false);loadAll();load();
@@ -3644,7 +3726,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       toast("Son kullanma tarihi geçmiş ürün sisteme eklenemez!","error");return;
     }
     const note=`Barkod${result.udiNumber?` — UDI:${result.udiNumber}`:""}${result.refNumber?` — REF:${result.refNumber}`:""}${result.lotNumber?` — LOT:${result.lotNumber}`:""}${result.mfgDate?` — ÜRT:${result.mfgDate}`:""}${result.expiryDate?` — SKT:${result.expiryDate}`:""}`;
-    await save({urun_id:result.urun_id,hospital_id:result.hospital_id,type:result.type,quantity:result.quantity,notes:note,surgery_id:""});
+    await save({urun_id:result.urun_id,hospital_id:result.hospital_id,lot:result.lotNumber||"",type:result.type,quantity:result.quantity,notes:note,surgery_id:""});
     setBarcodeModal(false);
   };
 
@@ -3668,11 +3750,17 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
                 ))}
               </div>
             </div>
-            <div><Label required>Ürün</Label><Select value={f.urun_id} onChange={e=>setF(p=>({...p,urun_id:e.target.value}))}><option value="">Ürün seçin</option>{urunler.map(u=><option key={u.id} value={u.id}>{u.name} ({u.unit})</option>)}</Select></div>
+            <div><Label required>REF / Referans</Label><Select value={f.urun_id} onChange={e=>setF(p=>({...p,urun_id:e.target.value,lot:""}))}><option value="">REF seçin</option>{urunler.map(u=><option key={u.id} value={u.id}>{u.code||"REF yok"} ({u.unit})</option>)}</Select></div>
             <div><Label required>Hastane</Label>
               <Select value={f.hospital_id} onChange={e=>setF(p=>({...p,hospital_id:e.target.value}))}>
                 <option value="">Hastane seçin</option>
-                {visibleHospitals.map(h=>{const s=stoklar.find(x=>x.urun_id===f.urun_id&&x.hospital_id===h.id);return<option key={h.id} value={h.id}>{h.name}{f.urun_id&&s?` (${s.quantity})`:""}</option>;})}
+                {visibleHospitals.map(h=>{const total=stoklar.filter(x=>x.urun_id===f.urun_id&&x.hospital_id===h.id).reduce((a,x)=>a+(Number(x.quantity)||0),0);return<option key={h.id} value={h.id}>{h.name}{f.urun_id?` (${total})`:""}</option>;})}
+              </Select>
+            </div>
+            <div><Label>LOT Numarası</Label>
+              <Select value={f.lot} onChange={e=>setF(p=>({...p,lot:e.target.value}))}>
+                <option value="">LOT seçin / yok</option>
+                {stoklar.filter(s=>s.urun_id===f.urun_id&&(!f.hospital_id||s.hospital_id===f.hospital_id)).map(s=><option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity})</option>)}
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -3690,7 +3778,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
             className="px-4 py-2 rounded-xl bg-amber2/20 hover:bg-amber2/30 text-amber2 text-sm font-bold border border-amber2/30 flex items-center gap-2 transition-colors">
             ▦ Barkod ile Ekle
           </button>
-          <button onClick={()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",type:"out",quantity:1,notes:""});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Manuel Ekle</button>
+          <button onClick={()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Manuel Ekle</button>
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -3766,6 +3854,110 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     </div>
   );
 }
+// ─── INVOICE / CONSUMPTION VIEW ───────────────────────────────────────────────
+function FaturalarView({surgeries,urunler,stoklar,hospitals,loadAll}){
+  const toast=useToast();
+  const [records,setRecords]=useState([]);
+  const [modal,setModal]=useState(false);
+  const [f,setF]=useState({surgery_id:"",patient_name:"",side:"",items:[{urun_id:"",lot:"",quantity:1}]});
+
+  const load=async()=>{
+    const {data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(500);
+    const defaultHospitalId=findCompanyShelf(hospitals)?.id||"company-shelf-local";
+    setRecords((data||[]).map(h=>normalizeMovement(h,defaultHospitalId)).filter(h=>h.notes?.includes("[FATURA]")||h.surgery_id));
+  };
+  useEffect(()=>{load();},[]);
+
+  const selectedSurgery=surgeries.find(s=>s.id===f.surgery_id);
+  const selectedHospitalId=selectedSurgery?(hospitals.find(h=>h.name===selectedSurgery.hospital)?.id||findCompanyShelf(hospitals)?.id||"company-shelf-local"):"";
+  const team=selectedSurgery?getSurgeryPersonnel(selectedSurgery):[];
+  const updateItem=(idx,patch)=>setF(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,...patch}:it)}));
+  const addItem=()=>setF(prev=>({...prev,items:[...prev.items,{urun_id:"",lot:"",quantity:1}]}));
+  const removeItem=idx=>setF(prev=>({...prev,items:prev.items.filter((_,i)=>i!==idx)}));
+
+  const saveInvoice=async()=>{
+    if(!selectedSurgery)return toast("Ameliyat seçin","warning");
+    if(!f.patient_name.trim())return toast("Hasta adı gerekli","warning");
+    if(!f.side)return toast("Ameliyat tarafı seçin","warning");
+    const validItems=f.items.filter(i=>i.urun_id&&Number(i.quantity)>0);
+    if(!validItems.length)return toast("En az bir ürün ekleyin","warning");
+    for(const item of validItems){
+      const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
+      const qty=Number(item.quantity)||1;
+      const urun=urunler.find(u=>u.id===item.urun_id);
+      if(!stok||stok.quantity<qty)return toast(`Stok yetersiz: ${urun?.code||"REF"} / ${item.lot||"LOT yok"}`,"error");
+    }
+    for(const item of validItems){
+      const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
+      const qty=Number(item.quantity)||1;
+      await updateStockQuantity(stok,stok.quantity-qty);
+      const note=`[FATURA] Hasta: ${f.patient_name} — Taraf: ${f.side} — Ameliyat: ${selectedSurgery.type} — Doktor: ${selectedSurgery.doctor} — Ekip: ${team.join(", ")||"Ekip seçilmemiş"}`;
+      const {error}=await insertMovement(movementPayload({urun_id:item.urun_id,hospital_id:selectedHospitalId,lot:item.lot||"",type:"out",quantity:qty,notes:note,surgery_id:selectedSurgery.id}));
+      if(error)return toast(error.message,"error");
+    }
+    await SB.from("surgeries").update({status:"done"}).eq("id",selectedSurgery.id);
+    toast("Fatura / tüketim kaydı oluşturuldu ✓","success");
+    setModal(false);
+    setF({surgery_id:"",patient_name:"",side:"",items:[{urun_id:"",lot:"",quantity:1}]});
+    loadAll();load();
+  };
+
+  const recordRows=records.map(r=>({h:r,urun:urunler.find(u=>u.id===r.urun_id)||{},surgery:surgeries.find(s=>s.id===r.surgery_id)||{},hospital:hospitals.find(h=>h.id===r.hospital_id)||{}}));
+
+  return(
+    <div className="space-y-5">
+      {modal&&(
+        <Modal title="Fatura / Tüketim Çıkışı" onClose={()=>setModal(false)} size="lg"
+          footer={<div className="flex gap-2"><button onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={saveInvoice} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Çıkış Yap</button></div>}>
+          <div className="space-y-4">
+            <div><Label required>Ameliyat</Label><Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value}))}><option value="">Ameliyat seçin</option>{surgeries.map(s=><option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.hospital} — {s.doctor}</option>)}</Select></div>
+            {selectedSurgery&&<div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Doktor</div><div className="text-sm font-bold text-white">{selectedSurgery.doctor}</div></div>
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Hastane</div><div className="text-sm font-bold text-white">{selectedSurgery.hospital}</div></div>
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Ekip</div><div className="text-sm font-bold text-white truncate">{team.join(", ")||"Personel yok"}</div></div>
+            </div>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><Label required>Hasta Adı</Label><Input value={f.patient_name} onChange={e=>setF(p=>({...p,patient_name:e.target.value}))}/></div>
+              <div><Label required>Ameliyat Tarafı</Label><Select value={f.side} onChange={e=>setF(p=>({...p,side:e.target.value}))}><option value="">Seçin</option><option>Sağ</option><option>Sol</option><option>Bilateral</option><option>Taraf yok</option></Select></div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between"><Label>Kullanılan Ürünler</Label><button onClick={addItem} className="px-3 py-1.5 rounded-lg bg-brand/15 text-brand-300 text-xs font-bold border border-brand/20">+ Ürün</button></div>
+              {f.items.map((item,idx)=>{
+                const lotRows=stoklar.filter(s=>s.urun_id===item.urun_id&&(!selectedHospitalId||s.hospital_id===selectedHospitalId));
+                return(
+                  <div key={idx} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_.5fr_auto] gap-2 p-3 rounded-xl bg-navy-900/60 border border-white/8">
+                    <Select value={item.urun_id} onChange={e=>updateItem(idx,{urun_id:e.target.value,lot:""})}><option value="">REF seçin</option>{urunler.map(u=><option key={u.id} value={u.id}>{u.code||"REF yok"}</option>)}</Select>
+                    <Select value={item.lot} onChange={e=>updateItem(idx,{lot:e.target.value})}><option value="">LOT seçin</option>{lotRows.map(s=><option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity})</option>)}</Select>
+                    <Input type="number" min="1" value={item.quantity} onChange={e=>updateItem(idx,{quantity:e.target.value})}/>
+                    <button onClick={()=>removeItem(idx)} className="px-3 py-2 rounded-lg bg-rose2/15 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Modal>
+      )}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div><h1 className="text-xl font-bold text-white">Fatura / Tüketim</h1><p className="text-sm text-slate-500 mt-0.5">Ameliyat bazlı REF + LOT ürün çıkışı ve ekip sorumluluğu</p></div>
+        <button onClick={()=>setModal(true)} className="sm:ml-auto px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
+      </div>
+      <div className="card rounded-2xl overflow-hidden">
+        <div className="hidden lg:grid grid-cols-[1fr_1fr_1fr_1fr_1fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Adet"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
+        {recordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:recordRows.map(({h,urun,surgery,hospital})=>(
+          <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_.7fr] gap-4">
+            <div className="font-mono text-sm font-bold text-white">{urun.code||"REF yok"}</div>
+            <div className="font-mono text-sm text-brand-300">{h.lot||"LOT yok"}</div>
+            <div className="text-sm text-slate-300">{surgery.type||"—"}<div className="text-xs text-slate-500">{h.notes?.match(/Hasta:\s*([^—]+)/)?.[1]?.trim()||"Hasta yok"}</div></div>
+            <div className="text-sm text-slate-400">{surgery.doctor||"—"}</div>
+            <div className="text-sm text-slate-400">{displayLocationName(hospital)||surgery.hospital||"—"}</div>
+            <div className="text-sm font-black text-rose2">{h.quantity}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── NOTIFICATIONS VIEW ───────────────────────────────────────────────────────
 function NotifsView({notifs,onRead,onReadAll,onDelete,onDeleteAll}){
   const unread=notifs.filter(n=>!n.is_read);
@@ -4187,6 +4379,7 @@ function App(){
       case"products":return<UrunlerView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"stock":return<StokView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"movements":return<HareketlerView urunler={urunler} stoklar={stoklar} surgeries={surgeries} hospitals={hospitals} loadAll={loadAll}/>;
+      case"invoices":return<FaturalarView surgeries={surgeries} urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"notifications":return<NotifsView notifs={notifs} onRead={readNotif} onReadAll={readAll} onDelete={delNotif} onDeleteAll={delAllNotifs}/>;
       case"lists":return<ListsView types={types} doctors={doctors} hospitals={hospitals} onRefresh={loadAll}/>;
       case"users":return manager?<UsersView profile={profile}/>:<div className="text-slate-500 text-sm p-8 text-center">Erişim yetkiniz yok.</div>;
@@ -4246,3 +4439,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
+
