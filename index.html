@@ -1373,6 +1373,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
   const [month,setMonth]=useState(today.getMonth());
   const [sending,setSending]=useState(false);
   const [viewS,setViewS]=useState(null);
+  const [viewPersonnel,setViewPersonnel]=useState([]);
 
   // Ameliyat ekle modalı (program sekmesinden)
   const [addModal,setAddModal]=useState(null); // {date, time, hospital}
@@ -1380,6 +1381,10 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
   const [addForm,setAddForm]=useState(emptyAddForm);
   const [addingInline,setAddingInline]=useState(null); // {field}
   const visibleHospitals=useMemo(()=>selectableHospitals(hospitals),[hospitals]);
+
+  useEffect(()=>{
+    setViewPersonnel(viewS?getSurgeryPersonnel(viewS):[]);
+  },[viewS]);
 
   const docColorMap=useMemo(()=>{
     const uniq=[...new Set(surgeries.map(s=>s.doctor))];
@@ -1479,6 +1484,22 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
   const openProgramAdd=(data)=>{
     setAddForm({...emptyAddForm,time:data.time||"09:00",hospital:data.hospital||""});
     setAddModal(data);
+  };
+
+  const toggleViewPersonnel=name=>{
+    setViewPersonnel(prev=>prev.includes(name)?prev.filter(x=>x!==name):[...prev,name]);
+  };
+
+  const saveViewPersonnel=async()=>{
+    if(!viewS)return;
+    const newNotes=buildSurgeryNotes(stripSurgeryMeta(viewS.notes),viewPersonnel,getSurgeryDocs(viewS));
+    const {error}=await SB.from("surgeries").update({notes:newNotes,updated_at:new Date().toISOString()}).eq("id",viewS.id);
+    if(error)return toast(error.message,"error");
+    const updated={...viewS,notes:newNotes};
+    setViewS(updated);
+    toast("Personel ataması kaydedildi ✓","success");
+    if(onNotif)onNotif(`Personel atandı: ${viewS.type} - ${fmtTR(viewS.date)}`);
+    onRefresh();
   };
 
   const tabs=[
@@ -1590,7 +1611,10 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
 
       {viewS&&(
         <Modal title="Ameliyat Detayı" onClose={()=>setViewS(null)} size="md"
-          footer={<button onClick={()=>setViewS(null)} className="w-full py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Kapat</button>}>
+          footer={<div className="flex gap-2">
+            <button onClick={()=>setViewS(null)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">Kapat</button>
+            <button onClick={saveViewPersonnel} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Personeli Kaydet</button>
+          </div>}>
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
               <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Tarih</div><div className="font-bold text-white">{fmtTR(viewS.date)}</div></div>
@@ -1599,7 +1623,28 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
             <div><Label>Ameliyat</Label><div className="text-white font-semibold">{viewS.type}</div></div>
             <div><Label>Doktor</Label><div className="text-slate-300">{viewS.doctor}</div></div>
             <div><Label>Hastane</Label><div className="text-slate-300">{viewS.hospital}</div></div>
-            <div><Label>Personel</Label><div className="text-slate-300">{getSurgeryPersonnel(viewS).join(", ")||"Personel seçilmemiş"}</div></div>
+            <div>
+              <Label>Ameliyata Girecek Personel</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto rounded-xl border border-white/8 bg-navy-900/40 p-2">
+                {personel.length===0?(
+                  <div className="text-xs text-slate-500 px-2 py-3">Kayıtlı kullanıcı bulunamadı</div>
+                ):personel.map(p=>{
+                  const checked=viewPersonnel.includes(p.name);
+                  return(
+                    <label key={p.id||p.name} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${checked?"bg-brand/15 border-brand/30 text-white":"bg-navy-800 border-white/5 text-slate-400 hover:text-white"}`}>
+                      <input type="checkbox" checked={checked} onChange={()=>toggleViewPersonnel(p.name)}/>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm truncate">{p.name}</span>
+                        <span className="block text-[10px] text-slate-500 truncate">{p.role==="admin"?"Admin":isManager({role:p.role})?"Yönetici":"Kullanıcı"}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="text-xs text-slate-500 mt-2">
+                Seçili: {viewPersonnel.length?viewPersonnel.join(", "):"Personel seçilmemiş"}
+              </div>
+            </div>
             <div><Label>Durum</Label><Badge status={viewS.status}/></div>
           </div>
         </Modal>
@@ -1760,7 +1805,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                   {dayS.filter(s=>s.time==="??:??").map(s=>{
                     const surgeryPersonnel=getSurgeryPersonnel(s);
                     return(
-                      <div key={s.id} className="flex items-center gap-3 bg-navy-800 rounded-xl p-3 border border-white/8">
+                      <div key={s.id} onClick={()=>setViewS(s)} className="flex items-center gap-3 bg-navy-800 rounded-xl p-3 border border-white/8 cursor-pointer hover:border-brand/40 transition-colors">
                         <span className="text-xs text-slate-500 font-mono w-10">??:??</span>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold text-white truncate">{s.type}</div>
@@ -2188,6 +2233,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       toast(`${qty} adet ana depoya kaydedildi ✓`,"success");
     }
 
+    rememberBarcodeCatalog(normalizedForm);
     setModal(null);setScanResult(null);setScanStatus("");setMatchedUrun(null);
     loadAll();
   };
@@ -2556,16 +2602,92 @@ const KNOWN_UDI_CATALOG={
     qty:1,
     manufacturer:"Arthrex",
     productName:"Suture Anchor, BioComposite SwiveLock C"
+  },
+  "AR-7235":{
+    ref:"AR-7235",
+    lot:"15043027",
+    mfgDate:null,
+    expiryDate:"2028-06-30",
+    qty:1,
+    manufacturer:"Arthrex",
+    productName:"FiberLink Braided Polyblend Suture Blue"
+  },
+  "15043027":{
+    ref:"AR-7235",
+    lot:"15043027",
+    mfgDate:null,
+    expiryDate:"2028-06-30",
+    qty:1,
+    manufacturer:"Arthrex",
+    productName:"FiberLink Braided Polyblend Suture Blue"
   }
 };
+const LEARNED_UDI_CATALOG_KEY="artroplus_learned_udi_catalog_v1";
+const safeReadLearnedCatalog=()=>{
+  try{return JSON.parse(localStorage.getItem(LEARNED_UDI_CATALOG_KEY)||"{}")||{};}
+  catch{return {};}
+};
+const safeWriteLearnedCatalog=catalog=>{
+  try{localStorage.setItem(LEARNED_UDI_CATALOG_KEY,JSON.stringify(catalog));}
+  catch{}
+};
+const catalogKey=value=>String(value||"").trim().toUpperCase();
+const catalogDigitKey=value=>String(value||"").replace(/\D/g,"");
+const catalogLookupKeys=result=>{
+  const raw=catalogKey(result.udi);
+  const gtin=catalogDigitKey(result.gtin);
+  const udiDigits=catalogDigitKey(result.udi);
+  return [
+    raw,
+    gtin,
+    gtin.replace(/^0+/,""),
+    udiDigits,
+    udiDigits.replace(/^0+/,""),
+    catalogKey(result.ref),
+    catalogKey(result.lot),
+    result.ref&&result.lot?`${catalogKey(result.ref)}|${catalogKey(result.lot)}`:"",
+  ].filter(Boolean);
+};
 const applyKnownUdiCatalog=result=>{
-  const key=(result.gtin||"").replace(/\D/g,"");
-  const known=KNOWN_UDI_CATALOG[key]||KNOWN_UDI_CATALOG[key.replace(/^0+/,"")];
+  const learned=safeReadLearnedCatalog();
+  const keys=catalogLookupKeys(result);
+  const known=keys.map(k=>KNOWN_UDI_CATALOG[k]||learned[k]).find(Boolean);
   if(!known)return result;
   Object.entries(known).forEach(([k,v])=>{
-    if(v!==undefined&&(k==="ref"||result[k]===undefined||result[k]===null||result[k]===""||(k==="qty"&&result[k]===1)))result[k]=v;
+    if(v!==undefined&&(
+      k==="ref"||k==="lot"||k==="expiryDate"||k==="mfgDate"||
+      result[k]===undefined||result[k]===null||result[k]===""||(k==="qty"&&result[k]===1)
+    ))result[k]=v;
   });
   return result;
+};
+const rememberBarcodeCatalog=form=>{
+  const ref=catalogKey(form.code||form.ref);
+  const lot=catalogKey(form.lot);
+  if(!ref&&!lot)return;
+  const entry={
+    ref:ref||undefined,
+    lot:lot||undefined,
+    mfgDate:form.mfgDate||null,
+    expiryDate:form.expiryDate||null,
+    qty:Number(form.initialStockQty||form.qty)||1,
+    manufacturer:form.manufacturer||"",
+    productName:form.name||"",
+  };
+  const keys=[
+    catalogKey(form.udi),
+    catalogDigitKey(form.udi),
+    catalogDigitKey(form.udi).replace(/^0+/,""),
+    catalogDigitKey(form.gtin),
+    catalogDigitKey(form.gtin).replace(/^0+/,""),
+    ref,
+    lot,
+    ref&&lot?`${ref}|${lot}`:"",
+  ].filter(Boolean);
+  if(!keys.length)return;
+  const catalog=safeReadLearnedCatalog();
+  keys.forEach(k=>{catalog[k]={...(catalog[k]||{}),...entry};});
+  safeWriteLearnedCatalog(catalog);
 };
 
 function parseGS1(raw){
@@ -2583,6 +2705,8 @@ function parseGS1(raw){
     result.gtin=digitsOnly.padStart(14,"0");
     result.ref=result.gtin.replace(/^0+/,"");
   }
+  const inlineRef=original.match(/\b[A-Z]{1,6}-\d{2,}[A-Z0-9-]*\b/i);
+  if(inlineRef&&!result.ref)result.ref=inlineRef[0].toUpperCase();
   const aiPairs=[];
   original.replace(/\((\d{2,4})\)\s*([^\(]+)/g,(_,ai,val)=>{
     aiPairs.push([ai,val.trim()]);
@@ -3884,11 +4008,12 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   );
 }
 // ─── INVOICE / CONSUMPTION VIEW ───────────────────────────────────────────────
-function FaturalarView({surgeries,urunler,stoklar,hospitals,loadAll}){
+function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}){
   const toast=useToast();
   const [records,setRecords]=useState([]);
   const [modal,setModal]=useState(false);
-  const [f,setF]=useState({surgery_id:"",patient_name:"",side:"",items:[{urun_id:"",lot:"",quantity:1}]});
+  const emptyInvoiceForm={surgery_id:"",patient_name:"",side:"",personnel:[],items:[{urun_id:"",lot:"",quantity:1}]};
+  const [f,setF]=useState(emptyInvoiceForm);
 
   const load=async()=>{
     const {data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(500);
@@ -3900,14 +4025,28 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,loadAll}){
   const selectedSurgery=surgeries.find(s=>s.id===f.surgery_id);
   const selectedHospitalId=selectedSurgery?(hospitals.find(h=>h.name===selectedSurgery.hospital)?.id||findCompanyShelf(hospitals)?.id||"company-shelf-local"):"";
   const team=selectedSurgery?getSurgeryPersonnel(selectedSurgery):[];
+  useEffect(()=>{
+    setF(prev=>{
+      if(!prev.surgery_id)return prev;
+      const surgery=surgeries.find(s=>s.id===prev.surgery_id);
+      const surgeryTeam=surgery?getSurgeryPersonnel(surgery):[];
+      if(!surgeryTeam.length||prev.personnel.length)return prev;
+      return {...prev,personnel:surgeryTeam};
+    });
+  },[f.surgery_id,surgeries]);
   const updateItem=(idx,patch)=>setF(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,...patch}:it)}));
   const addItem=()=>setF(prev=>({...prev,items:[...prev.items,{urun_id:"",lot:"",quantity:1}]}));
   const removeItem=idx=>setF(prev=>({...prev,items:prev.items.filter((_,i)=>i!==idx)}));
+  const toggleInvoicePersonnel=name=>setF(prev=>({
+    ...prev,
+    personnel:prev.personnel.includes(name)?prev.personnel.filter(x=>x!==name):[...prev.personnel,name]
+  }));
 
   const saveInvoice=async()=>{
     if(!selectedSurgery)return toast("Ameliyat seçin","warning");
     if(!f.patient_name.trim())return toast("Hasta adı gerekli","warning");
     if(!f.side)return toast("Ameliyat tarafı seçin","warning");
+    const invoiceTeam=f.personnel.length?f.personnel:team;
     const validItems=f.items.filter(i=>i.urun_id&&Number(i.quantity)>0);
     if(!validItems.length)return toast("En az bir ürün ekleyin","warning");
     for(const item of validItems){
@@ -3920,14 +4059,14 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,loadAll}){
       const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
       const qty=Number(item.quantity)||1;
       await updateStockQuantity(stok,stok.quantity-qty);
-      const note=`[FATURA] Hasta: ${f.patient_name} — Taraf: ${f.side} — Ameliyat: ${selectedSurgery.type} — Doktor: ${selectedSurgery.doctor} — Ekip: ${team.join(", ")||"Ekip seçilmemiş"}`;
+      const note=`[FATURA] Hasta: ${f.patient_name} — Taraf: ${f.side} — Ameliyat: ${selectedSurgery.type} — Doktor: ${selectedSurgery.doctor} — Personel: ${invoiceTeam.join(", ")||"Personel seçilmemiş"}`;
       const {error}=await insertMovement(movementPayload({urun_id:item.urun_id,hospital_id:selectedHospitalId,lot:item.lot||"",type:"out",quantity:qty,notes:note,surgery_id:selectedSurgery.id}));
       if(error)return toast(error.message,"error");
     }
     await SB.from("surgeries").update({status:"done"}).eq("id",selectedSurgery.id);
     toast("Fatura / tüketim kaydı oluşturuldu ✓","success");
     setModal(false);
-    setF({surgery_id:"",patient_name:"",side:"",items:[{urun_id:"",lot:"",quantity:1}]});
+    setF(emptyInvoiceForm);
     loadAll();load();
   };
 
@@ -3939,15 +4078,34 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,loadAll}){
         <Modal title="Fatura / Tüketim Çıkışı" onClose={()=>setModal(false)} size="lg"
           footer={<div className="flex gap-2"><button onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={saveInvoice} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Çıkış Yap</button></div>}>
           <div className="space-y-4">
-            <div><Label required>Ameliyat</Label><Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value}))}><option value="">Ameliyat seçin</option>{surgeries.map(s=><option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.hospital} — {s.doctor}</option>)}</Select></div>
+            <div><Label required>Ameliyat</Label><Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value,personnel:[]}))}><option value="">Ameliyat seçin</option>{surgeries.map(s=><option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.hospital} — {s.doctor}</option>)}</Select></div>
             {selectedSurgery&&<div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Doktor</div><div className="text-sm font-bold text-white">{selectedSurgery.doctor}</div></div>
               <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Hastane</div><div className="text-sm font-bold text-white">{selectedSurgery.hospital}</div></div>
-              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Ekip</div><div className="text-sm font-bold text-white truncate">{team.join(", ")||"Personel yok"}</div></div>
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Personel</div><div className="text-sm font-bold text-white truncate">{(f.personnel.length?f.personnel:team).join(", ")||"Personel yok"}</div></div>
             </div>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label required>Hasta Adı</Label><Input value={f.patient_name} onChange={e=>setF(p=>({...p,patient_name:e.target.value}))}/></div>
               <div><Label required>Ameliyat Tarafı</Label><Select value={f.side} onChange={e=>setF(p=>({...p,side:e.target.value}))}><option value="">Seçin</option><option>Sağ</option><option>Sol</option><option>Bilateral</option><option>Taraf yok</option></Select></div>
+            </div>
+            <div>
+              <Label>Ameliyata Katılan Personel</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto rounded-xl border border-white/8 bg-navy-900/40 p-2">
+                {personel.length===0?(
+                  <div className="text-xs text-slate-500 px-2 py-3">Kayıtlı kullanıcı bulunamadı</div>
+                ):personel.map(p=>{
+                  const checked=f.personnel.includes(p.name);
+                  return(
+                    <label key={p.id||p.name} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${checked?"bg-brand/15 border-brand/30 text-white":"bg-navy-800 border-white/5 text-slate-400 hover:text-white"}`}>
+                      <input type="checkbox" checked={checked} onChange={()=>toggleInvoicePersonnel(p.name)}/>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm truncate">{p.name}</span>
+                        <span className="block text-[10px] text-slate-500 truncate">{p.role==="admin"?"Admin":isManager({role:p.role})?"Yönetici":"Kullanıcı"}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between"><Label>Kullanılan Ürünler</Label><button onClick={addItem} className="px-3 py-1.5 rounded-lg bg-brand/15 text-brand-300 text-xs font-bold border border-brand/20">+ Ürün</button></div>
@@ -3971,17 +4129,21 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,loadAll}){
         <button onClick={()=>setModal(true)} className="sm:ml-auto px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
       </div>
       <div className="card rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[1fr_1fr_1fr_1fr_1fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Adet"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
-        {recordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:recordRows.map(({h,urun,surgery,hospital})=>(
-          <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_.7fr] gap-4">
-            <div className="font-mono text-sm font-bold text-white">{urun.code||"REF yok"}</div>
-            <div className="font-mono text-sm text-brand-300">{h.lot||"LOT yok"}</div>
-            <div className="text-sm text-slate-300">{surgery.type||"—"}<div className="text-xs text-slate-500">{h.notes?.match(/Hasta:\s*([^—]+)/)?.[1]?.trim()||"Hasta yok"}</div></div>
-            <div className="text-sm text-slate-400">{surgery.doctor||"—"}</div>
-            <div className="text-sm text-slate-400">{displayLocationName(hospital)||surgery.hospital||"—"}</div>
-            <div className="text-sm font-black text-rose2">{h.quantity}</div>
-          </div>
-        ))}
+        <div className="hidden lg:grid grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Personel","Adet"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
+        {recordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:recordRows.map(({h,urun,surgery,hospital})=>{
+            const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
+            return(
+              <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr] gap-4">
+                <div className="font-mono text-sm font-bold text-white">{urun.code||"REF yok"}</div>
+                <div className="font-mono text-sm text-brand-300">{h.lot||"LOT yok"}</div>
+                <div className="text-sm text-slate-300">{surgery.type||"—"}<div className="text-xs text-slate-500">{h.notes?.match(/Hasta:\s*([^—]+)/)?.[1]?.trim()||"Hasta yok"}</div></div>
+                <div className="text-sm text-slate-400">{surgery.doctor||"—"}</div>
+                <div className="text-sm text-slate-400">{displayLocationName(hospital)||surgery.hospital||"—"}</div>
+                <div className="text-sm text-slate-400 truncate">{invoiceTeam}</div>
+                <div className="text-sm font-black text-rose2">{h.quantity}</div>
+              </div>
+            );
+        })}
       </div>
     </div>
   );
@@ -4408,7 +4570,7 @@ function App(){
       case"products":return<UrunlerView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"stock":return<StokView urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
       case"movements":return<HareketlerView urunler={urunler} stoklar={stoklar} surgeries={surgeries} hospitals={hospitals} loadAll={loadAll}/>;
-      case"invoices":return<FaturalarView surgeries={surgeries} urunler={urunler} stoklar={stoklar} hospitals={hospitals} loadAll={loadAll}/>;
+      case"invoices":return<FaturalarView surgeries={surgeries} urunler={urunler} stoklar={stoklar} hospitals={hospitals} personel={personel} loadAll={loadAll}/>;
       case"notifications":return<NotifsView notifs={notifs} onRead={readNotif} onReadAll={readAll} onDelete={delNotif} onDeleteAll={delAllNotifs}/>;
       case"lists":return<ListsView types={types} doctors={doctors} hospitals={hospitals} onRefresh={loadAll}/>;
       case"users":return manager?<UsersView profile={profile}/>:<div className="text-slate-500 text-sm p-8 text-center">Erişim yetkiniz yok.</div>;
