@@ -39,6 +39,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
   <!-- Recharts UMD -->
   <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
@@ -296,6 +297,44 @@ const movementPayload=({urun_id,hospital_id,lot,type,quantity,notes,surgery_id,f
   fatura_id:fatura_id||null,
 });
 const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,["hospital_id","lot","surgery_id","fatura_id"]);
+const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
+const noteField=(notes,label)=>{
+  const m=String(notes||"").match(new RegExp(`${label}:\\s*([^—\\n]+)`,"i"));
+  return m?m[1].trim():"";
+};
+const printExitDocument=({title="Ürün Çıkış Fişi",subtitle="",rows=[],meta=[]})=>{
+  const now=new Date();
+  const docNo=`SF-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}-${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
+  const totalQty=rows.reduce((a,r)=>a+(Number(r.quantity)||0),0);
+  const html=`<!doctype html><html lang="tr"><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
+    <style>
+      *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:28px;background:white}
+      .head{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #0f172a;padding-bottom:16px;margin-bottom:18px}
+      .brand{font-size:24px;font-weight:900;letter-spacing:.04em}.muted{color:#64748b;font-size:12px}.title{font-size:18px;font-weight:800;margin-top:6px}
+      .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}.box{border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px;min-height:48px}
+      .label{font-size:10px;text-transform:uppercase;color:#64748b;font-weight:700;margin-bottom:4px}.value{font-size:13px;font-weight:700}
+      table{width:100%;border-collapse:collapse;margin-top:14px}th{background:#0f172a;color:white;text-align:left;font-size:11px;padding:9px;border:1px solid #0f172a}
+      td{font-size:12px;padding:9px;border:1px solid #cbd5e1;vertical-align:top}.right{text-align:right}.foot{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:38px}
+      .sign{border-top:1px solid #0f172a;padding-top:8px;text-align:center;font-size:12px;color:#334155}.summary{margin-top:12px;text-align:right;font-weight:800}
+      @media print{body{margin:18mm}.no-print{display:none}}
+    </style></head><body>
+      <div class="head">
+        <div><div class="brand">ARTROPLUS</div><div class="title">${escapeHtml(title)}</div><div class="muted">${escapeHtml(subtitle)}</div></div>
+        <div class="box" style="min-width:190px"><div class="label">Belge No</div><div class="value">${docNo}</div><div class="muted">${now.toLocaleString("tr-TR")}</div></div>
+      </div>
+      <div class="meta">${meta.map(m=>`<div class="box"><div class="label">${escapeHtml(m.label)}</div><div class="value">${escapeHtml(m.value||"—")}</div></div>`).join("")}</div>
+      <table><thead><tr><th>REF</th><th>LOT</th><th>Ürün</th><th>Ameliyat / Açıklama</th><th>Personel</th><th class="right">Adet</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td><b>${escapeHtml(r.ref||"REF yok")}</b></td><td>${escapeHtml(r.lot||"LOT yok")}</td><td>${escapeHtml(r.product||"—")}</td><td>${escapeHtml(r.context||"—")}</td><td>${escapeHtml(r.personnel||"—")}</td><td class="right"><b>${escapeHtml(r.quantity||0)}</b></td></tr>`).join("")}</tbody></table>
+      <div class="summary">Toplam Çıkış: ${totalQty}</div>
+      <div class="foot"><div class="sign">Teslim Eden</div><div class="sign">Teslim Alan</div><div class="sign">Kontrol / Onay</div></div>
+      <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:10px 16px;border:0;border-radius:8px;background:#2563eb;color:white;font-weight:700">Yazdır</button>
+      <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script>
+    </body></html>`;
+  const w=window.open("","_blank","width=980,height=720");
+  if(!w)return false;
+  w.document.open();w.document.write(html);w.document.close();
+  return true;
+};
 const isCompanyShelfName=name=>{
   const n=(name||"").toLocaleLowerCase("tr-TR");
   return n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
@@ -334,6 +373,7 @@ function ToastProvider({children}){
   };
   const icons={success:"✓",error:"✕",info:"i",warning:"⚠"};
   const colors={success:"bg-emerald-500",error:"bg-rose-500",info:"bg-brand",warning:"bg-amber-500"};
+
   return(
     <ToastCtx.Provider value={add}>
       {children}
@@ -2798,9 +2838,11 @@ function parseGS1(raw){
   if(expDate)result.expiryDate=expDate;
   if(mfgDate)result.mfgDate=mfgDate;
   const visibleDates=extractLabelDates(original);
-  if(!result.mfgDate&&visibleDates[0])result.mfgDate=visibleDates[0];
+  const looksLikeExpiryOnly=/skt|exp|expiry|son kullanma|use by|lot|ref|qty|sterile|arthrex/i.test(original);
+  if(!result.expiryDate&&visibleDates[0]&&(visibleDates.length===1&&looksLikeExpiryOnly))result.expiryDate=visibleDates[0];
+  if(!result.mfgDate&&visibleDates.length>1&&visibleDates[0])result.mfgDate=visibleDates[0];
   if(!result.expiryDate&&visibleDates[1])result.expiryDate=visibleDates[1];
-  if(!result.expiryDate&&visibleDates[0]&&/skt|exp|expiry|son kullanma/i.test(original))result.expiryDate=visibleDates[0];
+  if(!result.expiryDate&&visibleDates[0]&&/skt|exp|expiry|son kullanma|use by/i.test(original))result.expiryDate=visibleDates[0];
 
   if(!result.gtin){
     const gtin=readLabeledValue(original,["GTIN","UDI-DI","DI"]);
@@ -2827,18 +2869,114 @@ const ensureCompanyShelf=async(hospitals)=>{
 function BarcodeCameraModal({onDetected,onClose}){
   const toast=useToast();
   const videoRef=useRef(null);
+  const canvasRef=useRef(null);
   const detectorRef=useRef(null);
   const streamRef=useRef(null);
   const zxingControlsRef=useRef(null);
   const stopRef=useRef(false);
+  const ocrBusyRef=useRef(false);
+  const ocrTimerRef=useRef(null);
   const [status,setStatus]=useState("Kamera hazırlanıyor...");
   const [manual,setManual]=useState("");
+  const [ocrText,setOcrText]=useState("");
+  const [ocrLoading,setOcrLoading]=useState(false);
+
+  const normalizeOcrText=text=>String(text||"")
+    .replace(/[|]/g,"I")
+    .replace(/[–—]/g,"-")
+    .replace(/\bL0T\b/gi,"LOT")
+    .replace(/\bRE F\b/gi,"REF")
+    .replace(/\b0TY\b/gi,"QTY")
+    .replace(/\bQ7Y\b/gi,"QTY")
+    .replace(/\bS0N\b/gi,"SON")
+    .replace(/\s+/g," ")
+    .trim();
+  const hasEnoughLabelInfo=value=>{
+    const p=parseGS1(String(value||""));
+    return !!(p.ref&&(p.lot||p.expiryDate||p.mfgDate||p.productName||p.manufacturer));
+  };
+  const useDetectedText=value=>{
+    const text=normalizeOcrText(value);
+    if(!text)return false;
+    setManual(text);
+    setOcrText(text);
+    if(hasEnoughLabelInfo(text)){
+      toast("Ürün bilgileri okundu","success");
+      onDetected(text);
+      onClose();
+      return true;
+    }
+    setStatus("Metin okundu ama REF/LOT/SKT eksik. Etiketi daha yakın ve düz okutun ya da eksik alanı manuel tamamlayın.");
+    return false;
+  };
+  const recognizeCanvas=async(canvas,sourceLabel="Etiket")=>{
+    if(!window.Tesseract||!canvas)return false;
+    setOcrLoading(true);
+    try{
+      setStatus(`${sourceLabel} yazıları okunuyor...`);
+      const {data}=await window.Tesseract.recognize(canvas,"eng",{
+        logger:()=>{},
+        tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012ÇĞİÖŞÜçğıöşü0123456789-/:.() "
+      });
+      return useDetectedText(data?.text||"");
+    }catch(e){
+      setStatus("Fotoğraf/etiket okunamadı. Daha net, düz ve ışıklı görüntü deneyin.");
+      return false;
+    }finally{
+      setOcrLoading(false);
+    }
+  };
+  const drawVideoCropToCanvas=()=>{
+    const video=videoRef.current;
+    const canvas=canvasRef.current;
+    if(!video||!canvas||video.readyState<2)return null;
+    const w=video.videoWidth||1280;
+    const h=video.videoHeight||720;
+    const cropW=Math.floor(w*.92);
+    const cropH=Math.floor(h*.62);
+    const sx=Math.floor((w-cropW)/2);
+    const sy=Math.floor(h*.18);
+    canvas.width=1400;
+    canvas.height=Math.max(520,Math.floor(canvas.width*cropH/cropW));
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(video,sx,sy,cropW,cropH,0,0,canvas.width,canvas.height);
+    const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+    for(let i=0;i<img.data.length;i+=4){
+      const g=(img.data[i]*.3+img.data[i+1]*.59+img.data[i+2]*.11)>145?255:0;
+      img.data[i]=img.data[i+1]=img.data[i+2]=g;
+    }
+    ctx.putImageData(img,0,0);
+    return canvas;
+  };
+  const scanCurrentFrame=async()=>{
+    const canvas=drawVideoCropToCanvas();
+    if(!canvas){setStatus("Kamera görüntüsü hazır değil.");return;}
+    await recognizeCanvas(canvas,"Kamera karesi");
+  };
+  const scanImageFile=async(file)=>{
+    if(!file)return;
+    const img=new Image();
+    img.onload=async()=>{
+      const canvas=canvasRef.current;
+      if(!canvas)return;
+      const scale=Math.min(1600/img.width,1200/img.height,2)||1;
+      canvas.width=Math.max(1,Math.floor(img.width*scale));
+      canvas.height=Math.max(1,Math.floor(img.height*scale));
+      const ctx=canvas.getContext("2d",{willReadFrequently:true});
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(img.src);
+      await recognizeCanvas(canvas,"Fotoğraf");
+    };
+    img.onerror=()=>setStatus("Fotoğraf açılamadı.");
+    img.src=URL.createObjectURL(file);
+  };
 
   useEffect(()=>{
     let raf=0;
     const stop=()=>{
       stopRef.current=true;
       if(raf)cancelAnimationFrame(raf);
+      if(ocrTimerRef.current)clearInterval(ocrTimerRef.current);
       zxingControlsRef.current?.stop?.();
       streamRef.current?.getTracks?.().forEach(t=>t.stop());
     };
@@ -2864,11 +3002,44 @@ function BarcodeCameraModal({onDetected,onClose}){
         }
         const emitDetected=value=>{
           if(value&&!stopRef.current){
+            if(!hasEnoughLabelInfo(value)){
+              setManual(String(value));
+              setStatus("Barkod okundu ancak REF/LOT/SKT eksik. Kamera etiketteki yazıları da okuyarak tamamlıyor; etiketi düz ve aydınlık tutun.");
+              return false;
+            }
             toast("Barkod okundu","success");
             stop();
             onDetected(String(value));
             onClose();
+            return true;
           }
+          return false;
+        };
+        const startOcrFallback=()=>{
+          if(!window.Tesseract||!canvasRef.current||!videoRef.current)return false;
+          ocrTimerRef.current=setInterval(async()=>{
+            if(stopRef.current||ocrBusyRef.current||!videoRef.current||videoRef.current.readyState<2)return;
+            ocrBusyRef.current=true;
+            try{
+              const canvas=drawVideoCropToCanvas();
+              if(!canvas)return;
+              setStatus("Etiket yazıları okunuyor... REF / LOT / SKT alanlarını kamerada net tutun.");
+              const {data}=await window.Tesseract.recognize(canvas,"eng",{logger:()=>{}});
+              const text=normalizeOcrText(data?.text||"");
+              if(text){setOcrText(text);setManual(text);}
+              const p=parseGS1(text);
+              if(p.ref&&(p.lot||p.expiryDate)){
+                emitDetected(text);
+                return;
+              }
+              setStatus("Barkod ve etiket taranıyor. REF, LOT ve tarih yazılarını kadrajda büyük gösterin.");
+            }catch(e){
+              setStatus("Etiket yazısı okunamadı. Işığı artırın veya manuel alana REF / LOT / SKT yazın.");
+            }finally{
+              ocrBusyRef.current=false;
+            }
+          },3500);
+          return true;
         };
         const startNativeDetector=()=>{
           if(!("BarcodeDetector" in window))return false;
@@ -2892,8 +3063,9 @@ function BarcodeCameraModal({onDetected,onClose}){
           return true;
         };
         const nativeActive=startNativeDetector();
+        const ocrActive=startOcrFallback();
         if(window.ZXingBrowser?.BrowserMultiFormatReader){
-          setStatus(nativeActive?"Kamera aktif. Hızlı okuyucu ve yedek okuyucu birlikte çalışıyor.":"Kamera aktif. UDI/DataMatrix kodunu kare içine yaklaştırın.");
+          setStatus(ocrActive?"Kamera aktif. Barkod ve etiket yazıları birlikte taranıyor.":"Kamera aktif. UDI/DataMatrix kodunu kare içine yaklaştırın.");
           const reader=new window.ZXingBrowser.BrowserMultiFormatReader();
           const onDecode=result=>{
             const value=result?.getText?.()||result?.text||"";
@@ -2905,11 +3077,15 @@ function BarcodeCameraModal({onDetected,onClose}){
           return;
         }
         if(nativeActive){
-          setStatus("Kamera aktif. Barkodu kameraya yaklaştırın.");
+          setStatus(ocrActive?"Kamera aktif. Barkod ve etiket yazıları birlikte taranıyor.":"Kamera aktif. Barkodu kameraya yaklaştırın.");
           setTimeout(()=>{if(!stopRef.current)setStatus("Okuma olmazsa etiketi yaklaştırın, ışığı artırın veya manuel alana UDI metnini girin.");},7000);
           return;
         }
-        setStatus("Bu tarayıcı kamera barkod okumayı desteklemiyor. Manuel alan veya USB okuyucu ile devam edin.");
+        if(ocrActive){
+          setStatus("Kamera aktif. Barkod desteği yok, etiket yazısı OCR ile okunuyor.");
+          return;
+        }
+        setStatus("Bu tarayıcı kamera barkod/etiket okumayı desteklemiyor. Manuel alan veya USB okuyucu ile devam edin.");
       }catch(e){
         setStatus("Kamera açılamadı. Telefon tarayıcısında kamera izni verin. Dosya modunda olmazsa localhost/HTTPS üzerinden açın veya manuel alanı kullanın.");
       }
@@ -2918,20 +3094,54 @@ function BarcodeCameraModal({onDetected,onClose}){
     return stop;
   },[]);
 
+  const manualPreview=manual.trim()?parseGS1(manual):null;
+
   return(
     <Modal title="Telefon Kamerası ile Barkod Oku" onClose={onClose} size="lg"
       footer={<div className="flex gap-2">
         <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">Kapat</button>
-        <button onClick={()=>{if(manual.trim()){onDetected(manual.trim());onClose();}}} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Manuel Barkodu Kullan</button>
+        <button onClick={()=>{if(manual.trim()){onDetected(manual.trim());onClose();}}} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Metni Kullan</button>
       </div>}>
       <div className="space-y-4">
         <div className="rounded-2xl overflow-hidden bg-black border border-white/10 aspect-video flex items-center justify-center">
           <video ref={videoRef} muted playsInline className="w-full h-full object-cover"/>
+          <canvas ref={canvasRef} className="hidden"/>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={scanCurrentFrame} disabled={ocrLoading}
+            className="py-2.5 rounded-xl bg-emerald2/15 hover:bg-emerald2/25 text-emerald2 text-sm font-bold border border-emerald2/25 disabled:opacity-50">
+            {ocrLoading?"Okunuyor...":"Kareyi Tara"}
+          </button>
+          <label className="py-2.5 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-300 text-sm font-bold border border-brand/25 text-center cursor-pointer">
+            Fotoğraftan Oku
+            <input type="file" accept="image/*" className="hidden" onChange={e=>{scanImageFile(e.target.files?.[0]);e.target.value="";}}/>
+          </label>
         </div>
         <p className="text-sm text-slate-400">{status}</p>
+        {ocrText&&(
+          <div className="rounded-xl bg-navy-900/70 border border-white/8 p-3">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Okunan Etiket Metni</div>
+            <div className="text-xs text-slate-300 font-mono break-words max-h-20 overflow-y-auto">{ocrText}</div>
+          </div>
+        )}
+        {manualPreview&&(
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              ["REF",manualPreview.ref||"—"],
+              ["LOT",manualPreview.lot||"—"],
+              ["SKT",manualPreview.expiryDate||"—"],
+              ["Adet",manualPreview.qty||1],
+            ].map(([l,v])=>(
+              <div key={l} className="rounded-xl bg-navy-900/70 border border-white/8 p-2">
+                <div className="text-[10px] text-slate-500">{l}</div>
+                <div className="text-xs font-bold text-white truncate">{v}</div>
+              </div>
+            ))}
+          </div>
+        )}
         <div>
           <Label>Manuel / Kopyala Yapıştır</Label>
-          <Input value={manual} onChange={e=>setManual(e.target.value)} placeholder="Kamera desteklenmezse barkodu buraya girin" className="font-mono"/>
+          <Textarea value={manual} onChange={e=>setManual(e.target.value)} rows={3} placeholder="REF AR-7235 LOT 15043027 QTY 1 2028-06-30 gibi etiket metnini yazın veya yapıştırın" className="font-mono"/>
         </div>
       </div>
     </Modal>
@@ -3999,6 +4209,27 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
                   {isIn?"+":"-"}{h.quantity}<span className="text-xs font-normal text-slate-500 ml-1">{urun?.unit}</span>
                 </div>
                 <div className="text-xs text-slate-600">{d.toLocaleDateString("tr-TR")} {d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</div>
+                {!isIn&&(
+                  <button onClick={()=>printExitDocument({
+                    title:"Stok Çıkış Fişi",
+                    subtitle:"Mal hareketi çıkış belgesi",
+                    meta:[
+                      {label:"Lokasyon",value:displayLocationName(hosp)||"—"},
+                      {label:"Tarih",value:d.toLocaleString("tr-TR")},
+                      {label:"Hareket",value:meta?.label||"Stok Çıkışı"},
+                    ],
+                    rows:[{
+                      ref:urun?.code,
+                      lot:h.lot,
+                      product:urun?.name,
+                      context:cleanNote||"Stok çıkışı",
+                      personnel:noteField(h.notes,"Personel")||noteField(h.notes,"Ekip")||"—",
+                      quantity:h.quantity,
+                    }]
+                  })} className="mt-2 px-2.5 py-1 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">
+                    Yazdır
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -4071,6 +4302,43 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   };
 
   const recordRows=records.map(r=>({h:r,urun:urunler.find(u=>u.id===r.urun_id)||{},surgery:surgeries.find(s=>s.id===r.surgery_id)||{},hospital:hospitals.find(h=>h.id===r.hospital_id)||{}}));
+  const invoicePrintRow=({h,urun,surgery,hospital})=>{
+    const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
+    const patient=noteField(h.notes,"Hasta")||"Hasta yok";
+    const side=noteField(h.notes,"Taraf")||"—";
+    return {
+      meta:[
+        {label:"Hasta",value:patient},
+        {label:"Ameliyat",value:surgery.type||noteField(h.notes,"Ameliyat")||"—"},
+        {label:"Taraf",value:side},
+        {label:"Doktor",value:surgery.doctor||noteField(h.notes,"Doktor")||"—"},
+        {label:"Hastane",value:displayLocationName(hospital)||surgery.hospital||"—"},
+        {label:"Personel",value:invoiceTeam},
+      ],
+      row:{
+        ref:urun.code,
+        lot:h.lot,
+        product:urun.name,
+        context:`${surgery.type||"Ameliyat"} / ${patient} / ${side}`,
+        personnel:invoiceTeam,
+        quantity:h.quantity,
+      }
+    };
+  };
+  const printInvoiceRecord=record=>{
+    const printable=invoicePrintRow(record);
+    printExitDocument({title:"Fatura / Tüketim Çıkış Fişi",subtitle:"Ameliyat bazlı ürün tüketim belgesi",meta:printable.meta,rows:[printable.row]});
+  };
+  const printInvoiceList=()=>{
+    if(!recordRows.length)return toast("Yazdırılacak kayıt yok","warning");
+    const rows=recordRows.map(r=>invoicePrintRow(r).row);
+    printExitDocument({
+      title:"Fatura / Tüketim Listesi",
+      subtitle:"Filtrelenmiş tüketim kayıtları",
+      meta:[{label:"Kayıt Sayısı",value:recordRows.length},{label:"Tarih",value:new Date().toLocaleString("tr-TR")},{label:"Belge Türü",value:"Toplu Çıkış"}],
+      rows
+    });
+  };
 
   return(
     <div className="space-y-5">
@@ -4126,14 +4394,17 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
       )}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div><h1 className="text-xl font-bold text-white">Fatura / Tüketim</h1><p className="text-sm text-slate-500 mt-0.5">Ameliyat bazlı REF + LOT ürün çıkışı ve ekip sorumluluğu</p></div>
-        <button onClick={()=>setModal(true)} className="sm:ml-auto px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
+        <div className="sm:ml-auto flex flex-wrap gap-2">
+          <button onClick={printInvoiceList} className="px-4 py-2 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-300 text-sm font-bold border border-brand/20">Yazdır</button>
+          <button onClick={()=>setModal(true)} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
+        </div>
       </div>
       <div className="card rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Personel","Adet"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
+        <div className="hidden lg:grid grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Personel","Adet","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
         {recordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:recordRows.map(({h,urun,surgery,hospital})=>{
             const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
             return(
-              <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr] gap-4">
+              <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] gap-4">
                 <div className="font-mono text-sm font-bold text-white">{urun.code||"REF yok"}</div>
                 <div className="font-mono text-sm text-brand-300">{h.lot||"LOT yok"}</div>
                 <div className="text-sm text-slate-300">{surgery.type||"—"}<div className="text-xs text-slate-500">{h.notes?.match(/Hasta:\s*([^—]+)/)?.[1]?.trim()||"Hasta yok"}</div></div>
@@ -4141,6 +4412,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
                 <div className="text-sm text-slate-400">{displayLocationName(hospital)||surgery.hospital||"—"}</div>
                 <div className="text-sm text-slate-400 truncate">{invoiceTeam}</div>
                 <div className="text-sm font-black text-rose2">{h.quantity}</div>
+                <button onClick={()=>printInvoiceRecord({h,urun,surgery,hospital})} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Yazdır</button>
               </div>
             );
         })}
