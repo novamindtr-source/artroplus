@@ -389,6 +389,31 @@ const normalizeMovement=(h,defaultHospitalId)=>({
   notes:h.notes||h.aciklama||"",
   surgery_id:h.surgery_id||null,
 });
+const LOCAL_MOVEMENTS_KEY="artroplus_local_movements_v1";
+const readLocalMovements=()=>{
+  try{return JSON.parse(localStorage.getItem(LOCAL_MOVEMENTS_KEY)||"[]")||[];}
+  catch{return [];}
+};
+const writeLocalMovements=rows=>{
+  try{localStorage.setItem(LOCAL_MOVEMENTS_KEY,JSON.stringify(rows));}
+  catch{}
+};
+const movementFromPayload=payload=>({
+  id:`local-mov-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  urun_id:payload.urun_id,
+  miktar:payload.miktar,
+  aciklama:payload.aciklama||payload.notes||"",
+  created_at:new Date().toISOString(),
+  local:true
+});
+const rememberLocalMovement=payload=>{
+  const rows=Array.isArray(payload)?payload.map(movementFromPayload):[movementFromPayload(payload)];
+  writeLocalMovements([...rows,...readLocalMovements()].slice(0,500));
+};
+const mergeLocalMovements=(serverRows,defaultHospitalId)=>[
+  ...(serverRows||[]),
+  ...readLocalMovements()
+].map(h=>normalizeMovement(h,defaultHospitalId));
 const movementPayload=({urun_id,hospital_id,lot,type,quantity,notes,surgery_id,fatura_id})=>({
   urun_id,
   miktar:type==="out"?-Math.abs(Number(quantity)||0):Math.abs(Number(quantity)||0),
@@ -400,7 +425,20 @@ const movementPayload=({urun_id,hospital_id,lot,type,quantity,notes,surgery_id,f
     fatura_id?`FATURA_ID:${fatura_id}`:"",
   ].filter(Boolean).join(" — "),
 });
-const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,[],{select:false});
+const REMOTE_MOVEMENTS_ENABLED=false;
+const insertMovement=async(payload)=>{
+  if(!REMOTE_MOVEMENTS_ENABLED){
+    rememberLocalMovement(payload);
+    return {data:null,error:null,local:true};
+  }
+  const res=await insertWithSchemaFallback("hareketler",payload,[],{select:false});
+  if(res.error){
+    rememberLocalMovement(payload);
+    console.warn("Hareket DB'ye yazılamadı, yerel kayda alındı:",res.error.message);
+    return {data:null,error:null,local:true,remoteError:res.error};
+  }
+  return res;
+};
 const isDuplicateError=error=>String(error?.message||"").toLowerCase().includes("duplicate")||String(error?.code||"")==="23505";
 const findExistingProductByForm=async(form)=>{
   if(form.code){
@@ -3608,7 +3646,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   const loadH=async()=>{
     const{data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(300);
     const defaultHospitalId=findCompanyShelf(hospitals)?.id||"company-shelf-local";
-    setHareketler((data||[]).map(h=>normalizeMovement(h,defaultHospitalId)));
+    setHareketler(mergeLocalMovements(data||[],defaultHospitalId));
   };
 
   const rows=useMemo(()=>stoklar.map(s=>({
@@ -3709,12 +3747,12 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
       else{await insertStockQuantity(op.urun_id,targetId,qty,op.lot,null,null,displayLocationName(hospitals.find(h=>h.id===targetId))||"Ana Depo");}
       if(op.lot)rememberLocalStockLot({urun_id:op.urun_id,hospital_id:targetId,lot:op.lot,quantity:qty});
-      await insertWithSchemaFallback("hareketler",[
+      await insertMovement([
         movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,
           notes:`${MOV_TAGS.RETURN} → ${hospitals.find(h=>h.id===targetId)?.name||COMPANY_SHELF_NAME} ${op.notes||""}`.trim()}),
         movementPayload({urun_id:op.urun_id,hospital_id:targetId,lot:op.lot,type:"in",quantity:qty,
           notes:`${MOV_TAGS.RETURN} ← ${hospitals.find(h=>h.id===op.from_id)?.name||""} ${op.notes||""}`.trim()}),
-      ],["hospital_id","lot","surgery_id","fatura_id"],{select:false});
+      ]);
       toast(`${qty} ${urun?.unit||"adet"} geri alındı ✓`,"success");
     }
 
@@ -4300,7 +4338,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const load=async()=>{
     const{data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(500);
     const defaultHospitalId=findCompanyShelf(hospitals)?.id||"company-shelf-local";
-    setHareketler((data||[]).map(h=>normalizeMovement(h,defaultHospitalId)));
+    setHareketler(mergeLocalMovements(data||[],defaultHospitalId));
   };
 
   const filtered=hareketler.filter(h=>{
@@ -4496,7 +4534,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   const load=async()=>{
     const {data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(500);
     const defaultHospitalId=findCompanyShelf(hospitals)?.id||"company-shelf-local";
-    setRecords((data||[]).map(h=>normalizeMovement(h,defaultHospitalId)).filter(h=>h.notes?.includes("[FATURA]")||h.surgery_id));
+    setRecords(mergeLocalMovements(data||[],defaultHospitalId).filter(h=>h.notes?.includes("[FATURA]")||h.surgery_id));
   };
   useEffect(()=>{load();},[]);
 
