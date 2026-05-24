@@ -256,27 +256,41 @@ const findStockRow=(stoklar,urunId,hospitalId,lot="")=>stoklar.find(s=>
 );
 const updateStockQuantity=(row,quantity)=>SB.from("stok").update({miktar:Number(quantity)||0}).eq("id",row.id);
 const isMissingColumnError=error=>/column .* does not exist|schema cache|could not find .* column|column .* not found/i.test(error?.message||"");
+const missingColumnName=error=>{
+  const msg=error?.message||"";
+  return msg.match(/column ["']?([a-zA-Z0-9_]+)["']? (?:does not exist|not found)/i)?.[1]||
+    msg.match(/could not find .* column ["']?([a-zA-Z0-9_]+)["']?/i)?.[1]||
+    msg.match(/["']([a-zA-Z0-9_]+)["'] column/i)?.[1]||
+    "";
+};
 const insertWithSchemaFallback=async(table,payload,fallbackKeys=[])=>{
-  let {data,error}=await SB.from(table).insert(payload).select();
-  if(error&&isMissingColumnError(error)&&fallbackKeys.length){
+  let current=payload;
+  let {data,error}=await SB.from(table).insert(current).select();
+  const removed=new Set();
+  while(error&&isMissingColumnError(error)&&fallbackKeys.length){
+    const missing=missingColumnName(error);
+    const keysToStrip=missing&&fallbackKeys.includes(missing)?[missing]:fallbackKeys.filter(k=>!removed.has(k)).slice(0,1);
+    if(!keysToStrip.length)break;
+    keysToStrip.forEach(k=>removed.add(k));
     const strip=item=>{
       const fallback={...item};
-      fallbackKeys.forEach(k=>delete fallback[k]);
+      keysToStrip.forEach(k=>delete fallback[k]);
       return fallback;
     };
-    const fallback=Array.isArray(payload)?payload.map(strip):strip(payload);
-    ({data,error}=await SB.from(table).insert(fallback).select());
+    current=Array.isArray(current)?current.map(strip):strip(current);
+    ({data,error}=await SB.from(table).insert(current).select());
   }
   return {data,error};
 };
-const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=null)=>insertWithSchemaFallback("stok",{
+const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=null,hospitalName="")=>insertWithSchemaFallback("stok",{
   urun_id:urunId,
   hospital_id:hospitalId||null,
+  hastane:hospitalName||hospitalId||"Ana Depo",
   lot:lot||null,
   skt:skt||null,
   mfg_date:mfgDate||null,
   miktar:Number(quantity)||0
-},["hospital_id","lot","skt","mfg_date"]);
+},["hospital_id","hastane","lot","skt","mfg_date"]);
 const normalizeMovement=(h,defaultHospitalId)=>({
   ...h,
   hospital_id:h.hospital_id||defaultHospitalId,
@@ -2100,6 +2114,14 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q)||lots.includes(q);
   });
   const stockRowsForProduct=urunId=>stoklar.filter(s=>s.urun_id===urunId&&Number(s.quantity||0)>0);
+  const scanMissingFields=(source=scanResult,form=f)=>{
+    const missing=[];
+    if(!(form.code||source?.ref||source?.gtin))missing.push("REF");
+    if(!(form.lot||source?.lot))missing.push("LOT");
+    if(!(form.expiryDate||source?.expiryDate))missing.push("SKT");
+    if(!(Number(form.initialStockQty||source?.qty)||0))missing.push("Adet");
+    return missing;
+  };
 
   // ── Barkod okuma ─────────────────────────────────────────────────────────
   const doScan=(raw)=>{
@@ -2188,6 +2210,15 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   // ── Kaydet ───────────────────────────────────────────────────────────────
   const save=async()=>{
     const normalizedForm={...f,name:productNameForSave()};
+    const missing=scanMissingFields(scanResult,normalizedForm);
+    if(normalizedForm.addInitialStock&&missing.includes("REF")){
+      toast("REF okunmadan ürün kaydedilemez. Etiketi tekrar okutun veya REF alanını doldurun.","warning");
+      return;
+    }
+    if(normalizedForm.addInitialStock&&(missing.includes("LOT")||missing.includes("SKT"))){
+      toast(`Eksik bilgi var: ${missing.join(", ")}. Barkod eksik okunduysa Fotoğraftan Oku veya Kareyi Tara kullanın.`,"warning");
+      return;
+    }
 
     let urunId=null;
     const isNew=modal===true&&!matchedUrun;
@@ -2263,7 +2294,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         const {error}=await updateStockQuantity(existing,(existing.quantity||0)+qty);
         stockError=error;
       }else{
-        const {error}=await insertStockQuantity(urunId,shelf.id,qty,f.lot,f.expiryDate,f.mfgDate);
+        const {error}=await insertStockQuantity(urunId,shelf.id,qty,f.lot,f.expiryDate,f.mfgDate,displayLocationName(shelf)||"Ana Depo");
         stockError=error;
       }
       if(stockError)return toast("Ürün eklendi fakat stok kaydedilemedi: "+stockError.message,"error");
@@ -2302,6 +2333,8 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
 
   const isExpiredScan=scanResult?.expiryDate&&new Date(scanResult.expiryDate)<new Date();
   const daysLeft=scanResult?.expiryDate?Math.floor((new Date(scanResult.expiryDate)-new Date())/86400000):null;
+  const currentMissing=scanMissingFields(scanResult,f);
+  const isIncompleteScan=!!scanResult&&currentMissing.length>0;
   const modalTitle=scanStatus==="exists"?`Stok Ekle — ${matchedUrun?.name}`:
     scanStatus==="new"?"Yeni Ürün (Barkoddan)":
     modal===true?"Yeni Ürün":"Ürünü Düzenle";
@@ -2331,29 +2364,35 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
 
             {/* Barkod sonucu bilgi kutusu */}
             {scanResult&&(
-              <div className={`rounded-xl p-3 border fade-up ${isExpiredScan?"bg-rose2/10 border-rose2/30":scanStatus==="exists"?"bg-amber2/10 border-amber2/25":"bg-emerald2/8 border-emerald2/25"}`}>
+              <div className={`rounded-xl p-3 border fade-up ${isExpiredScan?"bg-rose2/10 border-rose2/30":isIncompleteScan?"bg-amber2/10 border-amber2/30":scanStatus==="exists"?"bg-amber2/10 border-amber2/25":"bg-emerald2/8 border-emerald2/25"}`}>
                 <div className="flex items-center gap-2 mb-2.5">
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
                     isExpiredScan?"bg-rose2/20 text-rose2 border-rose2/30":
+                    isIncompleteScan?"bg-amber2/20 text-amber2 border-amber2/30":
                     scanStatus==="exists"?"bg-amber2/20 text-amber2 border-amber2/30":
                     "bg-emerald2/20 text-emerald2 border-emerald2/30"}`}>
-                    {isExpiredScan?"⚠ SKT GEÇMİŞ":scanStatus==="exists"?"↻ Mevcut Ürün Bulundu":"✓ Yeni Ürün Barkoddan"}
+                    {isExpiredScan?"⚠ SKT GEÇMİŞ":isIncompleteScan?`⚠ Eksik Bilgi: ${currentMissing.join(", ")}`:scanStatus==="exists"?"↻ Mevcut Ürün Bulundu":"✓ Yeni Ürün Barkoddan"}
                   </span>
                   {scanStatus==="exists"&&<span className="text-xs text-slate-400">Sadece stok eklenecek</span>}
                 </div>
+                {isIncompleteScan&&(
+                  <div className="mb-2 rounded-lg bg-amber2/10 border border-amber2/20 px-3 py-2 text-xs text-amber2">
+                    Barkod eksik okundu. Kamera ekranında <b>Fotoğraftan Oku</b> veya <b>Kareyi Tara</b> kullanın; olmazsa eksik alanları manuel doldurun.
+                  </div>
+                )}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    {l:"REF",v:scanResult.ref||scanResult.gtin?.slice(-8)||"—"},
+                    {l:"REF",v:f.code||scanResult.ref||scanResult.gtin?.slice(-8)||"—",warn:currentMissing.includes("REF")},
                     {l:"UDI",v:scanResult.udi||"—"},
-                    {l:"Lot",v:scanResult.lot||"—"},
+                    {l:"Lot",v:f.lot||scanResult.lot||"—",warn:currentMissing.includes("LOT")},
                     {l:"Seri",v:scanResult.serial||"—"},
-                    {l:"SKT",v:scanResult.expiryDate||"—",warn:isExpiredScan},
-                    {l:"Üretim",v:scanResult.mfgDate||"—"},
-                    {l:"Adet",v:String(scanResult.qty||1)},
+                    {l:"SKT",v:f.expiryDate||scanResult.expiryDate||"—",warn:isExpiredScan||currentMissing.includes("SKT")},
+                    {l:"Üretim",v:f.mfgDate||scanResult.mfgDate||"—"},
+                    {l:"Adet",v:String(f.initialStockQty||scanResult.qty||1),warn:currentMissing.includes("Adet")},
                   ].map(r=>(
                     <div key={r.l} className="bg-navy-800 rounded-lg p-2">
                       <div className="text-[9px] text-slate-500 mb-0.5">{r.l}</div>
-                      <div className={`text-xs font-bold truncate ${r.warn?"text-rose2":"text-white"}`}>{r.v}</div>
+                      <div className={`text-xs font-bold truncate ${r.warn?"text-amber2":"text-white"}`}>{r.v}</div>
                     </div>
                   ))}
                 </div>
@@ -3440,7 +3479,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${hospitals.find(h=>h.id===op.to_id)?.name||""} ${op.notes||""}`.trim()}));
       }
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
-      else{await insertStockQuantity(op.urun_id,op.to_id,qty,op.lot);}
+      else{await insertStockQuantity(op.urun_id,op.to_id,qty,op.lot,null,null,displayLocationName(hospitals.find(h=>h.id===op.to_id)));}
       await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.to_id,lot:op.lot,type:"in",quantity:qty,
         notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${op.notes||""}`.trim()}));
       toast(`${qty} ${urun?.unit||"adet"} hastaneye gönderildi ✓`,"success");
@@ -3464,7 +3503,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       const toStok=findStockRow(stoklar,op.urun_id,targetId,op.lot);
       await updateStockQuantity(fromStok,fromStok.quantity-qty);
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
-      else{await insertStockQuantity(op.urun_id,targetId,qty,op.lot);}
+      else{await insertStockQuantity(op.urun_id,targetId,qty,op.lot,null,null,displayLocationName(hospitals.find(h=>h.id===targetId))||"Ana Depo");}
       await insertWithSchemaFallback("hareketler",[
         movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,
           notes:`${MOV_TAGS.RETURN} → ${hospitals.find(h=>h.id===targetId)?.name||COMPANY_SHELF_NAME} ${op.notes||""}`.trim()}),
@@ -4078,7 +4117,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       const newQ=d.type==="in"?stok.quantity+qty:Math.max(0,stok.quantity-qty);
       await updateStockQuantity(stok,newQ);
     }else if(d.type==="in"){
-      await insertStockQuantity(d.urun_id,d.hospital_id,qty,d.lot||"");
+      await insertStockQuantity(d.urun_id,d.hospital_id,qty,d.lot||"",null,null,displayLocationName(hospitals.find(h=>h.id===d.hospital_id)));
     }
     toast("Hareket kaydedildi ✓","success");
     setModal(false);loadAll();load();
