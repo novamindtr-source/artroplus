@@ -233,6 +233,7 @@ const normalizeProduct=u=>({
   min_stock:u.min_stock??u.min_stok??0,
   category:u.category||u.kategori||"",
   description:u.description||u.aciklama||"",
+  manufacturer:u.manufacturer||u.uretici||"",
 });
 const productPayload=f=>({
   ad:((f.name||"").trim()||f.code||f.gtin||f.udi||"İsimsiz Ürün"),
@@ -240,12 +241,14 @@ const productPayload=f=>({
   birim:f.unit||"adet",
   min_stok:Number(f.min_stock)||0,
   kategori:f.category||null,
+  aciklama:f.description||null,
 });
 const normalizeStock=(s,defaultHospitalId)=>({
   ...s,
+  urun_id:s.urun_id||s.product_id||s.urun||s.product||s.kod||"",
   hospital_id:s.hospital_id||defaultHospitalId,
   quantity:s.quantity??s.miktar??s.qty??0,
-  lot:s.lot||s.lot_number||s.parti_no||"",
+  lot:s.lot||s.lot_number||s.parti_no||s.lot_no||s.parti||"",
   skt:s.skt||s.expiryDate||s.expiry_date||s.son_kullanma||null,
   mfg_date:s.mfg_date||s.mfgDate||s.uretim_tarihi||null,
 });
@@ -280,6 +283,23 @@ const insertWithSchemaFallback=async(table,payload,fallbackKeys=[],options={sele
     };
     current=Array.isArray(current)?current.map(strip):strip(current);
     ({data,error}=await doInsert());
+  }
+  return {data,error};
+};
+const updateWithSchemaFallback=async(table,payload,applyQuery,fallbackKeys=[])=>{
+  let current=payload;
+  let query=applyQuery(SB.from(table).update(current));
+  let {data,error}=await query.select();
+  const removed=new Set();
+  while(error&&isMissingColumnError(error)&&fallbackKeys.length){
+    const missing=missingColumnName(error);
+    const keysToStrip=missing&&fallbackKeys.includes(missing)?[missing]:fallbackKeys.filter(k=>!removed.has(k)).slice(0,1);
+    if(!keysToStrip.length)break;
+    keysToStrip.forEach(k=>removed.add(k));
+    current={...current};
+    keysToStrip.forEach(k=>delete current[k]);
+    query=applyQuery(SB.from(table).update(current));
+    ({data,error}=await query.select());
   }
   return {data,error};
 };
@@ -2120,13 +2140,18 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     addInitialStock:false,initialStockQty:1,initialStockHospital:"",
     lot:"",expiryDate:"",mfgDate:""};
   const [f,setF]=useState(emptyForm);
+  const [localStockRows,setLocalStockRows]=useState([]);
 
+  const allStockRows=useMemo(()=>{
+    const hasServer=local=>stoklar.some(s=>s.urun_id===local.urun_id&&s.hospital_id===local.hospital_id&&normalizeLot(s.lot)===normalizeLot(local.lot));
+    return [...stoklar,...localStockRows.filter(r=>!hasServer(r))];
+  },[stoklar,localStockRows]);
   const filtered=urunler.filter(u=>{
     const q=search.toLowerCase();
-    const lots=stoklar.filter(s=>s.urun_id===u.id).map(s=>s.lot).join(" ").toLowerCase();
-    return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q)||lots.includes(q);
+    const lots=allStockRows.filter(s=>s.urun_id===u.id).map(s=>s.lot).join(" ").toLowerCase();
+    return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q)||u.description?.toLowerCase().includes(q)||lots.includes(q);
   });
-  const stockRowsForProduct=urunId=>stoklar.filter(s=>s.urun_id===urunId&&Number(s.quantity||0)>0);
+  const stockRowsForProduct=urunId=>allStockRows.filter(s=>s.urun_id===urunId&&Number(s.quantity||0)>0);
   const scanMissingFields=(source=scanResult,form=f)=>{
     const missing=[];
     if(!(form.code||source?.ref||source?.gtin))missing.push("REF");
@@ -2219,10 +2244,20 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     (f.udi?`UDI ${String(f.udi).slice(0,32)}`:"")||
     "İsimsiz Ürün"
   );
+  const detailDescription=form=>[
+    form.description||"",
+    form.manufacturer?`Üretici: ${form.manufacturer}`:"",
+    form.gtin?`GTIN: ${form.gtin}`:"",
+    form.udi?`UDI/Barkod: ${form.udi}`:"",
+    form.lot?`LOT: ${form.lot}`:"",
+    form.mfgDate?`Üretim: ${form.mfgDate}`:"",
+    form.expiryDate?`SKT: ${form.expiryDate}`:"",
+  ].filter(Boolean).join("\n");
 
   // ── Kaydet ───────────────────────────────────────────────────────────────
   const save=async()=>{
     const normalizedForm={...f,name:productNameForSave()};
+    normalizedForm.description=detailDescription(normalizedForm);
     const missing=scanMissingFields(scanResult,normalizedForm);
     if(normalizedForm.addInitialStock&&missing.includes("REF")){
       toast("REF okunmadan ürün kaydedilemez. Etiketi tekrar okutun veya REF alanını doldurun.","warning");
@@ -2249,17 +2284,10 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         return;
       }
       // Yeni ürün ekle
-      const detailLines=[
-        normalizedForm.description||"",
-        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
-        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
-        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
-        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
-        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
-        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
-      ].filter(Boolean);
-      const payload=productPayload({...normalizedForm,description:detailLines.join("\n")});
-      const{data,error}=await SB.from("urunler").insert(payload).select().single();
+      const payload=productPayload(normalizedForm);
+      const inserted=await insertWithSchemaFallback("urunler",payload,["aciklama"],{select:true});
+      const data=Array.isArray(inserted.data)?inserted.data[0]:inserted.data;
+      const error=inserted.error;
       if(error){
         if(isDuplicateError(error)){
           const existing=await findExistingProductByForm(normalizedForm);
@@ -2275,31 +2303,13 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       }
     }else if(matchedUrun){
       // Mevcut ürünü güncelle
-      const detailLines=[
-        normalizedForm.description||"",
-        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
-        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
-        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
-        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
-        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
-        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
-      ].filter(Boolean);
-      const{error}=await SB.from("urunler").update(productPayload({...normalizedForm,description:detailLines.join("\n")})).eq("id",matchedUrun.id);
+      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",matchedUrun.id),["aciklama"]);
       if(error)return toast(error.message,"error");
       urunId=matchedUrun.id;
       toast("Ürün güncellendi ✓","success");
     }else{
       // Edit mode
-      const detailLines=[
-        normalizedForm.description||"",
-        normalizedForm.manufacturer?`Üretici: ${normalizedForm.manufacturer}`:"",
-        normalizedForm.gtin?`GTIN: ${normalizedForm.gtin}`:"",
-        normalizedForm.udi?`UDI/Barkod: ${normalizedForm.udi}`:"",
-        normalizedForm.lot?`LOT: ${normalizedForm.lot}`:"",
-        normalizedForm.mfgDate?`Üretim: ${normalizedForm.mfgDate}`:"",
-        normalizedForm.expiryDate?`SKT: ${normalizedForm.expiryDate}`:"",
-      ].filter(Boolean);
-      const{error}=await SB.from("urunler").update(productPayload({...normalizedForm,description:detailLines.join("\n")})).eq("id",modal.id);
+      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",modal.id),["aciklama"]);
       if(error)return toast(error.message,"error");
       urunId=modal.id;
       toast("Güncellendi ✓","success");
@@ -2321,6 +2331,21 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         stockError=error;
       }
       if(stockError)return toast("Ürün eklendi fakat stok kaydedilemedi: "+stockError.message,"error");
+      const optimisticStock={
+        id:`local-${urunId}-${f.lot||"nolot"}-${Date.now()}`,
+        urun_id:urunId,
+        hospital_id:shelf.id,
+        lot:f.lot||"",
+        skt:f.expiryDate||null,
+        mfg_date:f.mfgDate||null,
+        quantity:qty,
+        local:true
+      };
+      setLocalStockRows(prev=>{
+        const idx=prev.findIndex(r=>r.urun_id===urunId&&r.hospital_id===shelf.id&&normalizeLot(r.lot)===normalizeLot(f.lot));
+        if(idx>=0)return prev.map((r,i)=>i===idx?{...r,quantity:(Number(r.quantity)||0)+qty,skt:f.expiryDate||r.skt,mfg_date:f.mfgDate||r.mfg_date}:r);
+        return [optimisticStock,...prev];
+      });
       const note=`Ana depo girişi${f.udi?` — UDI:${f.udi}`:""}${f.code?` — REF:${f.code}`:""}${f.lot?` — LOT:${f.lot}`:""}${f.mfgDate?` — ÜRT:${f.mfgDate}`:""}${f.expiryDate?` — SKT:${f.expiryDate}`:""}`;
       const {error:movementError}=await insertMovement(movementPayload({urun_id:urunId,hospital_id:shelf.id,lot:f.lot,type:"in",quantity:qty,notes:note}));
       if(movementError)toast("Stok eklendi ama hareket kaydı yazılamadı: "+movementError.message,"warning");
@@ -2348,7 +2373,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     toast("Silindi","success");setDelConf(null);loadAll();
   };
 
-  const totalStok=(id)=>stoklar.filter(s=>s.urun_id===id).reduce((a,b)=>a+(b.quantity||0),0);
+  const totalStok=(id)=>allStockRows.filter(s=>s.urun_id===id).reduce((a,b)=>a+(b.quantity||0),0);
   const minStok=(u)=>u.min_stock||0;
   const critical=urunler.filter(u=>totalStok(u.id)>0&&totalStok(u.id)<=minStok(u)).length;
   const empty2=urunler.filter(u=>totalStok(u.id)===0).length;
@@ -2597,7 +2622,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{background:sc+"20",color:sc}}>⬡</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-mono font-bold text-white truncate">{u.code||"REF yok"}</div>
-                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${stockLotLabel(r)} (${r.quantity})`).join(" · "):"LOT yok"}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
+                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${stockLotLabel(r)}${r.skt?` / SKT ${r.skt}`:""} (${r.quantity})`).join(" · "):(u.description?.match(/LOT:\s*([^\n]+)/)?.[1]?`LOT ${u.description.match(/LOT:\s*([^\n]+)/)?.[1]}`:"LOT yok")}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sb} flex-shrink-0`}>{stok} {u.unit}</span>
               </div>
@@ -2610,9 +2635,13 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="flex flex-wrap gap-1.5">
                   {lotRows.length?lotRows.slice(0,4).map(r=>(
                     <span key={r.id||`${r.urun_id}-${r.hospital_id}-${r.lot}`} className="px-2 py-0.5 rounded-lg bg-navy-800 text-xs border border-white/8 text-slate-300">
-                      <b className="text-brand-300 font-mono">{r.lot||"LOT yok"}</b> · {r.quantity} {u.unit}
+                      <b className="text-brand-300 font-mono">{r.lot||"LOT yok"}</b>{r.skt?` · SKT ${r.skt}`:""} · {r.quantity} {u.unit}
                     </span>
-                  )):<span className="text-sm text-slate-500">LOT yok</span>}
+                  )):(u.description?.match(/LOT:\s*([^\n]+)/)?.[1]?(
+                    <span className="px-2 py-0.5 rounded-lg bg-amber2/10 text-xs border border-amber2/20 text-amber2">
+                      Katalog: LOT {u.description.match(/LOT:\s*([^\n]+)/)?.[1]}{u.description.match(/SKT:\s*([^\n]+)/)?.[1]?` · SKT ${u.description.match(/SKT:\s*([^\n]+)/)?.[1]}`:""}
+                    </span>
+                  ):<span className="text-sm text-slate-500">LOT yok</span>)}
                 </div>
                 <div className="text-sm font-black" style={{color:sc}}>{stok} {u.unit}</div>
                 <div>
