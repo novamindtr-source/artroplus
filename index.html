@@ -2282,6 +2282,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     lot:"",expiryDate:"",mfgDate:""};
   const [f,setF]=useState(emptyForm);
   const [localStockRows,setLocalStockRows]=useState([]);
+  const [stockEdit,setStockEdit]=useState(null);
 
   const allStockRows=useMemo(()=>{
     const hasServer=local=>stoklar.some(s=>s.urun_id===local.urun_id&&s.hospital_id===local.hospital_id&&normalizeLot(s.lot)===normalizeLot(local.lot));
@@ -2293,6 +2294,39 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
     return !search||u.name.toLowerCase().includes(q)||u.code?.toLowerCase().includes(q)||u.manufacturer?.toLowerCase().includes(q)||u.description?.toLowerCase().includes(q)||lots.includes(q);
   });
   const stockRowsForProduct=urunId=>allStockRows.filter(s=>s.urun_id===urunId&&Number(s.quantity||0)>0);
+  const openStockEdit=(u,row=null)=>{
+    const firstRow=row||stockRowsForProduct(u.id)[0]||null;
+    setStockEdit({
+      product:u,
+      row:firstRow,
+      lot:firstRow?.lot||"",
+      hospital_id:firstRow?.hospital_id||"",
+      quantity:Number(firstRow?.quantity||0),
+      min_stock:Number(u.min_stock||0),
+      skt:firstRow?.skt||"",
+    });
+  };
+  const saveStockEdit=async()=>{
+    if(!stockEdit)return;
+    const product=stockEdit.product;
+    const qty=Math.max(0,Number(stockEdit.quantity)||0);
+    const minQty=Math.max(0,Number(stockEdit.min_stock)||0);
+    const prodUpdate=await updateWithSchemaFallback("urunler",{min_stok:minQty},q=>q.eq("id",product.id),[]);
+    if(prodUpdate.error)return toast(prodUpdate.error.message,"error");
+    if(stockEdit.row){
+      const stockUpdate=await updateStockQuantity(stockEdit.row,qty);
+      if(stockUpdate.error)return toast(stockUpdate.error.message,"error");
+      if(stockEdit.lot)setLocalStockLotQuantity({...stockEdit.row,lot:stockEdit.lot,skt:stockEdit.skt},qty);
+    }else if(stockEdit.lot){
+      const target=stockEdit.hospital_id||visibleHospitals[0]?.id||"company-shelf-local";
+      const ins=await insertStockQuantity(product.id,target,qty,stockEdit.lot,stockEdit.skt||null,null,displayLocationName(visibleHospitals.find(h=>h.id===target))||"Ana Depo");
+      if(ins.error)return toast(ins.error.message,"error");
+      rememberLocalStockLot({urun_id:product.id,hospital_id:target,lot:stockEdit.lot,skt:stockEdit.skt||null,quantity:qty});
+    }
+    toast("Stok durumu güncellendi","success");
+    setStockEdit(null);
+    loadAll();
+  };
   const scanMissingFields=(source=scanResult,form=f)=>{
     const missing=[];
     if(!(form.code||source?.ref||source?.gtin))missing.push("REF");
@@ -2534,6 +2568,29 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
   return(
     <div className="space-y-5">
       {cameraModal&&<BarcodeCameraModal onDetected={doScan} onClose={()=>setCameraModal(false)}/>}
+      {stockEdit&&(
+        <Modal title="Stok Durumu Düzenle" onClose={()=>setStockEdit(null)} size="md"
+          footer={<div className="flex gap-2"><button onClick={()=>setStockEdit(null)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={saveStockEdit} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Kaydet</button></div>}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-navy-900/60 border border-white/8 p-3">
+                <div className="text-xs text-slate-500">REF</div>
+                <div className="text-sm font-mono font-bold text-white">{stockEdit.product.code||"REF yok"}</div>
+              </div>
+              <div className="rounded-xl bg-navy-900/60 border border-white/8 p-3">
+                <div className="text-xs text-slate-500">LOT</div>
+                <div className="text-sm font-mono font-bold text-brand-300">{stockEdit.lot||"LOT yok"}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><Label>LOT Numarası</Label><Input value={stockEdit.lot} onChange={e=>setStockEdit(p=>({...p,lot:e.target.value}))} className="font-mono"/></div>
+              <div><Label>SKT</Label><Input type="date" value={stockEdit.skt||""} onChange={e=>setStockEdit(p=>({...p,skt:e.target.value}))}/></div>
+              <div><Label>Mevcut Adet</Label><Input type="number" min="0" value={stockEdit.quantity} onChange={e=>setStockEdit(p=>({...p,quantity:e.target.value}))}/></div>
+              <div><Label>Kritik Stok Limiti</Label><Input type="number" min="0" value={stockEdit.min_stock} onChange={e=>setStockEdit(p=>({...p,min_stock:e.target.value}))}/></div>
+            </div>
+          </div>
+        </Modal>
+      )}
       {delConf&&(
         <Modal title="Ürünü Sil" onClose={()=>setDelConf(null)} size="sm"
           footer={<div className="flex gap-2">
@@ -2735,7 +2792,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       {/* Filters */}
       <div className="card rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ürün ara (ad, kod, üretici)..." className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="REF veya LOT ara..." className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">⌕</span>
         </div>
       </div>
@@ -2766,7 +2823,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{background:sc+"20",color:sc}}>⬡</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-mono font-bold text-white truncate">{u.code||"REF yok"}</div>
-                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${stockLotLabel(r)}${r.skt?` / SKT ${r.skt}`:""} (${r.quantity})`).join(" · "):(u.description?.match(/LOT:\s*([^\n]+)/)?.[1]?`LOT ${u.description.match(/LOT:\s*([^\n]+)/)?.[1]}`:"LOT yok")}{u.manufacturer?` · ${u.manufacturer}`:""}</div>
+                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${stockLotLabel(r)}${r.skt?` / SKT ${r.skt}`:""} (${r.quantity})`).join(" · "):(u.description?.match(/LOT:\s*([^\n]+)/)?.[1]?`LOT ${u.description.match(/LOT:\s*([^\n]+)/)?.[1]}`:"LOT yok")}</div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${sb} flex-shrink-0`}>{stok} {u.unit}</span>
               </div>
@@ -2774,7 +2831,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
               <div className="hidden lg:grid grid-cols-[1.2fr_1.6fr_.7fr_1fr_auto] items-center gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-mono font-bold text-white truncate">{u.code||"REF yok"}</div>
-                  <div className="text-xs text-slate-500 truncate">{u.manufacturer||""}{u.name?` · ${u.name}`:""}</div>
+                  <div className="text-xs text-slate-500 truncate">{lotRows.length?lotRows.map(r=>`${r.lot||"LOT yok"}${r.skt?` · SKT ${r.skt}`:""}`).join(" · "):"LOT yok"}</div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {lotRows.length?lotRows.slice(0,4).map(r=>(
@@ -2790,7 +2847,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                 <div className="text-sm font-black" style={{color:sc}}>{stok} {u.unit}</div>
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${sb}`}>{sl}</span>
+                    <button onClick={e=>{e.stopPropagation();openStockEdit(u,lotRows[0]||null);}} className={`px-2 py-0.5 rounded-full text-xs font-bold border ${sb}`}>{sl} · Düzenle</button>
                     <span className="text-sm font-bold" style={{color:sc}}>{stok} {u.unit}</span>
                   </div>
                   {min>0&&(
@@ -2803,6 +2860,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
                   )}
                 </div>
                 <div className="flex gap-1" onClick={e=>e.stopPropagation()}>
+                  <button onClick={()=>openStockEdit(u,lotRows[0]||null)} className="px-2 h-7 rounded-lg hover:bg-emerald2/20 text-slate-500 hover:text-emerald2 flex items-center justify-center text-xs font-bold">Stok</button>
                   <button onClick={()=>openEdit(u)} className="w-7 h-7 rounded-lg hover:bg-brand/20 text-slate-500 hover:text-brand-300 flex items-center justify-center text-sm">✎</button>
                   <button onClick={()=>setDelConf(u.id)} className="w-7 h-7 rounded-lg hover:bg-rose2/20 text-slate-500 hover:text-rose2 flex items-center justify-center text-sm">⊗</button>
                 </div>
