@@ -299,6 +299,10 @@ const setLocalStockLotQuantity=(row,quantity)=>{
   else rows.unshift(normalized);
   writeLocalStockLots(rows);
 };
+const removeLocalStockLot=row=>{
+  if(!row?.urun_id)return;
+  writeLocalStockLots(readLocalStockLots().filter(r=>!sameStockIdentity(r,row)));
+};
 const mergeLocalStockLots=(serverRows,defaultHospitalId)=>{
   const normalizedServer=(serverRows||[]).map(s=>normalizeStock(s,defaultHospitalId));
   const localRows=readLocalStockLots();
@@ -326,6 +330,11 @@ const updateStockQuantity=async(row,quantity)=>{
   if(row?.lot)setLocalStockLotQuantity(row,nextQty);
   if(row?.local||String(row?.id||"").startsWith("local-"))return {error:null};
   return SB.from("stok").update({miktar:nextQty}).eq("id",row.id);
+};
+const deleteStockRow=async(row)=>{
+  if(row?.lot)removeLocalStockLot(row);
+  if(row?.local||String(row?.id||"").startsWith("local-"))return {error:null};
+  return SB.from("stok").delete().eq("id",row.id);
 };
 const isMissingColumnError=error=>/column .* does not exist|schema cache|could not find .* column|column .* not found/i.test(error?.message||"");
 const missingColumnName=error=>{
@@ -3780,6 +3789,22 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     toast("Stok güncellendi ✓","success");
     setAdjustModal(null);loadAll();loadH();
   };
+  const removeStock=async(row)=>{
+    const label=`${row.urun?.code||"REF yok"} / ${row.lot||"LOT yok"} / ${displayLocationName(row.hospital)||row.hospital?.name||"Depo yok"}`;
+    if(!confirm(`${label} stok satırı silinsin mi?`))return;
+    const {error}=await deleteStockRow(row);
+    if(error)return toast(error.message,"error");
+    await insertMovement(movementPayload({
+      urun_id:row.urun_id,
+      hospital_id:row.hospital_id,
+      lot:row.lot,
+      type:"out",
+      quantity:row.quantity||0,
+      notes:`${MOV_TAGS.ADJUST} Stok satırı silindi`
+    }));
+    toast("Stok satırı silindi","success");
+    loadAll();loadH();
+  };
 
   // Ana işlem kaydetme
   const saveOp=async()=>{
@@ -4249,6 +4274,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                   <div className="flex flex-wrap gap-1.5">
                     <button onClick={()=>{setAf({quantity:r.quantity,notes:""});setAdjustModal(r);}} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Düzenle</button>
                     <button onClick={()=>{setOp({...emptyOp,op:"shelf_to_hospital",urun_id:r.urun_id,from_id:r.hospital_id,lot:r.lot});setOpModal(true);}} className="px-2.5 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 text-xs font-bold border border-white/8">Hareket</button>
+                    <button onClick={()=>removeStock(r)} className="px-2.5 py-1.5 rounded-lg bg-rose2/15 hover:bg-rose2/25 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
                   </div>
                 </div>
               );
@@ -4277,13 +4303,13 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                   const isEmpty=r.quantity===0,isLow=r.quantity>0&&r.quantity<=(r.urun.min_stock||0);
                   const sc=isEmpty?"#f43f5e":isLow?"#f59e0b":"#10b981";
                   return(
-                    <div key={r.id} className="table-row px-5 py-2.5 flex items-center gap-3 cursor-pointer"
-                      onClick={()=>{setAf({quantity:r.quantity,notes:""});setAdjustModal(r);}}>
+                    <div key={r.id} className="table-row px-5 py-2.5 flex items-center gap-3">
                       <div className="w-1.5 h-8 rounded-full flex-shrink-0" style={{background:sc}}></div>
                       <span className="flex-1 text-sm font-mono font-bold text-slate-100 truncate">{r.urun.code||"REF yok"}</span>
                       <span className="text-xs text-brand-300 font-mono hidden sm:block">{r.lot||"LOT yok"}</span>
                       <span className="text-sm font-bold" style={{color:sc}}>{r.quantity}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit}</span></span>
-                      <span className="text-slate-600 hover:text-slate-400 text-xs">✎</span>
+                      <button onClick={()=>{setAf({quantity:r.quantity,notes:""});setAdjustModal(r);}} className="px-2 py-1 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Düzenle</button>
+                      <button onClick={()=>removeStock(r)} className="px-2 py-1 rounded-lg bg-rose2/15 hover:bg-rose2/25 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
                     </div>
                   );
                 })}
