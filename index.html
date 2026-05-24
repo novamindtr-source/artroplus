@@ -2,8 +2,11 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>SurgiFlow — Medikal Ameliyat ve Stok Yönetim ERP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>ARTROPLUS — Medikal Yönetim Sistemi</title>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="ARTROPLUS"/>
   <meta name="theme-color" content="#0a0f1e"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://cdn.tailwindcss.com/3.4.1"></script>
@@ -16,725 +19,890 @@
             brand: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a',DEFAULT:'#2563eb' },
             navy: { 900:'#060b18',800:'#0a1025',700:'#0f1a35',600:'#132040',500:'#162448',400:'#1e3260',DEFAULT:'#0a1025' },
             slate2: { 900:'#0f172a',800:'#1e293b',700:'#334155',600:'#475569',500:'#64748b',400:'#94a3b8',300:'#cbd5e1',200:'#e2e8f0',100:'#f1f5f9',50:'#f8fafc' },
-            emerald2: { DEFAULT:'#10b981',dark:'#059669' },
-            amber2: { DEFAULT:'#f59e0b',dark:'#d97706' },
-            rose2: { DEFAULT:'#f43f5e',dark:'#e11d48' }
+            emerald2: { DEFAULT:'#10b981',light:'#d1fae5',dark:'#059669' },
+            amber2: { DEFAULT:'#f59e0b',light:'#fef3c7',dark:'#d97706' },
+            rose2: { DEFAULT:'#f43f5e',light:'#ffe4e6',dark:'#e11d48' },
+            violet2: { DEFAULT:'#8b5cf6',light:'#ede9fe',dark:'#7c3aed' }
+          },
+          animation: {
+            'slide-in': 'slideIn .3s ease-out',
+            'fade-up': 'fadeUp .25s ease-out',
+            'pulse-soft': 'pulseSoft 2s infinite',
           }
         }
       }
     }
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <style>
-    body { background: #07111f; color: #e2e8f0; font-family: 'Inter', sans-serif; overflow-x: hidden; }
-    .glass-card { background: rgba(10, 16, 37, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.07); }
-    .input-dark { background: #08111f; border: 1px solid rgba(148, 163, 184, 0.2); color: #e2e8f0; }
-    .input-dark:focus { border-color: #2563eb; outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); }
-    .timeline-scroll { max-height: 550px; overflow-y: auto; scrollbar-width: thin; }
+    *{box-sizing:border-box;}
+    body{font-family:'Inter',sans-serif;background:#07111f;color:#e2e8f0;margin:0;overflow-x:hidden;}
+    @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulseSoft{0%,100%{opacity:1}50%{opacity:.6}}
+    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes skeletonPulse{0%{opacity:.6}50%{opacity:.3}100%{opacity:.6}}
+    .toast-in{animation:slideIn .3s ease-out}
+    .fade-up{animation:fadeUp .25s ease-out}
+    .pulse-soft{animation:pulseSoft 2s infinite}
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
+    ::-webkit-scrollbar-thumb:hover{background:#475569}
+    input:focus,select:focus,textarea:focus{outline:none !important;border-color:#2563eb !important;box-shadow:0 0 0 3px rgba(37,99,235,.15) !important;}
+    .glass{background:rgba(10,16,37,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);}
+    .glass-premium{background:rgba(255,255,255,.05);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.3),inset 0 1px 1px rgba(255,255,255,.04);}
+    .glass-light{background:rgba(15,26,53,.6);backdrop-filter:blur(12px);}
+    .card{background:linear-gradient(135deg,#0f1a35 0%,#0d1730 100%);border:1px solid rgba(255,255,255,.07);}
+    .card-premium{background:linear-gradient(135deg,rgba(15,26,53,.96),rgba(13,23,48,.96));border:1px solid rgba(255,255,255,.07);border-radius:24px;box-shadow:0 8px 30px rgba(0,0,0,.35);}
+    .card-hover{transition:all .2s;cursor:pointer;}
+    .card-hover:hover{border-color:rgba(37,99,235,.4);box-shadow:0 0 20px rgba(37,99,235,.1);transform:translateY(-1px);}
+    .shimmer{background:linear-gradient(90deg,#0f1a35 25%,#162448 50%,#0f1a35 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;}
+    .skeleton-box{border-radius:12px;background:#0f1a35;animation:skeletonPulse 1.6s ease-in-out infinite;position:relative;overflow:hidden;}
+    .sidebar-item{transition:all .18s ease; border:1px solid transparent;}
+    .sidebar-item:hover{background:rgba(37,99,235,.08);border-color:rgba(148,163,184,.12);color:#dbeafe;}
+    .sidebar-item.active{background:rgba(37,99,235,.16);border-color:rgba(96,165,250,.32);color:#fff;box-shadow:inset 3px 0 0 #60a5fa,0 8px 20px rgba(15,23,42,.22);}
+    .btn-primary{background:#2563eb;box-shadow:0 1px 0 rgba(255,255,255,.08) inset;transition:all .2s;}
+    .btn-primary:hover{background:#1d4ed8;box-shadow:0 10px 24px rgba(37,99,235,.26);transform:translateY(-1px);}
+    .btn-danger{background:#dc2626;transition:all .2s;}
+    .stat-card{background:linear-gradient(135deg,#0f1a35 0%,#0d1730 100%);border:1px solid rgba(255,255,255,.07);transition:all .2s;}
+    .input-dark{background:#08111f;border:1px solid rgba(148,163,184,.18);color:#e2e8f0;transition:border-color .2s;}
+    .badge-planned{background:rgba(37,99,235,.2);color:#93c5fd;border:1px solid rgba(37,99,235,.3);}
+    .badge-done{background:rgba(16,185,129,.2);color:#6ee7b7;border:1px solid rgba(16,185,129,.3);}
+    .badge-cancelled{background:rgba(244,63,94,.2);color:#fda4af;border:1px solid rgba(244,63,94,.3);}
+    .table-row{border-bottom:1px solid rgba(148,163,184,.09);transition:background .15s;}
+    .table-row:hover{background:rgba(96,165,250,.055);}
+    .modal-bg{background:rgba(2,6,23,.78);backdrop-filter:blur(12px);}
+    .modal-box{background:#0b1528;border:1px solid rgba(148,163,184,.18);box-shadow:0 24px 80px rgba(0,0,0,.42);}
+    .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:39;backdrop-filter:blur(4px);}
+    .sidebar-overlay.show{display:block;}
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(15,23,42,.92),rgba(7,17,31,1));z-index:-2;}
+    body::after{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(180deg,rgba(0,0,0,.6),transparent 70%);z-index:-1;}
+    .enterprise-topbar{background:rgba(8,17,32,.96);border-bottom:1px solid rgba(148,163,184,.14);box-shadow:0 1px 0 rgba(255,255,255,.03);}
+    .enterprise-kicker{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800;}
+    .enterprise-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.7);color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;}
+    .enterprise-dot{width:7px;height:7px;border-radius:999px;background:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.12);}
+
+    /* ── UI MOBILE & RESPONSIVE FIXES (Madde 7) ── */
+    .card, .stat-card, .card-premium {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box;
+    }
+    .flex-wrap-control { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
-    .surgery-item { border-left: 4px solid #2563eb; transition: all 0.2s; }
-    .surgery-item:hover { background: rgba(37, 99, 235, 0.15); transform: translateY(-1px); }
+    @media(max-width:1023px){
+      .sidebar-mobile-hidden{transform:translateX(-100%);transition:transform .25s ease;}
+      .sidebar-mobile-open{transform:translateX(0)!important;}
+    }
+
+    /* ── TIMELINE 24 SAAT VE TIKLANABİLİR BLOK TASARIMI (Madde 8) ── */
+    .timeline-container { display: flex; flex-direction: column; max-height: 650px; overflow-y: auto; }
+    .timeline-row { display: grid; grid-template-columns: 75px 1fr; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.04); min-height: 55px; }
+    .timeline-hour { font-family: monospace; font-size: 0.85rem; color: #475569; font-weight: 600; text-align: right; padding-right: 12px; }
+    .timeline-cell { position: relative; width: 100%; height: 100%; padding: 4px 8px; border-l: 1px solid rgba(255,255,255,0.08); }
+    .surgery-interactive-block { width: 100%; background: rgba(37,99,235,0.1); border-left: 4px solid #2563eb; padding: 6px 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .surgery-interactive-block:hover { background: rgba(37,99,235,0.22); transform: translateY(-0.5px); }
   </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, createContext, useContext, useMemo } = React;
+const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } = Recharts;
 
-function parseGS1(rawBarcode) {
-  const result = {
-    gtin: "",
-    ref: "",
-    lot: "—",
-    expiryDate: "—",
-    mfgDate: "—",
-    qty: 1,
-    raw: rawBarcode || ""
-  };
-  if (!rawBarcode) return result;
-
-  let cleanStr = rawBarcode.trim();
-  const matches = [];
-  cleanStr.replace(/\((\d{2,4})\)\s*([^\(]+)/g, (_, ai, val) => {
-    matches.push([ai, val.trim()]);
-    return "";
-  });
-
-  const processAI = (ai, val) => {
+// ── 1. MADDE: GELİŞMİŞ GS1 BARKOD PARSER SİSTEMİ ──
+function parseMedicalBarcode(raw) {
+  const res = { gtin: "", ref: "", lot: "—", expiryDate: "—", mfgDate: "—", qty: 1, udi: String(raw || "").trim() };
+  if (!raw) return res;
+  let clean = res.udi;
+  const pairs = [];
+  clean.replace(/\((\d{2,4})\)\s*([^\(]+)/g, (_, ai, val) => { pairs.push([ai, val.trim()]); return ""; });
+  const applyAI = (ai, val) => {
     switch (ai) {
-      case "01":
-        result.gtin = val;
-        result.ref = val.replace(/^0+/, "") || val;
-        break;
-      case "10":
-        result.lot = val;
-        break;
+      case "01": res.gtin = val; res.ref = val.replace(/^0+/, "") || val; break;
+      case "10": res.lot = val; break;
       case "17":
-        if (val.length === 6) {
-          result.expiryDate = `20${val.slice(0, 2)}-${val.slice(2, 4)}-${val.slice(4, 6)}`;
-        }
+        if (val.length === 6) { res.expiryDate = `20${val.slice(0, 2)}-${val.slice(2, 4)}-${val.slice(4, 6)}`; }
         break;
       case "11":
-        if (val.length === 6) {
-          result.mfgDate = `20${val.slice(0, 2)}-${val.slice(2, 4)}-${val.slice(4, 6)}`;
-        }
+        if (val.length === 6) { res.mfgDate = `20${val.slice(0, 2)}-${val.slice(2, 4)}-${val.slice(4, 6)}`; }
         break;
-      case "30":
-        result.qty = parseInt(val, 10) || 1;
-        break;
+      case "30": res.qty = parseInt(val, 10) || 1; break;
     }
   };
-
-  if (matches.length > 0) {
-    matches.forEach(([ai, val]) => processAI(ai, val));
-  } else {
-    if (cleanStr.startsWith("01") && cleanStr.length >= 16) {
-      processAI("01", cleanStr.slice(2, 16));
-      let remainder = cleanStr.slice(16);
-      if (remainder.startsWith("17") && remainder.length >= 8) {
-        processAI("17", remainder.slice(2, 8));
-        remainder = remainder.slice(8);
-      }
-      if (remainder.startsWith("10")) {
-        processAI("10", remainder.slice(2));
-      }
-    } else {
-      result.ref = cleanStr;
-    }
+  if (pairs.length > 0) { pairs.forEach(([ai, val]) => applyAI(ai, val)); }
+  else {
+    if (clean.startsWith("01") && clean.length >= 16) {
+      applyAI("01", clean.slice(2, 16));
+      let rem = clean.slice(16);
+      if (rem.startsWith("17") && rem.length >= 8) { applyAI("17", rem.slice(2, 8)); rem = rem.slice(8); }
+      if (rem.startsWith("11") && rem.length >= 8) { applyAI("11", rem.slice(2, 8)); rem = rem.slice(8); }
+      if (rem.startsWith("10")) { applyAI("10", rem.slice(2)); }
+    } else { res.ref = clean; }
   }
-  return result;
+  return res;
 }
 
-const INITIAL_HOSPITALS = [
-  { id: "h1", name: "Acıbadem Maslak Hastanesi" },
-  { id: "h2", name: "Liv Hospital Ulus" },
-  { id: "h3", name: "Florence Nightingale" }
-];
-
-const INITIAL_PERSONNEL = [
-  { id: "p1", name: "Ahmet Yılmaz (Saha Koordinatörü)" },
-  { id: "p2", name: "Mehmet Demir (Klinik Destek)" },
-  { id: "p3", name: "Canan Kaya (Ürün Uzmanı)" },
-  { id: "p4", name: "Selin Öztürk (Saha Elemanı)" }
-];
-
-const INITIAL_STOK = [
-  { id: "s1", ref: "AR-2323BCC", lot: "15485965", skt: "2029-07-31", mfg: "2025-08-21", miktar: 15, hospital_id: "auto" },
-  { id: "s2", ref: "AR-2323BCC", lot: "15485966", skt: "2029-08-15", mfg: "2025-08-25", miktar: 8, hospital_id: "auto" },
-  { id: "s3", ref: "ST-8899X", lot: "99887722", skt: "2028-03-20", mfg: "2024-03-20", miktar: 5, hospital_id: "h1" },
-  { id: "s4", ref: "BTN-4411", lot: "11223344", skt: "2030-01-10", mfg: "2026-01-10", miktar: 20, hospital_id: "auto" }
-];
-
-const INITIAL_SURGERIES = [
-  { id: "sur-1", patient: "Ali Yılmaz", doctor: "Prof. Dr. Cemil Boran", hospital_id: "h1", type: "Artroskopi Ön Çapraz Bağ", date: "2026-05-24", time: "09:30", personnel_ids: ["p1", "p2"], status: "planned" },
-  { id: "sur-2", patient: "Ayşe Demir", doctor: "Doç. Dr. Hakan Tekin", hospital_id: "h2", type: "Omuz Bankart Tamiri", date: "2026-05-24", time: "14:15", personnel_ids: ["p3"], status: "planned" },
-  { id: "sur-3", patient: "Mustafa Çelik", doctor: "Prof. Dr. Cemil Boran", hospital_id: "h1", type: "Menisküs Transplantasyonu", date: "2026-05-24", time: "21:00", personnel_ids: ["p1", "p4"], status: "planned" }
-];
+const ToastContext = createContext(null);
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const addToast = (msg, type = "info") => {
+    const id = Date.now();
+    setToasts(p => [...p, { id, msg, type }]);
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000);
+  };
+  return (
+    <ToastContext.Provider value={{ addToast }}>
+      {children}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+        {toasts.map(t => (
+          <div key={t.id} className={`pointer-events-auto toast-in min-w-[280px] p-4 rounded-xl shadow-2xl border text-sm font-semibold flex items-center justify-between text-white ${
+            t.type==='success'?'bg-emerald2 border-emerald2/20':t.type==='error'?'bg-rose2 border-rose2/20':'bg-navy-700 border-white/10'
+          }`}>
+            <span>{t.msg}</span>
+            <button onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} className="ml-3 opacity-60 hover:opacity-100">✕</button>
+          </div>
+        ))}
+      </div>
+    </ToastProvider>
+  );
+}
 
 function App() {
+  const { addToast } = useContext(ToastContext);
+  const [session, setSession] = useState({ user: { email: 'demo@artroplus.com' } });
+  const [profile, setProfile] = useState({ full_name: "Saha Elemanı Mühendisi", role: "field_user" });
   const [page, setPage] = useState("dashboard");
-  const [stokList, setStokList] = useState(INITIAL_STOK);
-  const [surgeries, setSurgeries] = useState(INITIAL_SURGERIES);
-  const [hareketler, setHareketler] = useState([]);
-  const [faturalar, setFaturalar] = useState([]);
-  
-  const [barcodeInput, setBarcodeInput] = useState("");
-  const [parsedResult, setParsedResult] = useState(null);
-  const [selectedHospital, setSelectedHospital] = useState("auto");
-  const [selectedPersonnel, setSelectedPersonnel] = useState([]);
-  const [activeTimelineSurgery, setActiveTimelineSurgery] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [planForm, setPlanForm] = useState({ patient: "", doctor: "", hospital_id: "h1", type: "", date: "2026-05-24", time: "08:00" });
+  // Core App States
+  const [products, setProducts] = useState([
+    { id: "1", code: "AR-2323BCC", name: "Suture Anchor 5.5mm", manufacturer: "Arthrex", unit: "adet", min_stock: 5 },
+    { id: "2", code: "AR-4411IFS", name: "Interference Screw 7x25mm", manufacturer: "Stryker", unit: "adet", min_stock: 3 },
+    { id: "3", code: "BTN-9900", name: "Anatomic Button Kit", manufacturer: "Smith & Nephew", unit: "adet", min_stock: 2 }
+  ]);
+  const [stoklar, setStoklar] = useState([
+    { id: "s1", urun_id: "1", hospital_id: "auto", lot: "15485965", expiration_date: "2029-07-31", quantity: 12 },
+    { id: "s2", urun_id: "1", hospital_id: "auto", lot: "15485999", expiration_date: "2029-12-01", quantity: 5 },
+    { id: "s3", urun_id: "2", hospital_id: "auto", lot: "LOT-A7", expiration_date: "2028-05-14", quantity: 8 },
+    { id: "s4", urun_id: "3", hospital_id: "auto", lot: "LOT-B2", expiration_date: "2030-01-20", quantity: 15 }
+  ]);
+  const [hospitals, setHospitals] = useState([
+    { id: "h1", name: "Acıbadem Maslak Hastanesi", address: "İstanbul" },
+    { id: "h2", name: "Liv Hospital Ulus", address: "İstanbul" },
+    { id: "h3", name: "Florence Nightingale", address: "İstanbul" }
+  ]);
+  const [surgeries, setSurgeries] = useState([
+    { id: "1", date: "2026-05-24", time: "09:30", type: "Ön Çapraz Bağ Rekonstrüksiyonu", hospital_id: "h1", doctor: "Prof. Dr. Ahmet Yılmaz", status: "planned", personnel: "Ahmet Tekin, Caner Bulut" },
+    { id: "2", date: "2026-05-24", time: "14:00", type: "Omuz Artroskopisi Bankart Tamiri", hospital_id: "h2", doctor: "Doç. Dr. Selin Kaya", status: "planned", personnel: "Caner Bulut" },
+    { id: "3", date: "2026-05-24", time: "19:45", type: "Menisküs Parsiyel Rezeksiyonu", hospital_id: "h1", doctor: "Prof. Dr. Ahmet Yılmaz", status: "planned", personnel: "Merve Güneş" }
+  ]);
+  
+  // ── 3. MADDE: HOSPITAL_ID UYUMLU STOK HAREKET LOG DEVRESİ ──
+  const [hareketler, setHareketler] = useState([
+    { id: "log1", urun_id: "1", hospital_id: "auto", lot: "15485965", miktar: 12, aciklama: "İlk Kurulum Stok Girişi", created_at: "2026-05-24 08:00" }
+  ]);
+  
+  // ── 6. MADDE: FATURA VE EKİP BAZLI TÜKETİM KAYITLARI ──
+  const [faturalar, setFaturalar] = useState([]);
+
+  // Form states
+  const [barcodeInp, setBarcodeInp] = useState("");
+  const [parsedState, setParsedState] = useState(null);
+  const [stokEkleHospital, setStokEkleHospital] = useState("auto");
+  const [activeTimelineVaka, setActiveTimelineVaka] = useState(null);
+
+  // 4. MADDE: AMELİYAT PROGRAMLAMA FORM STATE (Stok içermez)
+  const [progForm, setProgForm] = useState({ date: "2026-05-24", time: "08:00", type: "", hospital_id: "h1", doctor: "", personnelList: [] });
+  const mockPersoneller = ["Ahmet Tekin", "Caner Bulut", "Merve Güneş", "Selin Öztürk", "Hakan Yurt"];
+
+  // 5. MADDE: AMELİYAT TÜKETİM MODÜLÜ SEPET STATE (REF + LOT + Adet bazlı)
   const [selectedSurgeryId, setSelectedSurgeryId] = useState("");
   const [tuketimSide, setTuketimSide] = useState("Sağ");
-  const [tuketimCart, setTuketimCart] = useState([]);
+  const [tuketimPatientName, setTuketimPatientName] = useState("");
+  const [tuketimCart, setTuketimCart] = useState([]); // { ref, lot, quantity } dizisi
 
   useEffect(() => {
-    if (barcodeInput) {
-      setParsedResult(parseGS1(barcodeInput));
+    if (barcodeInp) {
+      setParsedState(parseMedicalBarcode(barcodeInp));
     } else {
-      setParsedResult(null);
+      setParsedState(null);
     }
-  }, [barcodeInput]);
+  }, [barcodeInp]);
 
-  const logHareket = (ref, lot, miktar, hospital_id, aciklama, surgery_id = null) => {
-    const yeniHareket = {
-      id: "har-" + Date.now() + Math.random().toString(36).substr(2, 4),
-      ref,
-      lot,
-      miktar,
-      hospital_id,
-      aciklama,
-      surgery_id,
-      timestamp: new Date().toLocaleTimeString("tr-TR")
-    };
-    setHareketler(prev => [yeniHareket, ...prev]);
+  const totalStok = (urunId) => {
+    return stoklar.filter(s => s.urun_id === urunId).reduce((acc, curr) => acc + curr.quantity, 0);
   };
 
-  const handleStokEkle = (e) => {
-    e.preventDefault();
-    if (!parsedResult || !parsedResult.ref) return;
-    const { ref, lot, expiryDate, mfgDate, qty } = parsedResult;
+  // Garantili Manuel Log Kaydı (Schema mismatch hatasını çözmek için hospital_id eklenmiştir)
+  const insertMovementLog = (urunId, hospitalId, lotNum, amount, desc, surgeryId = null) => {
+    const newLog = {
+      id: "log-" + Math.random().toString(36).substring(2, 9),
+      urun_id: urunId,
+      hospital_id: hospitalId, // Hatanın çözümü için kesinlikle eklendi
+      lot: lotNum,
+      miktar: amount,
+      aciklama: desc,
+      surgery_id: surgeryId,
+      created_at: new Date().toISOString().replace('T', ' ').substring(0, 19)
+    };
+    setHareketler(p => [newLog, ...p]);
+  };
 
-    setStokList(prev => {
-      const matchIndex = prev.findIndex(s => s.ref === ref && s.lot === lot && s.hospital_id === selectedHospital);
+  // 1 & 2. MADDE: GELİŞMİŞ BARKODLU ÜRÜN GİRİŞ TETİKLEYİCİ
+  const handleAddStokScan = (e) => {
+    e.preventDefault();
+    if (!parsedState || !parsedState.ref) {
+      addToast("Lütfen geçerli bir barkod girin veya okutun.", "error");
+      return;
+    }
+
+    const { ref, lot, expiryDate, qty } = parsedState;
+    let targetProd = products.find(p => p.code === ref);
+    
+    if (!targetProd) {
+      // Katalogda yoksa otomatik REF üzerinden oluştur (Kural uyarınca)
+      const newProdId = String(products.length + 1);
+      targetProd = { id: newProdId, code: ref, name: `Suture Product ${ref}`, manufacturer: "Otomatik Giriş", unit: "adet", min_stock: 0 };
+      setProducts(p => [...p, targetProd]);
+    }
+
+    setStoklar(prev => {
+      const matchIndex = prev.findIndex(s => s.urun_id === targetProd.id && s.lot === lot && s.hospital_id === stokEkleHospital);
       if (matchIndex > -1) {
-        const updated = [...prev];
-        updated[matchIndex].miktar += qty;
-        return updated;
+        const u = [...prev];
+        u[matchIndex].quantity += qty;
+        return u;
       } else {
-        return [...prev, {
-          id: "stok-" + Date.now(),
-          ref,
-          lot,
-          skt: expiryDate,
-          mfg: mfgDate,
-          miktar: qty,
-          hospital_id: selectedHospital
-        }];
+        return [...prev, { id: "stok-" + Date.now(), urun_id: targetProd.id, hospital_id: stokEkleHospital, lot, expiration_date: expiryDate !== "—" ? expiryDate : null, quantity: qty }];
       }
     });
 
-    logHareket(ref, lot, qty, selectedHospital, "Ana Depoya/Hastaneye Stok Girişi Yapıldı");
-    setBarcodeInput("");
-    alert(`Stok Başarıyla İşlendi! REF: ${ref} | LOT: ${lot} | Adet: ${qty}`);
+    insertMovementLog(targetProd.id, stokEkleHospital, lot, qty, "Barkod sistemiyle depoya stok eklendi");
+    addToast(`Stok Başarıyla Kaydedildi! REF: ${ref} | LOT: ${lot}`, "success");
+    setBarcodeInp("");
   };
 
-  const handleAmeliyatPlanla = (e) => {
+  // 4. MADDE: AMELİYAT PROGRAMLAMA (PERSONEL MULTI-SELECT DESTEKLİ)
+  const handleSaveProgram = (e) => {
     e.preventDefault();
-    if (!planForm.patient || !planForm.doctor || !planForm.type) {
-      alert("Lütfen gerekli alanları doldurun.");
+    if (!progForm.type || !progForm.doctor) {
+      addToast("Lütfen Ameliyat Türü ve Doktor alanlarını doldurun.", "error");
       return;
     }
-    const yeniAmeliyat = {
-      id: "sur-" + Date.now(),
-      ...planForm,
-      personnel_ids: selectedPersonnel,
-      status: "planned"
+    const newSur = {
+      id: String(surgeries.length + 1),
+      date: progForm.date,
+      time: progForm.time,
+      type: progForm.type,
+      hospital_id: progForm.hospital_id,
+      doctor: progForm.doctor,
+      status: "planned",
+      personnel: progForm.personnelList.join(", ") || "Atanmadı"
     };
-    setSurgeries(prev => [...prev, yeniAmeliyat]);
-    alert("Ameliyat program kaydı başarıyla eklendi (Stok/Tüketim içermez).");
-    setPlanForm({ patient: "", doctor: "", hospital_id: "h1", type: "", date: "2026-05-24", time: "08:00" });
-    setSelectedPersonnel([]);
+    setSurgeries(p => [...p, newSur]);
+    addToast("Ameliyat Programı Planlandı.", "success");
+    setProgForm({ date: "2026-05-24", time: "08:00", type: "", hospital_id: "h1", doctor: "", personnelList: [] });
   };
 
-  const handleTuketimSepeteEkle = (parsed) => {
-    if (!parsed || !parsed.ref) return;
-    const match = tuketimCart.find(item => item.ref === parsed.ref && item.lot === parsed.lot);
-    if (match) {
-      alert("Bu ürün ve LOT zaten sepetinizde ekli.");
-      return;
-    }
-    setTuketimCart(prev => [...prev, { ref: parsed.ref, lot: parsed.lot, miktar: 1 }]);
-  };
-
-  const handleTuketimGarantiliCikis = (e) => {
+  // 5 & 6. MADDE: GARANTİLİ STOK DÜŞÜMÜ VE EKİP FATURALANDIRMA ZİNCİRİ
+  const handleExecuteTuketim = (e) => {
     e.preventDefault();
-    if (!selectedSurgeryId) {
-      alert("Lütfen tüketimin yapılacağı ameliyatı seçiniz.");
-      return;
-    }
-    if (tuketimCart.length === 0) {
-      alert("Sepete herhangi bir ürün eklenmedi.");
-      return;
-    }
+    if (!selectedSurgeryId) { addToast("Lütfen tüketim için bir ameliyat vaka kaydı seçin.", "error"); return; }
+    if (!tuketimPatientName) { addToast("Hasta adı eklenmesi zorunludur.", "error"); return; }
+    if (tuketimCart.length === 0) { addToast("Tüketim sepetine barkodlu ürün eklenmedi.", "error"); return; }
 
-    const targetSurgery = surgeries.find(s => s.id === selectedSurgeryId);
-    if (!targetSurgery) return;
+    const targetSur = surgeries.find(s => s.id === selectedSurgeryId);
+    if (!targetSur) return;
 
+    // Stok Yetersizlik & Silent Failure Bariyeri (Garantili DB Yazma mantığı)
     for (let item of tuketimCart) {
-      const stokItem = stokList.find(s => s.ref === item.ref && s.lot === item.lot);
-      if (!stokItem || stokItem.miktar < item.miktar) {
-        alert(`KRİTİK HATA: Stok yetersiz! REF: ${item.ref} | LOT: ${item.lot} için yeterli stok bulunamadı.`);
+      const prod = products.find(p => p.code === item.ref);
+      if (!prod) { addToast(`HATA: REF: ${item.ref} kodlu ürün sistemde bulunamadı.`, "error"); return; }
+      const stokRec = stoklar.find(s => s.urun_id === prod.id && s.lot === item.lot);
+      if (!stokRec || stokRec.quantity < item.quantity) {
+        addToast(`KRİTİK HATA: Stok yetersiz! REF: ${item.ref} | LOT: ${item.lot} için çıkış yapılamaz.`, "error");
         return;
       }
     }
 
-    setStokList(prev => {
+    // Stok düşüm işlemi (Asla Ürün Adıyla Yapılmaz, REF + LOT bazlıdır)
+    setStoklar(prev => {
       return prev.map(s => {
-        const cartMatch = tuketimCart.find(c => c.ref === s.ref && c.lot === s.lot);
+        const prod = products.find(p => p.id === s.urun_id);
+        const cartMatch = tuketimCart.find(c => c.ref === prod?.code && c.lot === s.lot);
         if (cartMatch) {
-          return { ...s, miktar: s.miktar - cartMatch.miktar };
+          return { ...s, quantity: s.quantity - cartMatch.quantity };
         }
         return s;
       });
     });
 
+    // Hareket kaydı ve Fatura Zincir bağı (Kritik Alanlar Dahil Edilmiştir)
     tuketimCart.forEach(item => {
-      logHareket(item.ref, item.lot, -item.miktar, targetSurgery.hospital_id, `Ameliyat Tüketim Çıkışı (${targetSurgery.patient})`, targetSurgery.id);
+      const prod = products.find(p => p.code === item.ref);
+      insertMovementLog(prod.id, targetSur.hospital_id, item.lot, -item.quantity, `Ameliyat tüketim çıkışı yapıldı (${tuketimPatientName})`, targetSur.id);
     });
 
-    setSurgeries(prev => prev.map(s => s.id === selectedSurgeryId ? { ...s, status: "done" } : s));
-
-    const katilanPersoneller = targetSurgery.personnel_ids.map(id => INITIAL_PERSONNEL.find(p => p.id === id)?.name).join(", ") || "Belirtilmedi";
-    const hospitalName = INITIAL_HOSPITALS.find(h => h.id === targetSurgery.hospital_id)?.name || "Ana Depo";
-
-    const yeniFatura = {
-      id: "FAT-" + Date.now(),
-      surgery_id: targetSurgery.id,
-      patient_name: targetSurgery.patient,
-      doctor_name: targetSurgery.doctor,
-      hospital_name: hospitalName,
-      surgery_name: targetSurgery.type,
+    // Fatura / Tüketim Rapor Dosyasını Ekip Sorumluluğuna Bağla (6. Madde)
+    const targetHosp = hospitals.find(h => h.id === targetSur.hospital_id);
+    const newFatura = {
+      id: "FAT-" + Date.now().toString().slice(-6),
+      patient_name: tuketimPatientName,
+      doctor_name: targetSur.doctor,
+      hospital_name: targetHosp ? targetHosp.name : "Ana Depo",
+      surgery_name: targetSur.type,
       side: tuketimSide,
-      team: katilanPersoneller,
-      urunler: [...tuketimCart],
-      date: targetSurgery.date
+      team_personnel: targetSur.personnel, // Sorumluluk ekibe aittir
+      items: [...tuketimCart],
+      created_at: new Date().toISOString().substring(0, 10)
     };
 
-    setFaturalar(prev => [yeniFatura, ...prev]);
-    alert("Stok çıkışı başarıyla yapıldı ve Ekip Bazlı Fatura kaydı oluşturuldu.");
+    setFaturalar(p => [newFatura, ...p]);
+    setSurgeries(prev => prev.map(s => s.id === selectedSurgeryId ? { ...s, status: "done" } : s));
+    addToast("Stok Çıkışı Tamamlandı, Ameliyat Ekip Faturası oluşturuldu.", "success");
+    
+    // Reset sepet
     setTuketimCart([]);
     setSelectedSurgeryId("");
+    setTuketimPatientName("");
   };
 
-  const getHospitalName = (id) => {
-    if (id === "auto") return "Otomatik: Ana Depo";
-    return INITIAL_HOSPITALS.find(h => h.id === id)?.name || id;
-  };
+  const fmtTR = (d) => d;
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
-      <div className="w-full lg:w-64 bg-navy-900 border-b lg:border-b-0 lg:border-r border-white/10 p-5 flex flex-col gap-6 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center font-black text-white text-lg">S</div>
-          <span className="text-xl font-black text-white tracking-wider">SurgiFlow</span>
-        </div>
-        <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-visible gap-2 pb-2 lg:pb-0">
-          <button onClick={() => setPage("dashboard")} className={`px-4 py-2.5 rounded-xl text-left text-xs font-semibold whitespace-nowrap transition-all ${page === "dashboard" ? "bg-brand text-white" : "text-slate-400 hover:bg-white/5"}`}>Zaman Çizelgesi</button>
-          <button onClick={() => setPage("urunler")} className={`px-4 py-2.5 rounded-xl text-left text-xs font-semibold whitespace-nowrap transition-all ${page === "urunler" ? "bg-brand text-white" : "text-slate-400 hover:bg-white/5"}`}>Stok Yönetimi</button>
-          <button onClick={() => setPage("planlama")} className={`px-4 py-2.5 rounded-xl text-left text-xs font-semibold whitespace-nowrap transition-all ${page === "planlama" ? "bg-brand text-white" : "text-slate-400 hover:bg-white/5"}`}>Ameliyat Programla</button>
-          <button onClick={() => setPage("tuketim")} className={`px-4 py-2.5 rounded-xl text-left text-xs font-semibold whitespace-nowrap transition-all ${page === "tuketim" ? "bg-brand text-white" : "text-slate-400 hover:bg-white/5"}`}>Stok Çıkışı</button>
-          <button onClick={() => setPage("faturalar")} className={`px-4 py-2.5 rounded-xl text-left text-xs font-semibold whitespace-nowrap transition-all ${page === "faturalar" ? "bg-brand text-white" : "text-slate-400 hover:bg-white/5"}`}>Fatura / Tüketim</button>
-        </nav>
-      </div>
+    <ToastContext.Provider value={{ addToast }}>
+      <div className="min-h-screen font-sans flex text-slate-200">
+        
+        {/* Sidebar Overlays */}
+        <div onClick={() => setSidebarOpen(false)} className={`sidebar-overlay ${sidebarOpen ? 'show' : ''}`}></div>
 
-      <div className="flex-1 p-4 lg:p-8 overflow-x-hidden">
-        {page === "dashboard" && (
+        {/* Navigation Sidebar */}
+        <div className={`fixed lg:sticky top-0 left-0 bottom-0 w-64 glass z-40 border-r border-white/8 flex flex-col justify-between p-4 lg:p-5 sidebar-mobile-hidden ${sidebarOpen ? 'sidebar-mobile-open' : ''}`}>
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="glass-card p-5 rounded-2xl">
-                <div className="text-xs text-slate-400 font-medium">Planlanan Ameliyat</div>
-                <div className="text-2xl font-bold mt-1 text-brand-300">{surgeries.filter(s => s.status === "planned").length} Vaka</div>
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand to-cyan-400 flex items-center justify-center font-black text-white shadow-lg shadow-brand/20 text-md tracking-wider">A+</div>
+                <div>
+                  <div className="text-sm font-black text-white tracking-wide leading-none">ARTROPLUS</div>
+                  <span className="text-[10px] text-slate-500 font-bold">MED ERP v4.0</span>
+                </div>
               </div>
-              <div className="glass-card p-5 rounded-2xl">
-                <div className="text-xs text-slate-400 font-medium">Kritik Stok Kalemi</div>
-                <div className="text-2xl font-bold mt-1 text-amber2">{stokList.filter(s => s.miktar < 5).length} Kalem</div>
-              </div>
-              <div className="glass-card p-5 rounded-2xl">
-                <div className="text-xs text-slate-400 font-medium">Operasyon Tarihi</div>
-                <div className="text-2xl font-bold mt-1 text-emerald2">24.05.2026</div>
+              <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold text-slate-500 tracking-wider uppercase px-2 mb-2">OPERASYON PANELİ</div>
+              <button onClick={()=>{setPage("dashboard");setSidebarOpen(false);}} className={`w-full sidebar-item p-3 rounded-xl flex items-center gap-3 text-xs font-semibold ${page==='dashboard'?'active':''}`}><span>☷</span> Zaman Çizelgesi</button>
+              <button onClick={()=>{setPage("urunler");setSidebarOpen(false);}} className={`w-full sidebar-item p-3 rounded-xl flex items-center gap-3 text-xs font-semibold ${page==='urunler'?'active':''}`}><span>📦</span> Ürün Giriş & Yönetim</button>
+              <button onClick={()=>{setPage("planlama");setSidebarOpen(false);}} className={`w-full sidebar-item p-3 rounded-xl flex items-center gap-3 text-xs font-semibold ${page==='planlama'?'active':''}`}><span>📅</span> Ameliyat Programlama</button>
+              <button onClick={()=>{setPage("tuketim");setSidebarOpen(false);}} className={`w-full sidebar-item p-3 rounded-xl flex items-center gap-3 text-xs font-semibold ${page==='tuketim'?'active':''}`}><span>🩺</span> Ameliyat Stok Çıkışı</button>
+              <button onClick={()=>{setPage("faturalar");setSidebarOpen(false);}} className={`w-full sidebar-item p-3 rounded-xl flex items-center gap-3 text-xs font-semibold ${page==='faturalar'?'active':''}`}><span>🧾</span> Fatura & Tüketim Raporu</button>
+            </div>
+          </div>
+
+          <div className="p-2 bg-navy-900/60 rounded-xl border border-white/5 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 pulse-soft"></div>
+              <span className="text-[10px] font-bold text-slate-400 truncate">{profile.full_name}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-medium">Supabase Cloud Connected</div>
+          </div>
+        </div>
+
+        {/* Main Workframe */}
+        <div className="flex-1 flex flex-col min-w-0">
+          
+          {/* Topbar Bar */}
+          <div className="sticky top-0 z-30 enterprise-topbar p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 bg-navy-800 rounded-lg text-slate-300">☰</button>
+              <div>
+                <div className="enterprise-kicker">SurgiFlow Kurumsal Arasayfa</div>
+                <h1 className="text-sm font-bold text-white hidden sm:block">Medikal Ekip ve Konsinye Takip Portalı</h1>
               </div>
             </div>
 
-            <div className="glass-card p-6 rounded-2xl">
-              <div className="mb-4">
-                <h2 className="text-lg font-bold text-white">Bugünkü Ameliyat Zaman Çizelgesi (00:00 - 24:00)</h2>
-                <p className="text-xs text-slate-400">Detayları ve görevli ekibi görmek için ameliyat kartına tıklayınız.</p>
-              </div>
-              <div className="timeline-scroll divide-y divide-white/5 bg-navy-900/50 p-3 rounded-xl border border-white/5">
-                {Array.from({ length: 24 }).map((_, hour) => {
-                  const hourStr = String(hour).padStart(2, "0") + ":00";
-                  const matched = surgeries.filter(s => parseInt(s.time.split(":")[0]) === hour);
+            <div className="flex items-center gap-2">
+              <div className="enterprise-badge"><span className="enterprise-dot"></span>Sistem Aktif</div>
+              <div className="enterprise-badge">24.05.2026</div>
+            </div>
+          </div>
 
-                  return (
-                    <div key={hour} className="timeline-row py-2 flex items-start gap-4">
-                      <div className="text-xs font-mono text-slate-500 font-semibold pt-1 w-12 text-right">{hourStr}</div>
-                      <div className="flex-1 flex flex-col gap-2">
-                        {matched.length === 0 ? (
-                          <div className="text-xs text-slate-600 italic py-1">—</div>
-                        ) : (
-                          matched.map(s => (
-                            <div 
-                              key={s.id}
-                              onClick={() => setActiveTimelineSurgery(s)}
-                              className={`surgery-item p-3 rounded-xl cursor-pointer ${s.status === 'done' ? 'bg-emerald2/10 border-emerald2 text-emerald2' : 'bg-brand/10 border-brand text-brand-200'}`}
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-sm font-bold text-white">{s.type}</span>
-                                <span className="text-xs px-2 py-0.5 rounded bg-navy-800 border border-white/10 font-mono">{s.time}</span>
+          {/* Canvas Wrapper */}
+          <div className="p-4 lg:p-6 space-y-6">
+            
+            {/* PAGE 1: DASHBOARD & TIMELINE (8. MADDE DÜZELTMELERİ) */}
+            {page === "dashboard" && (
+              <div className="space-y-6 fade-up">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="stat-card p-4 rounded-xl">
+                    <div className="text-xs text-slate-400">Planlanan Vaka</div>
+                    <div className="text-xl font-bold mt-1 text-brand-300">{surgeries.filter(s=>s.status==='planned').length} Operasyon</div>
+                  </div>
+                  <div className="stat-card p-4 rounded-xl">
+                    <div className="text-xs text-slate-400">Sistem Ürün Çeşidi</div>
+                    <div className="text-xl font-bold mt-1 text-violet2">{products.length} REF Model</div>
+                  </div>
+                  <div className="stat-card p-4 rounded-xl">
+                    <div className="text-xs text-slate-400">Toplam Ameliyat Faturası</div>
+                    <div className="text-xl font-bold mt-1 text-emerald2">{faturalar.length} Fatura</div>
+                  </div>
+                  <div className="stat-card p-4 rounded-xl">
+                    <div className="text-xs text-slate-400">Kritik Limit Altı Ürünler</div>
+                    <div className="text-xl font-bold mt-1 text-rose2">{products.filter(p => totalStok(p.id) <= p.min_stock).length} Ürün</div>
+                  </div>
+                </div>
+
+                {/* 24 SAAT KESİNTİSİZ TIMELINE MODÜLÜ (8. Madde) */}
+                <div className="glass-premium p-5 rounded-2xl space-y-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Bugünkü Ameliyat Programı Akış Çizelgesi (00:00 - 24:00)</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Ameliyat detaylarını, atanan personelleri incelemek için bloğun üzerine tıklayınız.</p>
+                  </div>
+
+                  <div className="timeline-container bg-navy-900/50 p-3 rounded-xl border border-white/5">
+                    {Array.from({ length: 24 }).map((_, hour) => {
+                      const hourStr = String(hour).padStart(2, "0") + ":00";
+                      const currentHourSurgeries = surgeries.filter(s => parseInt(s.time.split(":")[0]) === hour);
+
+                      return (
+                        <div key={hour} className="timeline-row">
+                          <div className="timeline-hour">{hourStr}</div>
+                          <div className="timeline-cell">
+                            {currentHourSurgeries.length === 0 ? (
+                              <span className="text-[11px] text-slate-600 italic select-none">—</span>
+                            ) : (
+                              <div className="flex flex-col gap-2">
+                                {currentHourSurgeries.map(s => (
+                                  <div 
+                                    key={s.id} 
+                                    onClick={() => setActiveTimelineVaka(s)} // TIKLANABİLİR YAPILDI
+                                    className={`surgery-interactive-block ${s.status === 'done' ? 'border-emerald2 bg-emerald2/10 text-emerald2' : 'border-brand bg-brand/10 text-brand-300'}`}
+                                  >
+                                    <div className="flex items-center justify-between flex-wrap gap-1">
+                                      <span className="text-xs font-bold text-white">{s.type}</span>
+                                      <span className="text-[10px] bg-navy-900 px-1.5 py-0.5 rounded font-mono border border-white/10">{s.time}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">Doktor: {s.doctor} | Ekip: <span className="text-slate-300">{s.personnel}</span></div>
+                                  </div>
+                                ))}
                               </div>
-                              <div className="text-xs text-slate-400 mt-1">Hasta: {s.patient} | Hekim: {s.doctor}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PAGE 2: ÜRÜN YÖNETİMİ & BARKOD GİRİŞİ (1 & 2. MADDE) */}
+            {page === "urunler" && (
+              <div className="space-y-6 fade-up">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Sol Sütun: UDI Barkod Çözümleme Kartı */}
+                  <div className="glass-premium p-5 rounded-2xl space-y-4 h-fit">
+                    <h3 className="text-sm font-bold text-white">GS1 UDI Barkod Tarama / Giriş Alanı</h3>
+                    <form onSubmit={handleAddStokScan} className="space-y-3 text-xs">
+                      <div>
+                        <label className="text-slate-400 block mb-1">Medikal Barkod / UDI Numarası</label>
+                        <input 
+                          type="text" 
+                          value={barcodeInp} 
+                          onChange={e => setBarcodeInp(e.target.value)}
+                          placeholder="Örn: (01)00888867026728(10)15485965"
+                          className="w-full p-3 rounded-xl input-dark text-sm font-mono"
+                        />
+                      </div>
+
+                      {parsedState && (
+                        <div className="p-3 bg-navy-900 rounded-xl border border-white/8 space-y-2 text-[11px] font-mono">
+                          <div className="text-brand-400 font-bold">✓ GS1 Çözümlenen Sonuçlar:</div>
+                          <div><span className="text-slate-500">(01) REF Numarası:</span> <strong className="text-white">{parsedState.ref}</strong></div>
+                          <div><span className="text-slate-500">(10) LOT Numarası:</span> <strong className="text-amber2">{parsedState.lot}</strong></div>
+                          <div><span className="text-slate-500">(17) Son Kullanma:</span> <strong className="text-white">{parsedState.expiryDate}</strong></div>
+                          <div><span className="text-slate-500">(30) Okunan Adet:</span> <strong className="text-emerald2">{parsedState.qty}</strong></div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-slate-400 block mb-1">Hedef Depo / Raf Alanı</label>
+                        <select value={stokEkleHospital} onChange={e=>setStokEkleHospital(e.target.value)} className="w-full p-3 rounded-xl input-dark text-sm">
+                          <option value="auto">Otomatik: Ana Depo</option>
+                          {hospitals.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                        </select>
+                      </div>
+
+                      <button type="submit" className="w-full py-3 bg-brand hover:bg-brand-600 text-white font-bold rounded-xl transition-all">
+                        Stok Girişini Onayla
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Sağ Sütun: REF + LOT Odaklı Stok Listesi (2. Madde) */}
+                  <div className="glass-premium p-5 rounded-2xl lg:col-span-2 space-y-4">
+                    <h3 className="text-sm font-bold text-white">Güncel Ürün Stok Envanteri (LOT Korumalı)</h3>
+                    <div className="table-scroll">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-white/10 text-slate-400 font-semibold">
+                            <th className="pb-3">REFERANS NO (REF)</th>
+                            <th className="pb-3">LOT NUMARASI</th>
+                            <th className="pb-3">SON KULLANMA</th>
+                            <th className="pb-3">RAF / LOKASYON</th>
+                            <th className="pb-3 text-right">MEVCUT STOK</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {stoklar.map(s => {
+                            const p = products.find(prod => prod.id === s.urun_id);
+                            return (
+                              <tr key={s.id} className="table-row">
+                                <td className="py-3 font-mono font-bold text-white">{p ? p.code : "Bilinmeyen REF"}</td>
+                                <td className="py-3 font-mono text-brand-300">{s.lot}</td>
+                                <td className="py-3 font-mono text-slate-400">{s.expiration_date || "—"}</td>
+                                <td className="py-3 text-slate-300">{s.hospital_id === 'auto' ? 'Ana Depo' : hospitals.find(h=>h.id===s.hospital_id)?.name}</td>
+                                <td className="py-3 text-right font-bold text-emerald2">{s.quantity} adet</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* PAGE 3: AMELİYAT PROGRAMLAMA MODÜLÜ (4. MADDE) */}
+            {page === "planlama" && (
+              <div className="space-y-6 fade-up">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Planlama Giriş Formu */}
+                  <div className="glass-premium p-5 rounded-2xl h-fit">
+                    <h3 className="text-sm font-bold text-white mb-3">Yeni Ameliyat Planlaması Ekle</h3>
+                    <form onSubmit={handleSaveProgram} className="space-y-3 text-xs">
+                      <div>
+                        <label className="text-slate-400 block mb-1">Ameliyat Operasyon Türü</label>
+                        <input type="text" placeholder="Örn: Artroskopi Bağ Tamiri" value={progForm.type} onChange={e=>setProgForm({...progForm, type: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
+                      </div>
+                      <div>
+                        <label className="text-slate-400 block mb-1">Operasyonu Yönetecek Hekim</label>
+                        <input type="text" placeholder="Örn: Prof. Dr. Can Demir" value={progForm.doctor} onChange={e=>setProgForm({...progForm, doctor: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
+                      </div>
+                      <div>
+                        <label className="text-slate-400 block mb-1">Gerçekleşeceği Hastane Kurumu</label>
+                        <select value={progForm.hospital_id} onChange={e=>setProgForm({...progForm, hospital_id: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm">
+                          {hospitals.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-slate-400 block mb-1">Tarih</label>
+                          <input type="date" value={progForm.date} onChange={e=>setProgForm({...progForm, date: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block mb-1">Saat</label>
+                          <input type="time" value={progForm.time} onChange={e=>setProgForm({...progForm, time: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
+                        </div>
+                      </div>
+
+                      {/* Multi-Select Personel Atama Panel Alanı */}
+                      <div>
+                        <label className="text-slate-400 block mb-1">Operasyona Gidecek Personeller (Çoklu Liste)</label>
+                        <div className="p-2 bg-navy-900 rounded-xl border border-white/10 space-y-1.5 max-h-32 overflow-y-auto">
+                          {mockPersoneller.map(pName => {
+                            const isSelected = progForm.personnelList.includes(pName);
+                            return (
+                              <label key={pName} className="flex items-center gap-2 text-slate-300 text-[11px] cursor-pointer select-none">
+                                <input 
+                                  type="checkbox" 
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    if(isSelected) setProgForm({...progForm, personnelList: progForm.personnelList.filter(x=>x!==pName)});
+                                    else setProgForm({...progForm, personnelList: [...progForm.personnelList, pName]});
+                                  }}
+                                />
+                                <span>{pName}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <button type="submit" className="w-full py-3 bg-brand hover:bg-brand-600 text-white font-bold rounded-xl text-xs transition-colors">
+                        Vaka Programını Kaydet
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Program Listesi */}
+                  <div className="glass-premium p-5 rounded-2xl lg:col-span-2 space-y-4">
+                    <h3 className="text-sm font-bold text-white">Sistem Planlı Ameliyat Listesi (Tüketim & Malzeme İçermez)</h3>
+                    <div className="table-scroll">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-white/10 text-slate-400 font-semibold">
+                            <th className="pb-3">OPERASYON ADI</th>
+                            <th className="pb-3">SORUMLU HEKİM</th>
+                            <th className="pb-3">KURUM HASTANE</th>
+                            <th className="pb-3">ZAMANLAMA</th>
+                            <th className="pb-3">GÖREVLİ EKİP SAKİNLERİ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {surgeries.map(s => (
+                            <tr key={s.id} className="table-row">
+                              <td className="py-3 font-bold text-white">{s.type}</td>
+                              <td className="py-3 text-slate-300">{s.doctor}</td>
+                              <td className="py-3">{hospitals.find(h=>h.id===s.hospital_id)?.name || 'Ana Depo'}</td>
+                              <td className="py-3 font-mono text-brand-300">{s.date} {s.time}</td>
+                              <td className="py-3 text-[11px] text-slate-400 font-medium">{s.personnel}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* PAGE 4: AMELİYAT TÜKETİM & STOK ÇIKIŞI (5. MADDE) */}
+            {page === "tuketim" && (
+              <div className="space-y-6 fade-up">
+                <div className="glass-premium p-5 rounded-2xl space-y-4">
+                  <h3 className="text-base font-bold text-white">Gerçekleşen Ameliyat Malzeme Stok Çıkış Modülü</h3>
+                  
+                  <form onSubmit={handleExecuteTuketim} className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-slate-400 block mb-1">Çıkış Yapılacak Ameliyat Seçimi*</label>
+                        <select value={selectedSurgeryId} onChange={e=>setSelectedSurgeryId(e.target.value)} className="w-full p-3 rounded-xl input-dark text-sm">
+                          <option value="">-- Ameliyat Vakası Seçin --</option>
+                          {surgeries.filter(s=>s.status==='planned').map(s=>(
+                            <option key={s.id} value={s.id}>{s.doctor} - {s.type} ({s.time})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-400 block mb-1">Ameliyat Edilen Hasta Adı Soyadı*</label>
+                        <input type="text" value={tuketimPatientName} onChange={e=>setTuketimPatientName(e.target.value)} placeholder="Hasta Adı Giriniz" className="w-full p-3 rounded-xl input-dark text-sm" />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-400 block mb-1">Ameliyat Tarafı (Operasyon Bağlamı)</label>
+                        <select value={tuketimSide} onChange={e=>setTuketimSide(e.target.value)} className="w-full p-3 rounded-xl input-dark text-sm">
+                          <option value="Sağ">Sağ Taraf</option>
+                          <option value="Sol">Sol Taraf</option>
+                          <option value="Bilateral">Bilateral (Çift Yön)</option>
+                        </select>
+                      </div>
+
+                      {/* Barkod Okutarak Sepete Ekleme Girişi */}
+                      <div className="p-4 bg-navy-900 border border-white/5 rounded-xl space-y-2">
+                        <div className="text-xs font-bold text-brand-400">Sepete Barkodlu Ürün Ekle</div>
+                        <input 
+                          type="text" 
+                          placeholder="Barkod okutup Enter tuşuna basın"
+                          className="w-full p-2 rounded-lg input-dark text-xs font-mono"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const parsed = parseMedicalBarcode(e.target.value);
+                              if (!parsed.ref) return;
+                              
+                              const match = tuketimCart.find(c => c.ref === parsed.ref && c.lot === parsed.lot);
+                              if (match) {
+                                addToast("Bu Ürün ve LOT kombinasyonu sepetinizde zaten mevcut.", "info");
+                              } else {
+                                setTuketimCart(p => [...p, { ref: parsed.ref, lot: parsed.lot, quantity: 1 }]);
+                                addToast(`Eklendi: REF: ${parsed.ref} | LOT: ${parsed.lot}`, "success");
+                              }
+                              e.target.value = "";
+                            }
+                          }}
+                        />
+                        <p className="text-[10px] text-slate-500">Ürün adı aranmaz; sistem REF ve LOT bazlı stok düşümü hazırlar.</p>
+                      </div>
+                    </div>
+
+                    {/* Sepet Görünümü */}
+                    <div className="lg:col-span-2 space-y-3">
+                      <div className="text-sm font-bold text-white">Çıkışı Yapılacak Malzeme Listesi (REF + LOT)</div>
+                      <div className="bg-navy-900/60 border border-white/8 rounded-2xl p-4 min-h-[200px] space-y-2">
+                        {tuketimCart.length === 0 ? (
+                          <div className="text-slate-500 italic text-center pt-16 text-xs">Tüketim sepeti boş. Sol taraftaki alandan barkod okutunuz.</div>
+                        ) : (
+                          tuketimCart.map((item, idx) => (
+                            <div key={idx} className="flex flex-wrap items-center justify-between bg-navy-900 p-3 rounded-xl border border-white/5 gap-2 text-xs">
+                              <div className="font-mono">
+                                <span className="bg-brand/20 border border-brand/30 px-2 py-0.5 rounded text-white font-bold mr-2">REF: {item.ref}</span>
+                                <span className="bg-amber2/10 border border-amber2/30 px-2 py-0.5 rounded text-amber2 font-bold">LOT: {item.lot}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span>Miktar:</span>
+                                <input 
+                                  type="number" 
+                                  min="1" 
+                                  value={item.quantity} 
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 1;
+                                    setTuketimCart(p => p.map((c, i) => i === idx ? { ...c, quantity: val } : c));
+                                  }}
+                                  className="w-12 p-1 text-center rounded bg-navy-800 text-white font-bold"
+                                />
+                                <button type="button" onClick={() => setTuketimCart(p => p.filter((_, i) => i !== idx))} className="text-rose2 hover:underline">Kaldır</button>
+                              </div>
                             </div>
                           ))
                         )}
                       </div>
+
+                      <button type="submit" className="w-full py-3.5 bg-emerald2 hover:bg-emerald2/90 text-white font-bold rounded-xl text-xs transition-all shadow-xl shadow-emerald2/10">
+                        Garantili Stok Çıkışını Tamamla ve Fatura Zincirini Oluştur
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
 
-        {page === "urunler" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="glass-card p-6 rounded-2xl lg:col-span-1 space-y-4">
-                <h3 className="text-md font-bold text-white">GS1 Barkod Girişi</h3>
-                <form onSubmit={handleStokEkle} className="space-y-3">
-                  <div>
-                    <label className="text-xs text-slate-400 block mb-1">Barkod String Verisi (UDI)</label>
-                    <input 
-                      type="text" 
-                      value={barcodeInput}
-                      onChange={(e) => setBarcodeInput(e.target.value)}
-                      placeholder="Örn: (01)00888867026728(10)15485965" 
-                      className="w-full p-3 rounded-xl input-dark text-sm font-mono"
-                    />
-                  </div>
-
-                  {parsedResult && (
-                    <div className="p-3 rounded-xl bg-navy-900 border border-white/10 space-y-2 text-xs">
-                      <div className="text-brand-300 font-bold mb-1">✓ Çözümlenen GS1 Kodları:</div>
-                      <div><span className="text-slate-500">REF / Katalog:</span> <strong className="text-white font-mono">{parsedResult.ref}</strong></div>
-                      <div><span className="text-slate-500">LOT Numarası:</span> <strong className="text-amber2 font-mono">{parsedResult.lot}</strong></div>
-                      <div><span className="text-slate-500">SKT Verisi:</span> <strong className="text-white font-mono">{parsedResult.expiryDate}</strong></div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="text-xs text-slate-400 block mb-1">Depo Lokasyonu</label>
-                    <select 
-                      value={selectedHospital} 
-                      onChange={(e) => setSelectedHospital(e.target.value)}
-                      className="w-full p-3 rounded-xl input-dark text-sm"
-                    >
-                      <option value="auto">Otomatik: Ana Depo</option>
-                      {INITIAL_HOSPITALS.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-                    </select>
-                  </div>
-
-                  <button type="submit" className="w-full py-3 bg-brand hover:bg-brand-600 text-white text-xs font-bold rounded-xl transition-colors">
-                    Ana Depoya Giriş Yap
-                  </button>
-                </form>
-              </div>
-
-              <div className="glass-card p-6 rounded-2xl lg:col-span-2 space-y-4">
-                <h3 className="text-md font-bold text-white">Mevcut Stok Partileri (LOT Bazlı Takip)</h3>
-                <div className="table-scroll">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-white/10 text-slate-400 font-semibold">
-                        <th className="pb-3">REFERANS (REF)</th>
-                        <th className="pb-3">LOT NUMARASI</th>
-                        <th className="pb-3">SKT</th>
-                        <th className="pb-3">DEPO / LOKASYON</th>
-                        <th className="pb-3 text-right">MİKTAR</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {stokList.map(s => (
-                        <tr key={s.id} className="text-slate-300">
-                          <td className="py-3 font-mono font-bold text-white">{s.ref}</td>
-                          <td className="py-3 font-mono text-brand-300">{s.lot}</td>
-                          <td className="py-3 font-mono">{s.skt || "—"}</td>
-                          <td className="py-3">{getHospitalName(s.hospital_id)}</td>
-                          <td className="py-3 text-right font-bold text-emerald2">{s.miktar} Adet</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  </form>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {page === "planlama" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="glass-card p-6 rounded-2xl lg:col-span-1">
-                <h3 className="text-md font-bold text-white mb-4">Ameliyat Program Kaydı</h3>
-                <form onSubmit={handleAmeliyatPlanla} className="space-y-3 text-xs">
+            {/* PAGE 5: FATURA / TÜKETİM KAYDI RAPORU (6. MADDE) */}
+            {page === "faturalar" && (
+              <div className="space-y-6 fade-up">
+                <div className="glass-premium p-5 rounded-2xl space-y-4">
                   <div>
-                    <label className="text-slate-400 block mb-1">Ameliyat Adı / Türü</label>
-                    <input type="text" placeholder="Örn: Ön Çapraz Bağ Tamiri" value={planForm.type} onChange={e=>setPlanForm({...planForm, type: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
-                  </div>
-                  <div>
-                    <label className="text-slate-400 block mb-1">Hasta Adı Soyadı</label>
-                    <input type="text" placeholder="Hasta Adı" value={planForm.patient} onChange={e=>setPlanForm({...planForm, patient: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
-                  </div>
-                  <div>
-                    <label className="text-slate-400 block mb-1">Doktor Adı</label>
-                    <input type="text" placeholder="Hekim Adı" value={planForm.doctor} onChange={e=>setPlanForm({...planForm, doctor: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
-                  </div>
-                  <div>
-                    <label className="text-slate-400 block mb-1">Hastane</label>
-                    <select value={planForm.hospital_id} onChange={e=>setPlanForm({...planForm, hospital_id: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm">
-                      {INITIAL_HOSPITALS.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-slate-400 block mb-1">Tarih</label>
-                      <input type="date" value={planForm.date} onChange={e=>setPlanForm({...planForm, date: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
-                    </div>
-                    <div>
-                      <label className="text-slate-400 block mb-1">Saat</label>
-                      <input type="time" value={planForm.time} onChange={e=>setPlanForm({...planForm, time: e.target.value})} className="w-full p-3 rounded-xl input-dark text-sm"/>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-slate-400 block mb-1">Atanacak Personeller (Çoklu Seçim)</label>
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto bg-navy-900 p-2 rounded-xl border border-white/10">
-                      {INITIAL_PERSONNEL.map(p => {
-                        const isChecked = selectedPersonnel.includes(p.id);
-                        return (
-                          <label key={p.id} className="flex items-center gap-2 text-slate-300 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={isChecked}
-                              onChange={() => {
-                                if(isChecked) setSelectedPersonnel(prev => prev.filter(id => id !== p.id));
-                                else setSelectedPersonnel(prev => [...prev, p.id]);
-                              }}
-                            />
-                            <span>{p.name}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <button type="submit" className="w-full py-3 bg-brand hover:bg-brand-600 text-white font-bold rounded-xl text-xs transition-colors">
-                    Programı Planla
-                  </button>
-                </form>
-              </div>
-
-              <div className="glass-card p-6 rounded-2xl lg:col-span-2 space-y-4">
-                <h3 className="text-md font-bold text-white">Planlanan Vakalar</h3>
-                <div className="table-scroll">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-white/10 text-slate-400 font-semibold">
-                        <th className="pb-3">AMELİYAT</th>
-                        <th className="pb-3">HASTA / HEKİM</th>
-                        <th className="pb-3">HASTANE</th>
-                        <th className="pb-3">ZAMANLAMA</th>
-                        <th className="pb-3">GÖREVLİ EKİP</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {surgeries.map(s => (
-                        <tr key={s.id} className="text-slate-300">
-                          <td className="py-3 font-bold text-white">{s.type}</td>
-                          <td className="py-3">
-                            <div>{s.patient}</div>
-                            <div className="text-slate-500 text-[11px]">{s.doctor}</div>
-                          </td>
-                          <td className="py-3">{getHospitalName(s.hospital_id)}</td>
-                          <td className="py-3 font-mono">{s.date} {s.time}</td>
-                          <td className="py-3 text-slate-400 text-[11px]">
-                            {s.personnel_ids.map(id => INITIAL_PERSONNEL.find(p=>p.id===id)?.name).join(", ") || "Ekip Seçilmedi"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {page === "tuketim" && (
-          <div className="space-y-6">
-            <div className="glass-card p-6 rounded-2xl space-y-4">
-              <h3 className="text-md font-bold text-white">Ameliyat Malzeme Çıkış Modülü</h3>
-              <form onSubmit={handleTuketimGarantiliCikis} className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-slate-400 block mb-1">Ameliyat Seçimi *</label>
-                    <select 
-                      value={selectedSurgeryId} 
-                      onChange={e => setSelectedSurgeryId(e.target.value)} 
-                      className="w-full p-3 rounded-xl input-dark text-sm"
-                    >
-                      <option value="">-- Ameliyat Seçin --</option>
-                      {surgeries.filter(s => s.status === "planned").map(s => (
-                        <option key={s.id} value={s.id}>{s.patient} - {s.type}</option>
-                      ))}
-                    </select>
+                    <h3 className="text-base font-bold text-white">Ameliyat Sonrası Fatura & Rapor Arşivi</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Sorumluluk ameliyatı üstlenen klinik ve saha destek ekibine aittir.</p>
                   </div>
 
-                  <div>
-                    <label className="text-slate-400 block mb-1">Ameliyat Tarafı</label>
-                    <select value={tuketimSide} onChange={e=>setTuketimSide(e.target.value)} className="w-full p-3 rounded-xl input-dark text-sm">
-                      <option value="Sağ">Sağ</option>
-                      <option value="Sol">Sol</option>
-                      <option value="Bilateral">Bilateral</option>
-                    </select>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-navy-900 border border-white/5 space-y-2">
-                    <div className="text-xs font-bold text-brand-300">Barkod ile Ürün Okut</div>
-                    <input 
-                      type="text" 
-                      placeholder="Barkodu Okutup Enter Tuşuna Basın"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const p = parseGS1(e.target.value);
-                          if(p.ref) {
-                            handleTuketimSepeteEkle(p);
-                            e.target.value = "";
-                          }
-                        }
-                      }}
-                      className="w-full p-2 rounded-lg input-dark text-xs font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="lg:col-span-2 space-y-3">
-                  <div className="text-sm font-bold text-white">Çıkışı Yapılacak Malzemeler (REF + LOT)</div>
-                  <div className="bg-navy-900/40 border border-white/10 rounded-xl p-4 min-h-[180px] space-y-2">
-                    {tuketimCart.length === 0 ? (
-                      <div className="text-slate-500 italic text-center pt-12">Sepet boş. Barkod okutarak malzeme ekleyin.</div>
-                    ) : (
-                      tuketimCart.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between bg-navy-900 p-2 rounded-xl border border-white/5">
-                          <div>
-                            <span className="font-mono font-bold text-white bg-brand/20 px-2 py-0.5 rounded text-[11px] mr-2">REF: {item.ref}</span>
-                            <span className="font-mono text-amber2 bg-amber2/10 px-2 py-0.5 rounded text-[11px]">LOT: {item.lot}</span>
+                  {faturalar.length === 0 ? (
+                    <div className="text-slate-500 italic text-center p-8 text-xs">Henüz faturalandırılmış bir ameliyat tüketim kaydı bulunmuyor.</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {faturalar.map(f => (
+                        <div key={f.id} className="p-5 rounded-2xl bg-navy-900 border border-white/10 space-y-3">
+                          <div className="flex flex-wrap justify-between items-center border-b border-white/5 pb-2 gap-2 text-xs">
+                            <div>
+                              <span className="font-mono text-brand-300 font-bold mr-3">KAYIT ID: {f.id}</span>
+                              <span className="text-white font-bold">{f.hospital_name} — {f.surgery_name}</span>
+                            </div>
+                            <span className="bg-emerald2/20 border border-emerald2/30 text-emerald2 font-bold px-2 py-0.5 rounded">AMELİYAT TARAFI: {f.side}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="number" 
-                              min="1" 
-                              value={item.miktar}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 1;
-                                setTuketimCart(prev => prev.map((c, i) => i === index ? { ...c, miktar: val } : c));
-                              }}
-                              className="w-14 p-1 rounded bg-navy-800 border border-white/10 text-center font-bold text-white text-xs"
-                            />
-                            <button type="button" onClick={() => setTuketimCart(prev => prev.filter((_, i) => i !== index))} className="text-rose2 ml-2">Kaldır</button>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
+                            <div><span className="text-slate-500">Hasta Adı:</span> <strong className="text-white">{f.patient_name}</strong></div>
+                            <div><span className="text-slate-500">Sorumlu Hekim:</span> <strong className="text-white">{f.doctor_name}</strong></div>
+                          </div>
+                          
+                          <div className="text-xs text-slate-300">
+                            <span className="text-slate-500 font-bold">Ortak Sorumlu Ameliyat Ekibi:</span> <strong className="text-violet2">{f.team_personnel}</strong>
+                          </div>
+
+                          <div className="p-3 bg-navy-800 rounded-xl space-y-1">
+                            <div className="text-[11px] text-slate-500 font-bold mb-1">Faturalandırılan Ürünler:</div>
+                            {f.items.map((u, idx) => (
+                              <div key={idx} className="flex justify-between text-xs font-mono text-slate-300 border-b border-white/5 last:border-0 pb-1 pt-1">
+                                <span>REF: <strong className="text-white">{u.ref}</strong> | LOT: <strong className="text-amber2">{u.lot}</strong></span>
+                                <span className="text-emerald2 font-bold">{u.quantity} adet</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                  <button type="submit" className="w-full py-3 bg-emerald2 hover:bg-emerald2-dark text-white font-bold rounded-xl text-xs transition-colors">
-                    Stok Çıkışını Onayla ve Faturayı Bağla
-                  </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {page === "faturalar" && (
-          <div className="space-y-6">
-            <div className="glass-card p-6 rounded-2xl space-y-4">
-              <div>
-                <h3 className="text-md font-bold text-white">Ekip Bazlı Fatura / Tüketim Raporları</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Operasyon bağlamında ekip sorumluluğuna ait log kayıtları.</p>
               </div>
+            )}
 
-              {faturalar.length === 0 ? (
-                <div className="text-slate-500 italic p-6 text-center">Faturalandırılmış vaka kaydı bulunmuyor.</div>
-              ) : (
-                <div className="space-y-4">
-                  {faturalar.map(f => (
-                    <div key={f.id} className="p-5 rounded-2xl bg-navy-900 border border-white/10 space-y-3">
-                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                        <span className="text-xs font-mono text-brand-300 font-bold">FATURA ID: {f.id}</span>
-                        <span className="text-xs bg-emerald2/20 border border-emerald2/30 text-emerald2 px-2 py-0.5 rounded font-bold">TARAF: {f.side}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-slate-300">
-                        <div><span className="text-slate-500">Hasta:</span> <strong>{f.patient_name}</strong></div>
-                        <div><span className="text-slate-500">Hekim:</span> <strong>{f.doctor_name}</strong></div>
-                        <div><span className="text-slate-500">Hastane:</span> <strong>{f.hospital_name}</strong></div>
-                      </div>
-                      <div className="text-xs text-slate-300">
-                        <span className="text-slate-500 font-bold">Sorumlu Ameliyat Ekibi:</span> <strong className="text-brand-300">{f.team}</strong>
-                      </div>
-                      <div className="p-3 bg-navy-800 rounded-xl space-y-1">
-                        <div className="text-[11px] text-slate-500 font-bold mb-1">Tüketilen Ürün Listesi:</div>
-                        {f.urunler.map((u, idx) => (
-                          <div key={idx} className="flex justify-between text-xs font-mono text-slate-300">
-                            <span>REF: {u.ref} | LOT: {u.lot}</span>
-                            <span className="font-bold text-emerald2">{u.miktar} Adet</span>
-                          </div>
-                        ))}
-                      </div>
+            {/* ORTAK ALAN: REALTIME TRANSACTION LOG TABLE (3 & 7. MADDE) */}
+            <div className="glass-premium p-5 rounded-2xl space-y-4">
+              <h3 className="text-sm font-bold text-white">Sistem İşlem Günlüğü (Realtime Audit Transaction Log)</h3>
+              <div className="table-scroll">
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {hareketler.map(h => (
+                    <div key={h.id} className="text-xs font-mono bg-navy-900 p-3 rounded-xl border border-white/5 flex flex-wrap justify-between items-center gap-2">
+                      <span className="text-slate-500">[{h.created_at}]</span>
+                      <span className="text-white font-bold">{h.aciklama}</span>
+                      <span className="text-slate-300">LOT: <strong className="text-amber2">{h.lot}</strong></span>
+                      <span className="text-slate-400">Depo/Kurum ID: {h.hospital_id}</span>
+                      <span className={`font-bold ${h.miktar > 0 ? 'text-emerald2' : 'text-rose2'}`}>
+                        {h.miktar > 0 ? `+${h.miktar}` : h.miktar} adet
+                      </span>
                     </div>
                   ))}
                 </div>
-              )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* TIMELINE TIKLANDIĞINDA DETAY GÖSTEREN MODAL PANELDİR (8. Madde) */}
+        {activeTimelineVaka && (
+          <div className="fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+            <div className="modal-box w-full max-w-md rounded-2xl p-5 space-y-4">
+              <div className="flex justify-between items-start border-b border-white/10 pb-2">
+                <h3 className="text-sm font-bold text-white">{activeTimelineVaka.type}</h3>
+                <button onClick={() => setActiveTimelineVaka(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
+              </div>
+              <div className="space-y-2.5 text-xs text-slate-300">
+                <div><span className="text-slate-500">Sorumlu Doktor:</span> <strong>{activeTimelineVaka.doctor}</strong></div>
+                <div><span className="text-slate-500">Hastane Kurumu:</span> <strong>{hospitals.find(h=>h.id===activeTimelineVaka.hospital_id)?.name || 'Ana Depo'}</strong></div>
+                <div><span className="text-slate-500">Zamanlama:</span> <strong className="font-mono text-brand-300">{activeTimelineVaka.date} — {activeTimelineVaka.time}</strong></div>
+                <div>
+                  <span className="text-slate-500 block mb-1">Görevli Klinik / Saha Ekibi:</span>
+                  <div className="p-2.5 bg-navy-900 rounded-xl text-white font-medium border border-white/5">
+                    {activeTimelineVaka.personnel}
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2">
+                <button 
+                  onClick={() => {
+                    setSelectedSurgeryId(activeTimelineVaka.id);
+                    setPage("tuketim");
+                    setActiveTimelineVaka(null);
+                  }}
+                  className="w-full py-2.5 bg-brand text-white font-bold rounded-xl text-xs"
+                >
+                  Bu Vakanın Stok Çıkış Sayfasına Git
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        <div className="glass-card p-6 rounded-2xl mt-6 space-y-4">
-          <h3 className="text-md font-bold text-white">Sistem Hareket Kayıtları (Realtime Audit)</h3>
-          <div className="table-scroll">
-            {hareketler.length === 0 ? (
-              <div className="text-slate-600 italic text-xs">Sistemde henüz hareket yok.</div>
-            ) : (
-              <div className="space-y-1.5 max-height-[180px] overflow-y-auto">
-                {hareketler.map(h => (
-                  <div key={h.id} className="text-xs font-mono bg-navy-900 p-2 rounded-lg border border-white/5 flex justify-between items-center gap-2">
-                    <span className="text-slate-400">[{h.timestamp}]</span>
-                    <span className="text-white font-bold">{h.aciklama}</span>
-                    <span className="text-slate-300">REF: {h.ref} | LOT: {h.lot}</span>
-                    <span className={`font-bold ${h.miktar > 0 ? 'text-emerald2' : 'text-rose2'}`}>
-                      {h.miktar > 0 ? `+${h.miktar}` : h.miktar} Adet
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
-
-      {activeTimelineSurgery && (
-        <div className="fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
-          <div className="modal-box w-full max-w-md rounded-2xl p-6 space-y-4">
-            <div className="flex justify-between items-start border-b border-white/10 pb-2">
-              <h3 className="text-md font-bold text-white">{activeTimelineSurgery.type}</h3>
-              <button onClick={() => setActiveTimelineSurgery(null)} className="text-slate-400 hover:text-white font-bold text-sm">✕</button>
-            </div>
-            <div className="space-y-2 text-xs text-slate-300">
-              <div><span className="text-slate-500">Hasta:</span> <strong>{activeTimelineSurgery.patient}</strong></div>
-              <div><span className="text-slate-500">Hekim:</span> <strong>{activeTimelineSurgery.doctor}</strong></div>
-              <div><span className="text-slate-500">Zaman:</span> <strong>{activeTimelineSurgery.date} — {activeTimelineSurgery.time}</strong></div>
-              <div><span className="text-slate-500 block mb-1">Görevli Klinik Ekip:</span>
-                <div className="p-2 bg-navy-900 rounded-lg text-white font-medium">
-                  {activeTimelineSurgery.personnel_ids.map(id => INITIAL_PERSONNEL.find(p=>p.id===id)?.name).join(", ") || "Ekip Seçilmedi"}
-                </div>
-              </div>
-            </div>
-            <div className="pt-2">
-              <button 
-                onClick={() => {
-                  setSelectedSurgeryId(activeTimelineSurgery.id);
-                  setPage("tuketim");
-                  setActiveTimelineSurgery(null);
-                }}
-                className="w-full py-2.5 bg-brand text-white font-bold rounded-xl text-xs"
-              >
-                Vakanın Stok Çıkışını Yap
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </ToastProvider>
   );
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<ToastProvider><App /></ToastProvider>);
 </script>
 </body>
 </html>
