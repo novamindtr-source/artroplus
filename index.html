@@ -241,7 +241,6 @@ const productPayload=f=>({
   birim:f.unit||"adet",
   min_stok:Number(f.min_stock)||0,
   kategori:f.category||null,
-  aciklama:f.description||null,
 });
 const normalizeStock=(s,defaultHospitalId)=>({
   ...s,
@@ -253,6 +252,52 @@ const normalizeStock=(s,defaultHospitalId)=>({
   mfg_date:s.mfg_date||s.mfgDate||s.uretim_tarihi||null,
 });
 const normalizeLot=lot=>String(lot||"").trim().toLocaleUpperCase("tr-TR");
+const LOCAL_STOCK_LOTS_KEY="artroplus_local_stock_lots_v1";
+const readLocalStockLots=()=>{
+  try{return JSON.parse(localStorage.getItem(LOCAL_STOCK_LOTS_KEY)||"[]")||[];}
+  catch{return [];}
+};
+const writeLocalStockLots=rows=>{
+  try{localStorage.setItem(LOCAL_STOCK_LOTS_KEY,JSON.stringify(rows));}
+  catch{}
+};
+const sameStockIdentity=(a,b)=>a.urun_id===b.urun_id&&String(a.hospital_id||"")===String(b.hospital_id||"")&&normalizeLot(a.lot)===normalizeLot(b.lot);
+const rememberLocalStockLot=row=>{
+  if(!row?.urun_id||!row?.lot)return;
+  const normalized={
+    id:row.id||`local-${row.urun_id}-${row.hospital_id||"depo"}-${normalizeLot(row.lot)}`,
+    urun_id:row.urun_id,
+    hospital_id:row.hospital_id||"company-shelf-local",
+    lot:row.lot||"",
+    skt:row.skt||row.expiryDate||null,
+    mfg_date:row.mfg_date||row.mfgDate||null,
+    quantity:Number(row.quantity||row.miktar||1)||1,
+    local:true
+  };
+  const rows=readLocalStockLots();
+  const idx=rows.findIndex(r=>sameStockIdentity(r,normalized));
+  if(idx>=0)rows[idx]={...rows[idx],...normalized,quantity:(Number(rows[idx].quantity)||0)+normalized.quantity};
+  else rows.unshift(normalized);
+  writeLocalStockLots(rows);
+};
+const mergeLocalStockLots=(serverRows,defaultHospitalId)=>{
+  const normalizedServer=(serverRows||[]).map(s=>normalizeStock(s,defaultHospitalId));
+  const localRows=readLocalStockLots();
+  const serverKeys=new Set(normalizedServer.filter(s=>s.lot).map(s=>`${s.urun_id}|${s.hospital_id}|${normalizeLot(s.lot)}`));
+  const enriched=[];
+  normalizedServer.forEach(s=>{
+    if(s.lot){enriched.push(s);return;}
+    const matches=localRows.filter(r=>r.urun_id===s.urun_id&&String(r.hospital_id||defaultHospitalId)===String(s.hospital_id||defaultHospitalId));
+    if(matches.length){
+      matches.forEach(r=>enriched.push({...s,...r,id:s.id||r.id,quantity:Number(r.quantity)||Number(s.quantity)||0,local:true}));
+    }else enriched.push(s);
+  });
+  localRows.forEach(r=>{
+    const key=`${r.urun_id}|${r.hospital_id||defaultHospitalId}|${normalizeLot(r.lot)}`;
+    if(!serverKeys.has(key)&&!enriched.some(s=>sameStockIdentity(s,r)))enriched.push({...r,hospital_id:r.hospital_id||defaultHospitalId});
+  });
+  return enriched;
+};
 const stockLotLabel=s=>s?.lot?`LOT ${s.lot}`:"LOT yok";
 const findStockRow=(stoklar,urunId,hospitalId,lot="")=>stoklar.find(s=>
   s.urun_id===urunId&&(!s.hospital_id||!hospitalId||s.hospital_id===hospitalId)&&(!lot||normalizeLot(s.lot)===normalizeLot(lot))
@@ -313,8 +358,8 @@ const insertStockQuantity=(urunId,hospitalId,quantity,lot="",skt=null,mfgDate=nu
 };
 const normalizeMovement=(h,defaultHospitalId)=>({
   ...h,
-  hospital_id:h.hospital_id||defaultHospitalId,
-  lot:h.lot||h.lot_number||"",
+  hospital_id:h.hospital_id||String(h.notes||h.aciklama||"").match(/HOSPITAL_ID:([^—\s]+)/)?.[1]?.trim()||defaultHospitalId,
+  lot:h.lot||h.lot_number||String(h.notes||h.aciklama||"").match(/LOT:([^—\s]+)/)?.[1]?.trim()||"",
   fatura_id:h.fatura_id||null,
   type:h.type||(Number(h.miktar)<0?"out":"in"),
   quantity:Math.abs(h.quantity??h.miktar??0),
@@ -323,14 +368,16 @@ const normalizeMovement=(h,defaultHospitalId)=>({
 });
 const movementPayload=({urun_id,hospital_id,lot,type,quantity,notes,surgery_id,fatura_id})=>({
   urun_id,
-  hospital_id:hospital_id||null,
-  lot:lot||null,
   miktar:type==="out"?-Math.abs(Number(quantity)||0):Math.abs(Number(quantity)||0),
-  aciklama:notes||"",
-  surgery_id:surgery_id||null,
-  fatura_id:fatura_id||null,
+  aciklama:[
+    notes||"",
+    hospital_id?`HOSPITAL_ID:${hospital_id}`:"",
+    lot?`LOT:${lot}`:"",
+    surgery_id?`SURGERY_ID:${surgery_id}`:"",
+    fatura_id?`FATURA_ID:${fatura_id}`:"",
+  ].filter(Boolean).join(" — "),
 });
-const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,["hospital_id","lot","surgery_id","fatura_id"],{select:false});
+const insertMovement=payload=>insertWithSchemaFallback("hareketler",payload,[],{select:false});
 const isDuplicateError=error=>String(error?.message||"").toLowerCase().includes("duplicate")||String(error?.code||"")==="23505";
 const findExistingProductByForm=async(form)=>{
   if(form.code){
@@ -1184,7 +1231,7 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
 
   const save=async(form)=>{
     if(form.id){
-      const{error}=await SB.from("surgeries").update({...form,updated_at:new Date().toISOString()}).eq("id",form.id);
+      const{error}=await updateWithSchemaFallback("surgeries",{...form,updated_at:new Date().toISOString()},q=>q.eq("id",form.id),["updated_at"]);
       if(error)return toast(error.message,"error");
       toast("Ameliyat güncellendi","success");
       sendTelegram(`✏️ Güncellendi: ${form.type} — ${fmtTR(form.date)} ${form.time}`);
@@ -1579,7 +1626,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
   const saveViewPersonnel=async()=>{
     if(!viewS)return;
     const newNotes=buildSurgeryNotes(stripSurgeryMeta(viewS.notes),viewPersonnel,getSurgeryDocs(viewS));
-    const {error}=await SB.from("surgeries").update({notes:newNotes,updated_at:new Date().toISOString()}).eq("id",viewS.id);
+    const {error}=await updateWithSchemaFallback("surgeries",{notes:newNotes,updated_at:new Date().toISOString()},q=>q.eq("id",viewS.id),["updated_at"]);
     if(error)return toast(error.message,"error");
     const updated={...viewS,notes:newNotes};
     setViewS(updated);
@@ -2284,7 +2331,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       }
       // Yeni ürün ekle
       const payload=productPayload(normalizedForm);
-      const inserted=await insertWithSchemaFallback("urunler",payload,["aciklama"],{select:false});
+      const inserted=await insertWithSchemaFallback("urunler",payload,[],{select:false});
       const data=Array.isArray(inserted.data)?inserted.data[0]:inserted.data;
       const error=inserted.error;
       if(error){
@@ -2304,13 +2351,13 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
       }
     }else if(matchedUrun){
       // Mevcut ürünü güncelle
-      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",matchedUrun.id),["aciklama"]);
+      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",matchedUrun.id),[]);
       if(error)return toast(error.message,"error");
       urunId=matchedUrun.id;
       toast("Ürün güncellendi ✓","success");
     }else{
       // Edit mode
-      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",modal.id),["aciklama"]);
+      const{error}=await updateWithSchemaFallback("urunler",productPayload(normalizedForm),q=>q.eq("id",modal.id),[]);
       if(error)return toast(error.message,"error");
       urunId=modal.id;
       toast("Güncellendi ✓","success");
@@ -2342,6 +2389,7 @@ function UrunlerView({urunler,stoklar,hospitals,loadAll}){
         quantity:qty,
         local:true
       };
+      rememberLocalStockLot(optimisticStock);
       setLocalStockRows(prev=>{
         const idx=prev.findIndex(r=>r.urun_id===urunId&&r.hospital_id===shelf.id&&normalizeLot(r.lot)===normalizeLot(f.lot));
         if(idx>=0)return prev.map((r,i)=>i===idx?{...r,quantity:(Number(r.quantity)||0)+qty,skt:f.expiryDate||r.skt,mfg_date:f.mfgDate||r.mfg_date}:r);
@@ -3579,6 +3627,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       }
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
       else{await insertStockQuantity(op.urun_id,op.to_id,qty,op.lot,null,null,displayLocationName(hospitals.find(h=>h.id===op.to_id)));}
+      if(op.lot)rememberLocalStockLot({urun_id:op.urun_id,hospital_id:op.to_id,lot:op.lot,quantity:qty});
       await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.to_id,lot:op.lot,type:"in",quantity:qty,
         notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${op.notes||""}`.trim()}));
       toast(`${qty} ${urun?.unit||"adet"} hastaneye gönderildi ✓`,"success");
@@ -3603,6 +3652,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       await updateStockQuantity(fromStok,fromStok.quantity-qty);
       if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
       else{await insertStockQuantity(op.urun_id,targetId,qty,op.lot,null,null,displayLocationName(hospitals.find(h=>h.id===targetId))||"Ana Depo");}
+      if(op.lot)rememberLocalStockLot({urun_id:op.urun_id,hospital_id:targetId,lot:op.lot,quantity:qty});
       await insertWithSchemaFallback("hareketler",[
         movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,
           notes:`${MOV_TAGS.RETURN} → ${hospitals.find(h=>h.id===targetId)?.name||COMPANY_SHELF_NAME} ${op.notes||""}`.trim()}),
@@ -4148,6 +4198,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
             const isIn=h.type==="in";
             const d=new Date(h.created_at);
             const cleanNote=tag?h.notes.replace(tag,"").trim():h.notes;
+            const refLotLabel=`${urun?.code||"REF yok"} · ${h.lot?`LOT ${h.lot}`:"LOT yok"}`;
             return(
               <div key={h.id} className="table-row px-5 py-3 flex items-center gap-3 border-b border-white/5 last:border-b-0">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0"
@@ -4156,10 +4207,10 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <span className="text-sm font-semibold text-white truncate">{urun?.name||"?"}</span>
+                    <span className="text-sm font-mono font-bold text-white truncate">{refLotLabel}</span>
                     {meta&&<span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{background:meta.bg,color:meta.color}}>{meta.label}</span>}
                   </div>
-                  <div className="text-xs text-slate-500 truncate">{displayLocationName(hosp)||"?"}{cleanNote?` · ${cleanNote}`:""}</div>
+                  <div className="text-xs text-slate-500 truncate">{urun?.name?`${urun.name} · `:""}{displayLocationName(hosp)||"?"}{cleanNote?` · ${cleanNote}`:""}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className="text-sm font-bold" style={meta?{color:meta.color}:{color:isIn?"#10b981":"#f43f5e"}}>
@@ -4217,6 +4268,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       await updateStockQuantity(stok,newQ);
     }else if(d.type==="in"){
       await insertStockQuantity(d.urun_id,d.hospital_id,qty,d.lot||"",null,null,displayLocationName(hospitals.find(h=>h.id===d.hospital_id)));
+      if(d.lot)rememberLocalStockLot({urun_id:d.urun_id,hospital_id:d.hospital_id,lot:d.lot,quantity:qty});
     }
     toast("Hareket kaydedildi ✓","success");
     setModal(false);loadAll();load();
@@ -4326,6 +4378,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           const isIn=h.type==="in";
           const d=new Date(h.created_at);
           const cleanNote=tag?h.notes.replace(tag,"").trim():h.notes;
+          const refLotLabel=`${urun?.code||"REF yok"} · ${h.lot?`LOT ${h.lot}`:"LOT yok"}`;
           return(
             <div key={h.id} className="table-row px-5 py-3 flex items-center gap-3 border-b border-white/5 last:border-b-0">
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${meta?"":isIn?"bg-emerald2/15 text-emerald2":"bg-rose2/15 text-rose2"}`}
@@ -4334,13 +4387,13 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <span className="text-sm font-semibold text-white truncate">{urun?.name||"Ürün bulunamadı"}</span>
+                  <span className="text-sm font-mono font-bold text-white truncate">{refLotLabel}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${meta?"":isIn?"bg-emerald2/15 text-emerald2":"bg-rose2/15 text-rose2"}`}
                     style={meta?{background:meta.bg,color:meta.color}:null}>
                     {meta?meta.label:(isIn?"Giriş":"Çıkış")}
                   </span>
                 </div>
-                <div className="text-xs text-slate-500 truncate">{displayLocationName(hosp)||"Hastane bulunamadı"}{cleanNote?` - ${cleanNote}`:""}</div>
+                <div className="text-xs text-slate-500 truncate">{urun?.name?`${urun.name} · `:""}{displayLocationName(hosp)||"Hastane bulunamadı"}{cleanNote?` - ${cleanNote}`:""}</div>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className={`text-sm font-bold ${meta?"":isIn?"text-emerald2":"text-rose2"}`} style={meta?{color:meta.color}:null}>
@@ -4377,144 +4430,61 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   );
 }
 // ─── INVOICE / CONSUMPTION VIEW ───────────────────────────────────────────────
-// ─── ÖDEME TİPLERİ ────────────────────────────────────────────────────────────
-const ODEME_TIPLERI = [
-  {id:"sgk",          label:"SGK",                 short:"SGK",    color:"#3b82f6", bg:"rgba(59,130,246,.15)"},
-  {id:"sgk_fark",     label:"SGK + Fark",          short:"SGK+F",  color:"#8b5cf6", bg:"rgba(139,92,246,.15)"},
-  {id:"ozel_sigorta", label:"Özel Sigorta",         short:"ÖS",     color:"#10b981", bg:"rgba(16,185,129,.15)"},
-  {id:"ozel_fark",    label:"Özel Sigorta + Fark",  short:"ÖS+F",   color:"#06b6d4", bg:"rgba(6,182,212,.15)"},
-  {id:"ucretli",      label:"Ücretli (Nakit/Kart)", short:"ÜCR",    color:"#f59e0b", bg:"rgba(245,158,11,.15)"},
-  {id:"ucretsiz",     label:"Ücretsiz / Bağış",     short:"BGŞ",    color:"#10b981", bg:"rgba(16,185,129,.1)"},
-  {id:"kurumsal",     label:"Kurumsal Sözleşme",    short:"KUR",    color:"#f97316", bg:"rgba(249,115,22,.15)"},
-  {id:"diger",        label:"Diğer",                short:"DİĞ",    color:"#94a3b8", bg:"rgba(148,163,184,.12)"},
-];
-
-const ODEME_BY_ID = Object.fromEntries(ODEME_TIPLERI.map(o=>[o.id, o]));
-
-function OdemeBadge({odeme}){
-  const o = ODEME_BY_ID[odeme] || {label: odeme||"—", short: odeme||"—", color:"#94a3b8", bg:"rgba(148,163,184,.12)"};
-  return(
-    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border"
-      style={{background:o.bg, color:o.color, borderColor:o.color+"40"}}>
-      {o.short}
-    </span>
-  );
-}
-
-// ─── FATURALAR VIEW ───────────────────────────────────────────────────────────
 function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}){
   const toast=useToast();
   const [records,setRecords]=useState([]);
   const [modal,setModal]=useState(false);
-  const [detailRow,setDetailRow]=useState(null);
-  const [filterOdeme,setFilterOdeme]=useState("");
-  const [filterSearch,setFilterSearch]=useState("");
-  const [filterDate,setFilterDate]=useState("");
-
-  const emptyInvoiceForm={
-    surgery_id:"",
-    patient_name:"",
-    patient_tc:"",           // TC kimlik numarası
-    patient_dob:"",          // Doğum tarihi
-    side:"",
-    odeme_tipi:"sgk",        // ★ Ödeme tipi
-    sgk_no:"",               // SGK Sicil / T.C.
-    sigorta_sirket:"",       // Özel sigorta şirketi
-    sigorta_polie:"",        // Poliçe numarası
-    fark_ucreti:"",          // Fark ücreti tutarı
-    aciklama:"",             // Serbest not
-    personnel:[],
-    items:[{urun_id:"",lot:"",quantity:1,birim_fiyat:"",kdv_oran:18}],
-  };
+  const emptyInvoiceForm={surgery_id:"",patient_name:"",side:"",personnel:[],items:[{urun_id:"",lot:"",quantity:1}]};
   const [f,setF]=useState(emptyInvoiceForm);
 
   const load=async()=>{
-    const{data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(1000);
+    const {data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(500);
     const defaultHospitalId=findCompanyShelf(hospitals)?.id||"company-shelf-local";
     setRecords((data||[]).map(h=>normalizeMovement(h,defaultHospitalId)).filter(h=>h.notes?.includes("[FATURA]")||h.surgery_id));
   };
   useEffect(()=>{load();},[]);
 
   const selectedSurgery=surgeries.find(s=>s.id===f.surgery_id);
-  const selectedHospitalId=selectedSurgery
-    ?(hospitals.find(h=>h.name===selectedSurgery.hospital)?.id||findCompanyShelf(hospitals)?.id||"company-shelf-local")
-    :"";
+  const selectedHospitalId=selectedSurgery?(hospitals.find(h=>h.name===selectedSurgery.hospital)?.id||findCompanyShelf(hospitals)?.id||"company-shelf-local"):"";
   const team=selectedSurgery?getSurgeryPersonnel(selectedSurgery):[];
-
   useEffect(()=>{
     setF(prev=>{
       if(!prev.surgery_id)return prev;
       const surgery=surgeries.find(s=>s.id===prev.surgery_id);
       const surgeryTeam=surgery?getSurgeryPersonnel(surgery):[];
       if(!surgeryTeam.length||prev.personnel.length)return prev;
-      return{...prev,personnel:surgeryTeam};
+      return {...prev,personnel:surgeryTeam};
     });
   },[f.surgery_id,surgeries]);
-
   const updateItem=(idx,patch)=>setF(prev=>({...prev,items:prev.items.map((it,i)=>i===idx?{...it,...patch}:it)}));
-  const addItem=()=>setF(prev=>({...prev,items:[...prev.items,{urun_id:"",lot:"",quantity:1,birim_fiyat:"",kdv_oran:18}]}));
+  const addItem=()=>setF(prev=>({...prev,items:[...prev.items,{urun_id:"",lot:"",quantity:1}]}));
   const removeItem=idx=>setF(prev=>({...prev,items:prev.items.filter((_,i)=>i!==idx)}));
-  const togglePersonnel=name=>setF(prev=>({
+  const toggleInvoicePersonnel=name=>setF(prev=>({
     ...prev,
     personnel:prev.personnel.includes(name)?prev.personnel.filter(x=>x!==name):[...prev.personnel,name]
   }));
-
-  const odemeLabel=ODEME_BY_ID[f.odeme_tipi]?.label||f.odeme_tipi;
 
   const saveInvoice=async()=>{
     if(!selectedSurgery)return toast("Ameliyat seçin","warning");
     if(!f.patient_name.trim())return toast("Hasta adı gerekli","warning");
     if(!f.side)return toast("Ameliyat tarafı seçin","warning");
-    if(!f.odeme_tipi)return toast("Ödeme tipi seçin","warning");
     const invoiceTeam=f.personnel.length?f.personnel:team;
     const validItems=f.items.filter(i=>i.urun_id&&Number(i.quantity)>0);
     if(!validItems.length)return toast("En az bir ürün ekleyin","warning");
-
-    // Stok yeterliliği kontrolü
     for(const item of validItems){
       const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
       const qty=Number(item.quantity)||1;
       const urun=urunler.find(u=>u.id===item.urun_id);
       if(!stok||stok.quantity<qty)return toast(`Stok yetersiz: ${urun?.code||"REF"} / ${item.lot||"LOT yok"}`,"error");
     }
-
-    // Her ürünü stoktan düş ve kaydet
     for(const item of validItems){
       const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
       const qty=Number(item.quantity)||1;
       await updateStockQuantity(stok,stok.quantity-qty);
-
-      const note=buildInvoiceNote({
-        patient_name:f.patient_name,
-        patient_tc:f.patient_tc,
-        patient_dob:f.patient_dob,
-        side:f.side,
-        surgery_type:selectedSurgery.type,
-        doctor:selectedSurgery.doctor,
-        team:invoiceTeam.join(", ")||"Personel seçilmemiş",
-        odeme_tipi:f.odeme_tipi,
-        odeme_label:odemeLabel,
-        sgk_no:f.sgk_no,
-        sigorta_sirket:f.sigorta_sirket,
-        sigorta_polie:f.sigorta_polie,
-        fark_ucreti:f.fark_ucreti,
-        birim_fiyat:item.birim_fiyat,
-        kdv_oran:item.kdv_oran,
-        aciklama:f.aciklama,
-      });
-
-      const{error}=await insertMovement(movementPayload({
-        urun_id:item.urun_id,
-        hospital_id:selectedHospitalId,
-        lot:item.lot||"",
-        type:"out",
-        quantity:qty,
-        notes:note,
-        surgery_id:selectedSurgery.id,
-      }));
+      const note=`[FATURA] Hasta: ${f.patient_name} — Taraf: ${f.side} — Ameliyat: ${selectedSurgery.type} — Doktor: ${selectedSurgery.doctor} — Personel: ${invoiceTeam.join(", ")||"Personel seçilmemiş"}`;
+      const {error}=await insertMovement(movementPayload({urun_id:item.urun_id,hospital_id:selectedHospitalId,lot:item.lot||"",type:"out",quantity:qty,notes:note,surgery_id:selectedSurgery.id}));
       if(error)return toast(error.message,"error");
     }
-
     await SB.from("surgeries").update({status:"done"}).eq("id",selectedSurgery.id);
     toast("Fatura / tüketim kaydı oluşturuldu ✓","success");
     setModal(false);
@@ -4522,574 +4492,127 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
     loadAll();load();
   };
 
-  // ── note builder / parser ─────────────────────────────────────────────────
-  const buildInvoiceNote=({patient_name,patient_tc,patient_dob,side,surgery_type,doctor,team,
-    odeme_tipi,odeme_label,sgk_no,sigorta_sirket,sigorta_polie,fark_ucreti,birim_fiyat,kdv_oran,aciklama})=>{
-    const parts=[
-      `[FATURA]`,
-      `Hasta: ${patient_name}`,
-      patient_tc?`TC: ${patient_tc}`:"",
-      patient_dob?`Doğum: ${patient_dob}`:"",
-      `Taraf: ${side}`,
-      `Ameliyat: ${surgery_type}`,
-      `Doktor: ${doctor}`,
-      `Personel: ${team}`,
-      `Ödeme: ${odeme_label}`,
-      sgk_no?`SGK/TC: ${sgk_no}`:"",
-      sigorta_sirket?`Sigorta: ${sigorta_sirket}`:"",
-      sigorta_polie?`Poliçe: ${sigorta_polie}`:"",
-      fark_ucreti?`Fark: ${fark_ucreti} ₺`:"",
-      birim_fiyat?`Fiyat: ${birim_fiyat} ₺`:"",
-      kdv_oran?`KDV: %${kdv_oran}`:"",
-      aciklama?`Not: ${aciklama}`:"",
-    ].filter(Boolean);
-    return parts.join(" — ");
-  };
-
-  const parseNote=(note)=>{
-    if(!note)return{};
-    const get=(key)=>{
-      const m=note.match(new RegExp(`${key}:\\s*([^—]+)`));
-      return m?m[1].trim():"";
-    };
-    return{
-      patient:get("Hasta"),tc:get("TC"),dob:get("Doğum"),
-      side:get("Taraf"),surgery:get("Ameliyat"),doctor:get("Doktor"),
-      team:get("Personel"),odeme:get("Ödeme"),sgk:get("SGK/TC"),
-      sigorta:get("Sigorta"),polie:get("Poliçe"),fark:get("Fark"),
-      fiyat:get("Fiyat"),kdv:get("KDV"),aciklama:get("Not"),
+  const recordRows=records.map(r=>({h:r,urun:urunler.find(u=>u.id===r.urun_id)||{},surgery:surgeries.find(s=>s.id===r.surgery_id)||{},hospital:hospitals.find(h=>h.id===r.hospital_id)||{}}));
+  const invoicePrintRow=({h,urun,surgery,hospital})=>{
+    const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
+    const patient=noteField(h.notes,"Hasta")||"Hasta yok";
+    const side=noteField(h.notes,"Taraf")||"—";
+    return {
+      meta:[
+        {label:"Hasta",value:patient},
+        {label:"Ameliyat",value:surgery.type||noteField(h.notes,"Ameliyat")||"—"},
+        {label:"Taraf",value:side},
+        {label:"Doktor",value:surgery.doctor||noteField(h.notes,"Doktor")||"—"},
+        {label:"Hastane",value:displayLocationName(hospital)||surgery.hospital||"—"},
+        {label:"Personel",value:invoiceTeam},
+      ],
+      row:{
+        ref:urun.code,
+        lot:h.lot,
+        product:urun.name,
+        context:`${surgery.type||"Ameliyat"} / ${patient} / ${side}`,
+        personnel:invoiceTeam,
+        quantity:h.quantity,
+      }
     };
   };
-
-  // ── PDF export ─────────────────────────────────────────────────────────────
-  const exportPDF=(rows)=>{
-    if(!window.jspdf){toast("PDF yüklenemedi","error");return;}
-    const{jsPDF}=window.jspdf;
-    const doc=new jsPDF();
-    const pw=doc.internal.pageSize.getWidth();
-    // Header
-    doc.setFillColor(10,16,37);doc.rect(0,0,pw,28,"F");
-    doc.setTextColor(255,255,255);doc.setFontSize(18);doc.setFont("helvetica","bold");
-    doc.text("ARTROPLUS",14,16);
-    doc.setFontSize(10);doc.setFont("helvetica","normal");
-    doc.text("Fatura / Tüketim Raporu",14,23);
-    doc.text(new Date().toLocaleDateString("tr-TR"),pw-14,23,{align:"right"});
-    // Table
-    const tableData=rows.map(({h,urun,surgery})=>{
-      const p=parseNote(h.notes);
-      return[
-        urun.code||"—",h.lot||"—",
-        p.patient||"—",
-        surgery.type||"—",surgery.doctor||"—",
-        p.odeme||"—",
-        p.fark?p.fark:"—",
-        String(h.quantity),
-      ];
-    });
-    doc.autoTable({
-      startY:35,
-      head:[["REF","LOT","Hasta","Ameliyat","Doktor","Ödeme","Fark","Adet"]],
-      body:tableData,
-      styles:{fontSize:7.5,cellPadding:3,textColor:[203,213,225],fillColor:[10,16,37]},
-      headStyles:{fillColor:[13,23,48],textColor:[147,197,253],fontStyle:"bold"},
-      alternateRowStyles:{fillColor:[15,26,53]},
-      margin:{left:10,right:10},
-      tableLineColor:[30,41,59],tableLineWidth:0.2,
-    });
-    const pages=doc.internal.getNumberOfPages();
-    for(let i=1;i<=pages;i++){
-      doc.setPage(i);doc.setFontSize(6);doc.setTextColor(71,85,105);
-      doc.text(`ARTROPLUS — Sayfa ${i}/${pages}`,pw/2,doc.internal.pageSize.getHeight()-5,{align:"center"});
-    }
-    doc.save(`fatura_${new Date().toISOString().slice(0,10)}.pdf`);
-    toast("PDF indirildi ✓","success");
+  const printInvoiceRecord=record=>{
+    const printable=invoicePrintRow(record);
+    printExitDocument({title:"Fatura / Tüketim Çıkış Fişi",subtitle:"Ameliyat bazlı ürün tüketim belgesi",meta:printable.meta,rows:[printable.row]});
   };
-
-  // ── Print single record ────────────────────────────────────────────────────
-  const printSingle=(row)=>{
-    const{h,urun,surgery,hospital}=row;
-    const p=parseNote(h.notes);
-    const odemeObj=ODEME_TIPLERI.find(o=>o.label===p.odeme)||ODEME_BY_ID.diger;
-    const w=window.open("","_blank","width=800,height=900");
-    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Tüketim Belgesi</title>
-<style>
-  body{font-family:Arial,sans-serif;padding:32px;color:#0f172a;margin:0;}
-  h1{font-size:22px;margin:0;font-weight:900;}
-  .sub{font-size:13px;color:#64748b;margin-top:4px;}
-  .badge{display:inline-block;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;background:${odemeObj.bg};color:${odemeObj.color};border:1px solid ${odemeObj.color}40;}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;}
-  .card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;}
-  .card .label{font-size:10px;color:#94a3b8;text-transform:uppercase;font-weight:600;margin-bottom:4px;}
-  .card .val{font-size:14px;font-weight:700;color:#0f172a;}
-  .product-row{background:#f1f5f9;border-radius:10px;padding:12px 16px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;}
-  .footer{margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:11px;color:#64748b;}
-  .sig-box{border:1px solid #cbd5e1;border-radius:8px;height:56px;margin-top:4px;}
-  @media print{body{padding:16px;}.no-print{display:none;}}
-</style></head><body>
-<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
-  <div><h1>Tüketim Belgesi</h1><div class="sub">${new Date(h.created_at).toLocaleString("tr-TR")} · ${displayLocationName(hospital)||surgery.hospital||"Hastane"}</div></div>
-  <span class="badge">${p.odeme||odemeObj.label}</span>
-</div>
-<div class="grid">
-  <div class="card"><div class="label">Hasta</div><div class="val">${p.patient||"—"}</div></div>
-  <div class="card"><div class="label">T.C. / SGK No</div><div class="val">${p.sgk||p.tc||"—"}</div></div>
-  <div class="card"><div class="label">Ameliyat</div><div class="val">${surgery.type||"—"}</div></div>
-  <div class="card"><div class="label">Taraf</div><div class="val">${p.side||"—"}</div></div>
-  <div class="card"><div class="label">Doktor</div><div class="val">${surgery.doctor||"—"}</div></div>
-  <div class="card"><div class="label">Tarih</div><div class="val">${surgery.date||"—"}</div></div>
-  ${p.sigorta?`<div class="card"><div class="label">Sigorta</div><div class="val">${p.sigorta}${p.polie?" / "+p.polie:""}</div></div>`:""}
-  ${p.fark?`<div class="card" style="background:#fef3c7;border-color:#f59e0b;"><div class="label" style="color:#92400e;">Fark Ücreti</div><div class="val" style="color:#b45309;">${p.fark}</div></div>`:""}
-</div>
-<div style="margin:16px 0;">
-  <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px;">Kullanılan Ürün</div>
-  <div class="product-row">
-    <div><span style="font-family:monospace;font-weight:700;font-size:15px;">${urun.code||"—"}</span><div style="font-size:12px;color:#64748b;margin-top:2px;">${urun.name||""} · LOT: ${h.lot||"—"}</div></div>
-    <div style="text-align:right;"><div style="font-size:20px;font-weight:900;color:#e11d48;">${h.quantity} ${urun.unit||"adet"}</div>${p.fiyat?`<div style="font-size:11px;color:#64748b;">${p.fiyat} + %${p.kdv||18} KDV</div>`:""}</div>
-  </div>
-</div>
-${p.aciklama?`<div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:12px;color:#475569;margin:12px 0;"><b>Not:</b> ${p.aciklama}</div>`:""}
-<div style="font-size:11px;color:#64748b;margin:12px 0;">Personel: ${p.team||"—"}</div>
-<div class="footer">
-  <div><div style="font-weight:700;margin-bottom:4px;">Hasta İmzası</div><div class="sig-box"></div></div>
-  <div><div style="font-weight:700;margin-bottom:4px;">Sorumlu Personel</div><div class="sig-box"></div></div>
-  <div><div style="font-weight:700;margin-bottom:4px;">Doktor / Onay</div><div class="sig-box"></div></div>
-</div>
-<div style="text-align:center;margin-top:20px;font-size:10px;color:#94a3b8;">ARTROPLUS Medikal Yönetim Sistemi · ${new Date().toLocaleDateString("tr-TR")}</div>
-<div class="no-print" style="text-align:center;margin-top:24px;"><button onclick="window.print()" style="padding:10px 32px;background:#2563eb;color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Yazdır</button></div>
-</body></html>`;
-    w.document.write(html);w.document.close();
-    setTimeout(()=>w.print(),400);
-  };
-
-  // ── Filter records ─────────────────────────────────────────────────────────
-  const recordRows=useMemo(()=>{
-    return records
-      .map(h=>({
-        h,
-        urun:urunler.find(u=>u.id===h.urun_id)||{},
-        surgery:surgeries.find(s=>s.id===h.surgery_id)||{},
-        hospital:hospitals.find(ho=>ho.id===h.hospital_id)||{},
-        parsed:parseNote(h.notes),
-      }))
-      .filter(({h,urun,surgery,parsed})=>{
-        if(filterOdeme){
-          const odemeObj=ODEME_TIPLERI.find(o=>o.label===parsed.odeme);
-          if(!odemeObj||odemeObj.id!==filterOdeme)return false;
-        }
-        if(filterDate&&!h.created_at?.startsWith(filterDate))return false;
-        if(filterSearch){
-          const q=filterSearch.toLowerCase();
-          return(
-            (urun.code||"").toLowerCase().includes(q)||
-            (parsed.patient||"").toLowerCase().includes(q)||
-            (surgery.type||"").toLowerCase().includes(q)||
-            (surgery.doctor||"").toLowerCase().includes(q)||
-            (h.lot||"").toLowerCase().includes(q)||
-            (parsed.sgk||"").includes(q)
-          );
-        }
-        return true;
-      });
-  },[records,urunler,surgeries,hospitals,filterOdeme,filterDate,filterSearch]);
-
-  // ── Özet istatistikler ────────────────────────────────────────────────────
-  const stats=useMemo(()=>{
-    const m={};
-    ODEME_TIPLERI.forEach(o=>{m[o.id]=0;});
-    recordRows.forEach(({parsed})=>{
-      const o=ODEME_TIPLERI.find(x=>x.label===parsed.odeme);
-      if(o)m[o.id]=(m[o.id]||0)+1;
+  const printInvoiceList=()=>{
+    if(!recordRows.length)return toast("Yazdırılacak kayıt yok","warning");
+    const rows=recordRows.map(r=>invoicePrintRow(r).row);
+    printExitDocument({
+      title:"Fatura / Tüketim Listesi",
+      subtitle:"Filtrelenmiş tüketim kayıtları",
+      meta:[{label:"Kayıt Sayısı",value:recordRows.length},{label:"Tarih",value:new Date().toLocaleString("tr-TR")},{label:"Belge Türü",value:"Toplu Çıkış"}],
+      rows
     });
-    return m;
-  },[recordRows]);
-
-  const selectedOdeme=ODEME_BY_ID[f.odeme_tipi];
-  const needsSgk=["sgk","sgk_fark"].includes(f.odeme_tipi);
-  const needsSigorta=["ozel_sigorta","ozel_fark"].includes(f.odeme_tipi);
-  const needsFark=["sgk_fark","ozel_fark"].includes(f.odeme_tipi);
-  const needsFiyat=["ucretli","ozel_sigorta","ozel_fark","sgk_fark","kurumsal"].includes(f.odeme_tipi);
+  };
 
   return(
     <div className="space-y-5">
-
-      {/* ── Detay modal ─────────────────────────────── */}
-      {detailRow&&(()=>{
-        const{h,urun,surgery,hospital,parsed}=detailRow;
-        const odemeObj=ODEME_TIPLERI.find(o=>o.label===parsed.odeme)||ODEME_BY_ID.diger;
-        return(
-          <Modal title="Tüketim Belgesi Detayı" onClose={()=>setDetailRow(null)} size="lg"
-            footer={<div className="flex gap-2">
-              <button onClick={()=>setDetailRow(null)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">Kapat</button>
-              <button onClick={()=>printSingle(detailRow)} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Yazdır / PDF</button>
-            </div>}>
-            <div className="space-y-4">
-              {/* Ödeme tipi şeridi */}
-              <div className="flex items-center gap-3 p-4 rounded-2xl border" style={{background:odemeObj.bg,borderColor:odemeObj.color+"40"}}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black" style={{background:odemeObj.color+"25",color:odemeObj.color}}>₺</div>
-                <div>
-                  <div className="text-sm font-black" style={{color:odemeObj.color}}>{odemeObj.label}</div>
-                  {parsed.fark&&<div className="text-xs text-slate-300">Fark Ücreti: <b>{parsed.fark}</b></div>}
-                  {parsed.sigorta&&<div className="text-xs text-slate-300">Sigorta: <b>{parsed.sigorta}</b>{parsed.polie?` — Poliçe: ${parsed.polie}`:""}</div>}
-                  {parsed.sgk&&<div className="text-xs text-slate-300">SGK/TC: <b>{parsed.sgk}</b></div>}
-                </div>
-              </div>
-              {/* Hasta + Ameliyat bilgileri */}
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  {l:"Hasta",v:parsed.patient},
-                  {l:"T.C.",v:parsed.tc||parsed.sgk},
-                  {l:"Doğum Tarihi",v:parsed.dob},
-                  {l:"Ameliyat Tarafı",v:parsed.side},
-                  {l:"Ameliyat",v:surgery.type},
-                  {l:"Tarih",v:surgery.date},
-                  {l:"Doktor",v:surgery.doctor},
-                  {l:"Hastane",v:displayLocationName(hospital)||surgery.hospital},
-                ].filter(r=>r.v).map(r=>(
-                  <div key={r.l} className="bg-navy-800 rounded-xl p-3">
-                    <div className="text-[10px] text-slate-500 mb-0.5">{r.l}</div>
-                    <div className="text-sm font-semibold text-white">{r.v}</div>
-                  </div>
-                ))}
-              </div>
-              {/* Ürün */}
-              <div className="bg-navy-800 rounded-xl p-4 border border-white/8 flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="text-sm font-mono font-black text-white">{urun.code||"—"}</div>
-                  <div className="text-xs text-slate-400">{urun.name||""}</div>
-                  <div className="text-xs text-slate-500">LOT: <b className="text-brand-300">{h.lot||"—"}</b></div>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-black text-rose2">{h.quantity}</div>
-                  <div className="text-xs text-slate-500">{urun.unit||"adet"}</div>
-                  {parsed.fiyat&&<div className="text-xs text-slate-400">{parsed.fiyat}</div>}
-                </div>
-              </div>
-              {/* Personel */}
-              <div className="bg-navy-800 rounded-xl p-3">
-                <div className="text-[10px] text-slate-500 mb-1">Personel / Ekip</div>
-                <div className="text-sm text-slate-200">{parsed.team||"—"}</div>
-              </div>
-              {parsed.aciklama&&(
-                <div className="bg-amber2/8 rounded-xl p-3 border border-amber2/20">
-                  <div className="text-[10px] text-amber2 mb-1">Not</div>
-                  <div className="text-sm text-slate-200">{parsed.aciklama}</div>
-                </div>
-              )}
-              <div className="text-xs text-slate-600 text-right">{new Date(h.created_at).toLocaleString("tr-TR")}</div>
-            </div>
-          </Modal>
-        );
-      })()}
-
-      {/* ── Çıkış Yap modal ─────────────────────────── */}
       {modal&&(
-        <Modal title="Fatura / Tüketim Çıkışı" onClose={()=>{setModal(false);setF(emptyInvoiceForm);}} size="xl"
-          footer={<div className="flex gap-2">
-            <button onClick={()=>{setModal(false);setF(emptyInvoiceForm);}} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button>
-            <button onClick={saveInvoice} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Çıkış Yap & Kaydet</button>
-          </div>}>
-          <div className="space-y-5">
-
-            {/* 1. Ameliyat seçimi */}
+        <Modal title="Fatura / Tüketim Çıkışı" onClose={()=>setModal(false)} size="lg"
+          footer={<div className="flex gap-2"><button onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button onClick={saveInvoice} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Çıkış Yap</button></div>}>
+          <div className="space-y-4">
+            <div><Label required>Ameliyat</Label><Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value,personnel:[]}))}><option value="">Ameliyat seçin</option>{surgeries.map(s=><option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.hospital} — {s.doctor}</option>)}</Select></div>
+            {selectedSurgery&&<div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Doktor</div><div className="text-sm font-bold text-white">{selectedSurgery.doctor}</div></div>
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Hastane</div><div className="text-sm font-bold text-white">{selectedSurgery.hospital}</div></div>
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Personel</div><div className="text-sm font-bold text-white truncate">{(f.personnel.length?f.personnel:team).join(", ")||"Personel yok"}</div></div>
+            </div>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><Label required>Hasta Adı</Label><Input value={f.patient_name} onChange={e=>setF(p=>({...p,patient_name:e.target.value}))}/></div>
+              <div><Label required>Ameliyat Tarafı</Label><Select value={f.side} onChange={e=>setF(p=>({...p,side:e.target.value}))}><option value="">Seçin</option><option>Sağ</option><option>Sol</option><option>Bilateral</option><option>Taraf yok</option></Select></div>
+            </div>
             <div>
-              <Label required>Ameliyat</Label>
-              <Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value,personnel:[]}))}>
-                <option value="">Ameliyat seçin</option>
-                {[...surgeries].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>(
-                  <option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.hospital} — {s.doctor}</option>
-                ))}
-              </Select>
-            </div>
-            {selectedSurgery&&(
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                {[{l:"Doktor",v:selectedSurgery.doctor},{l:"Hastane",v:selectedSurgery.hospital},{l:"Personel",v:(f.personnel.length?f.personnel:team).join(", ")||"Personel yok"}].map(r=>(
-                  <div key={r.l} className="card rounded-xl p-3"><div className="text-xs text-slate-500">{r.l}</div><div className="text-sm font-bold text-white truncate">{r.v}</div></div>
-                ))}
-              </div>
-            )}
-
-            {/* 2. Hasta bilgileri */}
-            <div className="card-premium rounded-2xl p-4 space-y-3">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Hasta Bilgileri</div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div><Label required>Hasta Adı Soyadı</Label><Input value={f.patient_name} onChange={e=>setF(p=>({...p,patient_name:e.target.value}))} placeholder="Ad Soyad"/></div>
-                <div><Label>T.C. / SGK No</Label><Input value={f.patient_tc} onChange={e=>setF(p=>({...p,patient_tc:e.target.value}))} placeholder="12345678901" className="font-mono"/></div>
-                <div><Label>Doğum Tarihi</Label><Input type="date" value={f.patient_dob} onChange={e=>setF(p=>({...p,patient_dob:e.target.value}))}/></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><Label required>Ameliyat Tarafı</Label>
-                  <Select value={f.side} onChange={e=>setF(p=>({...p,side:e.target.value}))}>
-                    <option value="">Seçin</option>
-                    <option>Sağ</option><option>Sol</option><option>Bilateral</option><option>Orta Hat</option><option>Taraf yok</option>
-                  </Select>
-                </div>
-                <div><Label>Serbest Not</Label><Input value={f.aciklama} onChange={e=>setF(p=>({...p,aciklama:e.target.value}))} placeholder="Ek açıklama..."/></div>
+              <Label>Ameliyata Katılan Personel</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto rounded-xl border border-white/8 bg-navy-900/40 p-2">
+                {personel.length===0?(
+                  <div className="text-xs text-slate-500 px-2 py-3">Kayıtlı kullanıcı bulunamadı</div>
+                ):personel.map(p=>{
+                  const checked=f.personnel.includes(p.name);
+                  return(
+                    <label key={p.id||p.name} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${checked?"bg-brand/15 border-brand/30 text-white":"bg-navy-800 border-white/5 text-slate-400 hover:text-white"}`}>
+                      <input type="checkbox" checked={checked} onChange={()=>toggleInvoicePersonnel(p.name)}/>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm truncate">{p.name}</span>
+                        <span className="block text-[10px] text-slate-500 truncate">{p.role==="admin"?"Admin":isManager({role:p.role})?"Yönetici":"Kullanıcı"}</span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
-
-            {/* 3. ★ ÖDEME TİPİ */}
-            <div className="card-premium rounded-2xl p-4 space-y-4">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ödeme Türü</div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {ODEME_TIPLERI.map(o=>(
-                  <button key={o.id} type="button" onClick={()=>setF(p=>({...p,odeme_tipi:o.id}))}
-                    className="rounded-xl py-3 px-2 text-sm font-bold border-2 transition-all flex flex-col items-center gap-1"
-                    style={f.odeme_tipi===o.id
-                      ?{background:o.bg,borderColor:o.color,color:o.color}
-                      :{background:"rgba(15,26,53,.8)",borderColor:"rgba(255,255,255,.1)",color:"#64748b"}}>
-                    <span className="text-base">
-                      {o.id==="sgk"?"🏥":o.id==="sgk_fark"?"🏥+":o.id==="ozel_sigorta"?"🛡":o.id==="ozel_fark"?"🛡+":o.id==="ucretli"?"💳":o.id==="ucretsiz"?"🤝":o.id==="kurumsal"?"🏢":"•"}
-                    </span>
-                    <span className="text-[10px] text-center leading-tight">{o.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Ödeme tipine göre ek alanlar */}
-              {needsSgk&&(
-                <div>
-                  <Label>SGK Sicil / T.C. Kimlik No</Label>
-                  <Input value={f.sgk_no} onChange={e=>setF(p=>({...p,sgk_no:e.target.value}))} placeholder="T.C. veya SGK No" className="font-mono"/>
-                  <p className="text-xs text-slate-500 mt-1">Hasta T.C. ile SGK No aynı ise yalnızca bir tane girin</p>
-                </div>
-              )}
-
-              {needsSigorta&&(
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label>Sigorta Şirketi</Label>
-                    <Input value={f.sigorta_sirket} onChange={e=>setF(p=>({...p,sigorta_sirket:e.target.value}))}
-                      placeholder="Allianz, Axa, Mapfre..." list="sigorta-list"/>
-                    <datalist id="sigorta-list">
-                      {["Allianz","Axa Sigorta","Mapfre Sigorta","Groupama","Zurich","Generali","Halk Sigorta","Güneş Sigorta","Ray Sigorta","Sompo Japan","Anadolu Sigorta","Ankara Sigorta"].map(s=><option key={s} value={s}/>)}
-                    </datalist>
-                  </div>
-                  <div>
-                    <Label>Poliçe Numarası</Label>
-                    <Input value={f.sigorta_polie} onChange={e=>setF(p=>({...p,sigorta_polie:e.target.value}))} className="font-mono" placeholder="Poliçe No"/>
-                  </div>
-                </div>
-              )}
-
-              {needsFark&&(
-                <div className="rounded-xl p-3 bg-amber2/8 border border-amber2/25">
-                  <Label>Fark Ücreti (₺)</Label>
-                  <div className="flex gap-2 items-center">
-                    <Input type="number" min="0" step="0.01" value={f.fark_ucreti}
-                      onChange={e=>setF(p=>({...p,fark_ucreti:e.target.value}))}
-                      placeholder="0.00" className="font-mono max-w-48"/>
-                    <span className="text-sm text-slate-400">₺ (Hastanın karşıladığı fark tutarı)</span>
-                  </div>
-                </div>
-              )}
-
-              {needsFiyat&&(
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div>
-                    <Label>Birim Fiyat (₺)</Label>
-                    <Input type="number" min="0" step="0.01" value={f.items[0]?.birim_fiyat||""} onChange={e=>updateItem(0,{birim_fiyat:e.target.value})} placeholder="0.00" className="font-mono"/>
-                  </div>
-                  <div>
-                    <Label>KDV Oranı (%)</Label>
-                    <Select value={f.items[0]?.kdv_oran||18} onChange={e=>updateItem(0,{kdv_oran:Number(e.target.value)})}>
-                      <option value={0}>%0</option>
-                      <option value={1}>%1</option>
-                      <option value={8}>%8</option>
-                      <option value={10}>%10</option>
-                      <option value={18}>%18</option>
-                      <option value={20}>%20</option>
-                    </Select>
-                  </div>
-                  {f.items[0]?.birim_fiyat&&(
-                    <div className="flex flex-col justify-end">
-                      <div className="bg-navy-800 rounded-xl p-3 text-center border border-white/8">
-                        <div className="text-[10px] text-slate-500">Toplam (KDV dahil)</div>
-                        <div className="text-lg font-black text-emerald2">
-                          {(Number(f.items[0].birim_fiyat)*((f.items[0].kdv_oran||18)/100+1)*(Number(f.items[0].quantity)||1)).toLocaleString("tr-TR",{minimumFractionDigits:2})} ₺
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* 4. Personel */}
-            {personel.length>0&&(
-              <div>
-                <Label>Ameliyata Katılan Personel</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto rounded-xl border border-white/8 bg-navy-900/40 p-2">
-                  {personel.map(p=>{
-                    const checked=f.personnel.includes(p.name);
-                    return(
-                      <label key={p.id||p.name} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${checked?"bg-brand/15 border-brand/30 text-white":"bg-navy-800 border-white/5 text-slate-400 hover:text-white"}`}>
-                        <input type="checkbox" checked={checked} onChange={()=>togglePersonnel(p.name)}/>
-                        <span className="text-sm truncate">{p.name}</span>
-                        <span className="text-[10px] text-slate-500 ml-auto">{isManager({role:p.role})?"Yönetici":"Kullanıcı"}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 5. Ürün satırları */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Kullanılan Ürünler</Label>
-                <button onClick={addItem} className="px-3 py-1.5 rounded-lg bg-brand/15 text-brand-300 text-xs font-bold border border-brand/20">+ Ürün Ekle</button>
-              </div>
+              <div className="flex items-center justify-between"><Label>Kullanılan Ürünler</Label><button onClick={addItem} className="px-3 py-1.5 rounded-lg bg-brand/15 text-brand-300 text-xs font-bold border border-brand/20">+ Ürün</button></div>
               {f.items.map((item,idx)=>{
                 const lotRows=stoklar.filter(s=>s.urun_id===item.urun_id&&(!selectedHospitalId||s.hospital_id===selectedHospitalId));
-                const stok=findStockRow(stoklar,item.urun_id,selectedHospitalId,item.lot);
-                const urun=urunler.find(u=>u.id===item.urun_id);
-                const qty=Number(item.quantity)||0;
-                const ok=stok&&stok.quantity>=qty;
                 return(
-                  <div key={idx} className="p-3 rounded-xl bg-navy-900/60 border border-white/8 space-y-2">
-                    <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_.5fr_auto] gap-2">
-                      <Select value={item.urun_id} onChange={e=>updateItem(idx,{urun_id:e.target.value,lot:""})}>
-                        <option value="">REF seçin</option>
-                        {urunler.map(u=><option key={u.id} value={u.id}>{u.code||"REF yok"}{u.name?` — ${u.name}`:""}</option>)}
-                      </Select>
-                      <Select value={item.lot} onChange={e=>updateItem(idx,{lot:e.target.value})}>
-                        <option value="">LOT seçin</option>
-                        {lotRows.map(s=><option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity})</option>)}
-                      </Select>
-                      <Input type="number" min="1" value={item.quantity} onChange={e=>updateItem(idx,{quantity:e.target.value})} placeholder="Adet"/>
-                      <button onClick={()=>removeItem(idx)} className="px-3 py-2 rounded-lg bg-rose2/15 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
-                    </div>
-                    {/* Stok durum satırı */}
-                    {item.urun_id&&(
-                      <div className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg ${ok?"bg-emerald2/10 text-emerald2":"bg-rose2/10 text-rose2"}`}>
-                        <span>{ok?"✓":"✕"}</span>
-                        <span>Mevcut stok: <b>{stok?.quantity??0}</b> {urun?.unit||"adet"}</span>
-                        {item.lot&&<span>· LOT: <b className="font-mono">{item.lot}</b></span>}
-                        {stok?.skt&&<span>· SKT: <b>{stok.skt}</b></span>}
-                      </div>
-                    )}
+                  <div key={idx} className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_.5fr_auto] gap-2 p-3 rounded-xl bg-navy-900/60 border border-white/8">
+                    <Select value={item.urun_id} onChange={e=>updateItem(idx,{urun_id:e.target.value,lot:""})}><option value="">REF seçin</option>{urunler.map(u=><option key={u.id} value={u.id}>{u.code||"REF yok"}</option>)}</Select>
+                    <Select value={item.lot} onChange={e=>updateItem(idx,{lot:e.target.value})}><option value="">LOT seçin</option>{lotRows.map(s=><option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity})</option>)}</Select>
+                    <Input type="number" min="1" value={item.quantity} onChange={e=>updateItem(idx,{quantity:e.target.value})}/>
+                    <button onClick={()=>removeItem(idx)} className="px-3 py-2 rounded-lg bg-rose2/15 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
                   </div>
                 );
               })}
             </div>
-
           </div>
         </Modal>
       )}
-
-      {/* ── Başlık ─────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-white">Fatura / Tüketim</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Ameliyat bazlı REF + LOT çıkışı · SGK / Özel Sigorta / Ücretli</p>
-        </div>
+        <div><h1 className="text-xl font-bold text-white">Fatura / Tüketim</h1><p className="text-sm text-slate-500 mt-0.5">Ameliyat bazlı REF + LOT ürün çıkışı ve ekip sorumluluğu</p></div>
         <div className="sm:ml-auto flex flex-wrap gap-2">
-          <button onClick={()=>exportPDF(recordRows)}
-            className="px-4 py-2 rounded-xl bg-violet2/20 hover:bg-violet2/30 text-violet2 text-sm font-semibold border border-violet2/30 flex items-center gap-1.5 transition-colors">
-            ↓ PDF
-          </button>
-          <button onClick={()=>{setModal(true);setF(emptyInvoiceForm);}}
-            className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">
-            + Çıkış Yap
-          </button>
+          <button onClick={printInvoiceList} className="px-4 py-2 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-300 text-sm font-bold border border-brand/20">Yazdır</button>
+          <button onClick={()=>setModal(true)} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
         </div>
       </div>
-
-      {/* ── Ödeme tipi dağılım şeridi ──────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-        {ODEME_TIPLERI.map(o=>{
-          const count=stats[o.id]||0;
-          return(
-            <button key={o.id} onClick={()=>setFilterOdeme(filterOdeme===o.id?"":o.id)}
-              className="rounded-xl p-3 text-center border-2 transition-all"
-              style={filterOdeme===o.id
-                ?{background:o.bg,borderColor:o.color}
-                :{background:"rgba(15,26,53,.7)",borderColor:"rgba(255,255,255,.07)"}}>
-              <div className="text-xl font-black" style={{color:filterOdeme===o.id?o.color:"#94a3b8"}}>{count}</div>
-              <div className="text-[10px] leading-tight mt-0.5" style={{color:filterOdeme===o.id?o.color:"#64748b"}}>{o.label}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Filtreler ──────────────────────────────── */}
-      <div className="card rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <input value={filterSearch} onChange={e=>setFilterSearch(e.target.value)}
-            placeholder="Hasta, REF, LOT, doktor, TC ara..."
-            className="w-full pl-8 pr-4 py-2.5 rounded-xl input-dark text-sm"/>
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm">⌕</span>
-        </div>
-        <Input type="month" value={filterDate} onChange={e=>setFilterDate(e.target.value)} className="sm:w-40"/>
-        {(filterOdeme||filterSearch||filterDate)&&(
-          <button onClick={()=>{setFilterOdeme("");setFilterSearch("");setFilterDate("");}}
-            className="px-4 py-2.5 rounded-xl bg-navy-800 text-slate-400 text-sm border border-white/8 hover:text-white transition-colors">
-            Filtreleri Sıfırla
-          </button>
-        )}
-      </div>
-
-      {/* ── Kayıt listesi ──────────────────────────── */}
       <div className="card rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[auto_1fr_1fr_1.2fr_1fr_1fr_auto_auto] px-5 py-3 border-b border-white/8 bg-navy-900/50">
-          {["Ödeme","REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Adet",""].map(h=>(
-            <div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>
-          ))}
-        </div>
-        {recordRows.length===0?(
-          <div className="px-5 py-12 text-center">
-            <div className="text-3xl opacity-20 mb-2">▣</div>
-            <p className="text-slate-500 text-sm">{filterOdeme||filterSearch||filterDate?"Filtre sonucu yok":"Kayıt yok"}</p>
-          </div>
-        ):recordRows.map(({h,urun,surgery,hospital,parsed},ri)=>{
-          const odemeObj=ODEME_TIPLERI.find(o=>o.label===parsed.odeme)||ODEME_BY_ID.diger;
-          return(
-            <div key={h.id||ri}
-              className="table-row px-4 lg:px-5 py-3 cursor-pointer lg:grid lg:grid-cols-[auto_1fr_1fr_1.2fr_1fr_1fr_auto_auto] gap-4 items-center"
-              onClick={()=>setDetailRow({h,urun,surgery,hospital,parsed})}>
-              {/* Mobile */}
-              <div className="lg:hidden flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0" style={{background:odemeObj.bg,color:odemeObj.color}}>₺</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-mono font-bold text-white">{urun.code||"—"}</span>
-                    <OdemeBadge odeme={f.odeme_tipi}/>
-                  </div>
-                  <div className="text-xs text-slate-400">{parsed.patient||"—"} · {surgery.type||"—"}</div>
-                  <div className="text-xs text-slate-500">{h.lot||"LOT yok"} · {new Date(h.created_at).toLocaleDateString("tr-TR")}</div>
-                </div>
-                <div className="text-rose2 font-black text-lg">{h.quantity}</div>
+        <div className="hidden lg:grid grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Personel","Adet","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
+        {recordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:recordRows.map(({h,urun,surgery,hospital})=>{
+            const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
+            return(
+              <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] gap-4">
+                <div className="font-mono text-sm font-bold text-white">{urun.code||"REF yok"}</div>
+                <div className="font-mono text-sm text-brand-300">{h.lot||"LOT yok"}</div>
+                <div className="text-sm text-slate-300">{surgery.type||"—"}<div className="text-xs text-slate-500">{h.notes?.match(/Hasta:\s*([^—]+)/)?.[1]?.trim()||"Hasta yok"}</div></div>
+                <div className="text-sm text-slate-400">{surgery.doctor||"—"}</div>
+                <div className="text-sm text-slate-400">{displayLocationName(hospital)||surgery.hospital||"—"}</div>
+                <div className="text-sm text-slate-400 truncate">{invoiceTeam}</div>
+                <div className="text-sm font-black text-rose2">{h.quantity}</div>
+                <button onClick={()=>printInvoiceRecord({h,urun,surgery,hospital})} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Yazdır</button>
               </div>
-              {/* Desktop */}
-              <div className="hidden lg:flex items-center">
-                <span className="px-2 py-1 rounded-lg text-xs font-bold border whitespace-nowrap"
-                  style={{background:odemeObj.bg,color:odemeObj.color,borderColor:odemeObj.color+"40"}}>
-                  {odemeObj.short}
-                  {parsed.fark&&<span className="ml-1 opacity-70">+{parsed.fark}</span>}
-                </span>
-              </div>
-              <div className="hidden lg:block font-mono text-sm font-bold text-white">{urun.code||"—"}</div>
-              <div className="hidden lg:block font-mono text-xs text-brand-300">{h.lot||"—"}</div>
-              <div className="hidden lg:block">
-                <div className="text-sm text-slate-300">{surgery.type||"—"}</div>
-                <div className="text-xs text-slate-500">{parsed.patient||"—"}</div>
-              </div>
-              <div className="hidden lg:block text-sm text-slate-400">{surgery.doctor||"—"}</div>
-              <div className="hidden lg:block text-sm text-slate-400 truncate">{displayLocationName(hospital)||surgery.hospital||"—"}</div>
-              <div className="hidden lg:block text-base font-black text-rose2">{h.quantity}</div>
-              <button onClick={e=>{e.stopPropagation();printSingle({h,urun,surgery,hospital,parsed});}}
-                className="hidden lg:flex px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20 items-center gap-1">
-                Yazdır
-              </button>
-            </div>
-          );
+            );
         })}
       </div>
     </div>
   );
 }
 
-
+// ─── NOTIFICATIONS VIEW ───────────────────────────────────────────────────────
 function NotifsView({notifs,onRead,onReadAll,onDelete,onDeleteAll}){
   const unread=notifs.filter(n=>!n.is_read);
   return(
@@ -5295,7 +4818,8 @@ function UsersView({profile}){
     writePending(pending);
     setUsers(prev=>mergeUsers(prev,[newUser]));
     if(uid){
-      const {error:profileError}=await SB.from("profiles").upsert({id:uid,name:f.full_name,role:f.role,status:"active"});
+      const profilePayload={id:uid,name:f.full_name,role:f.role,status:"active",created_at:createdAt};
+      const {error:profileError}=await insertWithSchemaFallback("profiles",profilePayload,["status","created_at"],{select:false});
       if(profileError)toast("Auth kullanıcısı oluştu, profil listesi yerel olarak eklendi: "+profileError.message,"warning");
     }
     toast("Kullanıcı oluşturuldu","success");
@@ -5307,7 +4831,7 @@ function UsersView({profile}){
   const updateUser=async()=>{
     if(!f.id||!f.full_name)return toast("Ad Soyad gerekli","warning");
     setLoading(true);
-    const patch={name:f.full_name,role:f.role,status:f.status||"active",updated_at:new Date().toISOString()};
+    const patch={name:f.full_name,role:f.role,status:f.status||"active"};
     if(f.pending||String(f.id).startsWith("pending-")){
       const pending=readPending().map(u=>u.id===f.id?{...u,...patch,full_name:f.full_name}:u);
       writePending(pending);
@@ -5317,7 +4841,7 @@ function UsersView({profile}){
       setLoading(false);
       return;
     }
-    const {error}=await SB.from("profiles").update(patch).eq("id",f.id);
+    const {error}=await updateWithSchemaFallback("profiles",patch,q=>q.eq("id",f.id),["status"]);
     if(error){
       toast(error.message,"error");
       setLoading(false);
@@ -5434,7 +4958,7 @@ function App(){
       setPersonel(buildProgramPersonnel(users.data||[],pers.data||[]));
       setNotifs(notf.data||[]);
       setUrunler((urn.data||[]).map(normalizeProduct));
-      setStoklar((stk.data||[]).map(s=>normalizeStock(s,shelf.id)));
+      setStoklar(mergeLocalStockLots(stk.data||[],shelf.id));
       setProfile(prof.data?{...prof.data,full_name:prof.data.full_name||prof.data.name||prof.data.email||"Kullanıcı"}:prof.data);
     }catch(e){console.error(e);}
     setLoading(false);
