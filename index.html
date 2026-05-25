@@ -220,8 +220,28 @@ const SUPABASE_URL="https://etrmnfjaomrgbbpydvgq.supabase.co";
 const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0cm1uZmphb21yZ2JicHlkdmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODgwNDAsImV4cCI6MjA5NDI2NDA0MH0.jWYGZYtfahRTzAAtIp5kdffNmVDCeEQM9YHEKMUiIX0";
 const SB=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const autoDoc=n=>{const t=n.trim();return t&&!DR_PREFIXES.some(p=>t.startsWith(p))?"Dr. "+t:t;};
-const fmtDate=d=>new Date(d).toISOString().split("T")[0];
-const fmtTR=s=>{if(!s)return"";const d=new Date(s+"T12:00:00");return`${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;};
+const parseLocalDate=value=>{
+  if(!value)return new Date();
+  if(value instanceof Date)return new Date(value.getFullYear(),value.getMonth(),value.getDate());
+  const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  const d=new Date(value);
+  return Number.isNaN(d.getTime())?new Date():d;
+};
+const fmtDate=d=>{
+  const x=parseLocalDate(d);
+  return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+};
+const addDays=(date,days)=>{
+  const d=parseLocalDate(date);
+  d.setDate(d.getDate()+days);
+  return fmtDate(d);
+};
+const fmtTR=s=>{if(!s)return"";const d=parseLocalDate(s);return`${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;};
+const weekdayIndex=s=>(parseLocalDate(s).getDay()+6)%7;
+const displayTime=t=>(!t||t==="??:??")?"Saat yok":t;
+const timeSortValue=t=>(!t||t==="??:??")?"99:99":t;
+const surgerySort=(a,b)=>String(a.date||"").localeCompare(String(b.date||""))||timeSortValue(a.time).localeCompare(timeSortValue(b.time));
 const today=new Date();
 const todayStr=fmtDate(today);
 const colorForDoc=(docs,name)=>{const i=docs.indexOf(name);return DOC_COLORS[i%DOC_COLORS.length]||"#3b82f6";};
@@ -904,9 +924,9 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
     return surgeries;
   },[surgeries,period]);
 
-  const todayS=surgeries.filter(s=>s.date===todayStr).sort((a,b)=>a.time.localeCompare(b.time));
-  const upcoming=surgeries.filter(s=>s.date>todayStr&&s.status==="planned").sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
-  const tomorrowStr=fmtDate(new Date(today.getTime()+86400000));
+  const todayS=surgeries.filter(s=>s.date===todayStr).sort((a,b)=>timeSortValue(a.time).localeCompare(timeSortValue(b.time)));
+  const upcoming=surgeries.filter(s=>s.date>todayStr&&s.status==="planned").sort(surgerySort).slice(0,5);
+  const tomorrowStr=addDays(todayStr,1);
   const tomorrowS=surgeries.filter(s=>s.date===tomorrowStr&&s.status!=="cancelled");
   const overduePlanned=surgeries.filter(s=>s.date<todayStr&&s.status==="planned");
   const missingInfo=surgeries.filter(s=>s.status==="planned"&&(s.time==="??:??"||s.doctor==="Bilinmiyor")).slice(0,6);
@@ -933,9 +953,8 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
   // Last 7 days trend
   const trendData=useMemo(()=>{
     return Array.from({length:7},(_,i)=>{
-      const d=new Date(today);d.setDate(d.getDate()-6+i);
-      const ds=fmtDate(d);
-      return{label:DAYS[(d.getDay()+6)%7],value:surgeries.filter(s=>s.date===ds).length};
+      const ds=addDays(todayStr,-6+i);
+      return{label:DAYS[weekdayIndex(ds)],value:surgeries.filter(s=>s.date===ds).length};
     });
   },[surgeries]);
 
@@ -1021,7 +1040,7 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
             {missingInfo.map(s=>(
               <div key={s.id} className="bg-navy-800/70 rounded-xl px-3 py-2 border border-white/8">
                 <div className="text-sm font-semibold text-white truncate">{s.type}</div>
-                <div className="text-xs text-slate-500 truncate">{fmtTR(s.date)} · {s.time==="??:??"?"Saat bilinmiyor":s.time} · {s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}</div>
+                <div className="text-xs text-slate-500 truncate">{fmtTR(s.date)} · {displayTime(s.time)} · {s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}</div>
               </div>
             ))}
           </div>
@@ -1106,7 +1125,7 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
                 <div className="w-1 h-8 rounded-full flex-shrink-0" style={{background:colorForDoc(docStats.map(d=>d[0]),s.doctor)}}></div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-white truncate">{s.type}</div>
-                  <div className="text-xs text-slate-500">{s.time} · {s.doctor}</div>
+                  <div className="text-xs text-slate-500">{displayTime(s.time)} · {s.doctor}</div>
                 </div>
                 <Badge status={s.status}/>
               </div>
@@ -1333,8 +1352,8 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
     });
     const[sf,sd]=sortBy.split("_");
     r.sort((a,b)=>{
-      const va=sf==="date"?a.date+a.time:sf==="type"?a.type:a.doctor;
-      const vb=sf==="date"?b.date+b.time:sf==="type"?b.type:b.doctor;
+      const va=sf==="date"?`${a.date}${timeSortValue(a.time)}`:sf==="type"?a.type:a.doctor;
+      const vb=sf==="date"?`${b.date}${timeSortValue(b.time)}`:sf==="type"?b.type:b.doctor;
       return sd==="asc"?va.localeCompare(vb):vb.localeCompare(va);
     });
     return r;
@@ -1538,7 +1557,7 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
                     <span className="text-sm font-semibold text-white truncate">{s.type}</span>
                     <Badge status={s.status}/>
                   </div>
-                  <div className="text-xs text-slate-500">{fmtTR(s.date)} · {s.time} · {s.hospital}</div>
+                  <div className="text-xs text-slate-500">{fmtTR(s.date)} · {displayTime(s.time)} · {s.hospital}</div>
                   <div className="text-xs text-slate-600">{s.doctor}</div>
                 </div>
               </div>
@@ -1549,7 +1568,7 @@ function SurgeriesView({surgeries,types,hospitals,doctors,profile,onRefresh,onAd
                   <div className="text-xs text-slate-500 truncate">{s.hospital}</div>
                 </div>
                 <div className="text-sm text-slate-300 font-mono">{s.date.slice(5).replace("-",".")}.{s.date.slice(0,4)}</div>
-                <div className="text-sm text-slate-400 font-mono w-14">{s.time}</div>
+                <div className="text-sm text-slate-400 font-mono w-16">{displayTime(s.time)}</div>
                 <div className="text-sm text-slate-300 max-w-[160px] truncate">{s.doctor}</div>
                 <Badge status={s.status}/>
                 <div className="flex gap-1" onClick={e=>e.stopPropagation()}>
@@ -1638,18 +1657,18 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
 
   // Seçili günün ameliyatları
   const dayS=useMemo(()=>
-    surgeries.filter(s=>s.date===selDate).sort((a,b)=>a.time.localeCompare(b.time))
+    surgeries.filter(s=>s.date===selDate).sort((a,b)=>timeSortValue(a.time).localeCompare(timeSortValue(b.time)))
   ,[surgeries,selDate]);
 
   // Benim ameliyatlarım: sadece personel listesinde mevcut kullanıcı varsa görünür.
   const mineS=useMemo(()=>
     surgeries.filter(s=>surgeryHasProfilePersonnel(s,profile))
-      .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time))
+      .sort(surgerySort)
   ,[surgeries,profile]);
 
   const mineUpcoming=mineS.filter(s=>s.date>=todayStr&&s.status==="planned");
   const minePast=mineS.filter(s=>s.date<todayStr);
-  const mineThisMonth=mineS.filter(s=>s.date.startsWith(fmtDate(today).slice(0,7)));
+  const mineThisMonth=mineS.filter(s=>s.date.startsWith(todayStr.slice(0,7)));
 
   // Aylık takvim
   const firstDay=new Date(year,month,1);
@@ -1659,24 +1678,24 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
 
   const daySurgeries=(d)=>{
     const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    return surgeries.filter(s=>s.date===ds).sort((a,b)=>a.time.localeCompare(b.time));
+    return surgeries.filter(s=>s.date===ds).sort((a,b)=>timeSortValue(a.time).localeCompare(timeSortValue(b.time)));
   };
 
   const listSurgeries=useMemo(()=>{
     const ms=`${year}-${String(month+1).padStart(2,"0")}`;
     return surgeries.filter(s=>s.date.startsWith(ms))
-      .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+      .sort(surgerySort);
   },[surgeries,year,month]);
 
   // Telegram günlük program
   const sendTGDay=async(date)=>{
     setSending(true);
-    const ss=surgeries.filter(s=>s.date===date).sort((a,b)=>a.time.localeCompare(b.time));
+    const ss=surgeries.filter(s=>s.date===date).sort((a,b)=>timeSortValue(a.time).localeCompare(timeSortValue(b.time)));
     if(!ss.length){toast("Bu gün ameliyat yok","warning");setSending(false);return;}
     let msg=`📅 *${fmtTR(date)} Ameliyat Programı*\n\n`;
     ss.forEach((s,i)=>{
       const surgeryPersonnel=getSurgeryPersonnel(s);
-      msg+=`*${i+1}.* ${s.time!=="??:??"?`⏰ ${s.time}`:""} — *${s.type}*\n`;
+      msg+=`*${i+1}.* ⏰ ${displayTime(s.time)} — *${s.type}*\n`;
       msg+=`  🏥 ${s.hospital}\n  👨‍⚕️ ${s.doctor}\n\n`;
       if(surgeryPersonnel.length)msg+=`  Personel: ${surgeryPersonnel.join(", ")}\n\n`;
     });
@@ -1691,13 +1710,13 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
     setSending(true);
     const ms=`${year}-${String(month+1).padStart(2,"0")}`;
     const data=surgeries.filter(s=>s.date.startsWith(ms))
-      .sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+      .sort(surgerySort);
     if(!data.length){toast("Bu ay ameliyat yok","warning");setSending(false);return;}
     let msg=`📅 *${MONTHS[month]} ${year} Ameliyat Programı*\n\n`;
     let lastDate="";
     data.forEach(s=>{
       if(s.date!==lastDate){msg+=`\n📌 *${fmtTR(s.date)}*\n`;lastDate=s.date;}
-      msg+=`  ⏰ ${s.time} — ${s.type} — ${s.doctor}\n`;
+      msg+=`  ⏰ ${displayTime(s.time)} — ${s.type} — ${s.doctor}\n`;
     });
     msg+=`\n_Toplam: ${data.length} ameliyat_`;
     await sendTelegram(msg);
@@ -1862,7 +1881,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-3">
               <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Tarih</div><div className="font-bold text-white">{fmtTR(viewS.date)}</div></div>
-              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Saat</div><div className="font-bold text-white">{viewS.time||"??:??"}</div></div>
+              <div className="card rounded-xl p-3"><div className="text-xs text-slate-500">Saat</div><div className="font-bold text-white">{displayTime(viewS.time)}</div></div>
             </div>
             <div><Label>Ameliyat</Label><div className="text-white font-semibold">{viewS.type}</div></div>
             <div><Label>Doktor</Label><div className="text-slate-300">{viewS.doctor}</div></div>
@@ -1935,17 +1954,17 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
         <div className="space-y-4">
           {/* Tarih seçici */}
           <div className="card rounded-2xl p-3 flex items-center gap-3">
-            <button onClick={()=>{const d=new Date(selDate);d.setDate(d.getDate()-1);setSelDate(fmtDate(d));}}
+            <button onClick={()=>setSelDate(addDays(selDate,-1))}
               className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors flex-shrink-0">‹</button>
             <div className="flex-1 text-center">
               <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)}
                 className="bg-transparent text-white font-bold text-base text-center border-none outline-none cursor-pointer"/>
               <p className="text-xs text-slate-500 mt-0.5">
-                {selDate===todayStr?"Bugün":selDate===fmtDate(new Date(today.getTime()+86400000))?"Yarın":
-                  DAYS[(new Date(selDate).getDay()+6)%7]}
+                {selDate===todayStr?"Bugün":selDate===addDays(todayStr,1)?"Yarın":
+                  DAYS[weekdayIndex(selDate)]}
               </p>
             </div>
-            <button onClick={()=>{const d=new Date(selDate);d.setDate(d.getDate()+1);setSelDate(fmtDate(d));}}
+            <button onClick={()=>setSelDate(addDays(selDate,1))}
               className="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors flex-shrink-0">›</button>
             <button onClick={()=>setSelDate(todayStr)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${selDate===todayStr?"bg-brand text-white":"bg-navy-800 text-slate-400 hover:text-white border border-white/8"}`}>
@@ -2024,7 +2043,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                               <div className="w-1 h-10 rounded-full flex-shrink-0" style={{background:dc}}></div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm font-bold text-white truncate">{s.type}</div>
-                                <div className="text-xs text-slate-400 truncate">{s.time!=="??:??"?s.time+" · ":""}{s.hospital}</div>
+                                <div className="text-xs text-slate-400 truncate">{s.time!=="??:??"?s.time+" · ":"Saat yok · "}{s.hospital}</div>
                                 <div className="text-xs font-medium truncate" style={{color:dc}}>{s.doctor}</div>
                                 {surgeryPersonnel.length>0&&<div className="text-xs text-slate-500 truncate">Personel: {surgeryPersonnel.join(", ")}</div>}
                               </div>
@@ -2050,7 +2069,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                     const surgeryPersonnel=getSurgeryPersonnel(s);
                     return(
                       <div key={s.id} onClick={()=>setViewS(s)} className="flex items-center gap-3 bg-navy-800 rounded-xl p-3 border border-white/8 cursor-pointer hover:border-brand/40 transition-colors">
-                        <span className="text-xs text-slate-500 font-mono w-10">??:??</span>
+                        <span className="text-xs text-slate-500 font-mono w-16">Saat yok</span>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold text-white truncate">{s.type}</div>
                           <div className="text-xs text-slate-500">{s.hospital} · {s.doctor}</div>
@@ -2112,7 +2131,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                       {ss.slice(0,3).map(s=>(
                         <div key={s.id} className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate leading-tight"
                           style={{background:(docColorMap[s.doctor]||"#3b82f6")+"22",color:docColorMap[s.doctor]||"#3b82f6",borderLeft:`2px solid ${docColorMap[s.doctor]||"#3b82f6"}`}}>
-                          {s.time!=="??:??"?s.time.slice(0,5):""} {s.type}
+                          {s.time!=="??:??"?s.time.slice(0,5):"Saat yok"} {s.type}
                         </div>
                       ))}
                       {ss.length>3&&<div className="text-[9px] text-slate-500 pl-1">+{ss.length-3}</div>}
@@ -2160,7 +2179,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
               </div>
               {mineUpcoming.map(s=>{
                 const dc=docColorMap[s.doctor]||"#3b82f6";
-                const daysAway=Math.floor((new Date(s.date)-new Date(todayStr))/86400000);
+                const daysAway=Math.floor((parseLocalDate(s.date)-parseLocalDate(todayStr))/86400000);
                 return(
                   <div key={s.id} className="table-row px-5 py-4 flex items-center gap-4 cursor-pointer"
                     onClick={()=>{setSelDate(s.date);setTab("today");}}>
@@ -2172,7 +2191,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                     <div className="w-1 h-12 rounded-full flex-shrink-0" style={{background:dc}}></div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-bold text-white truncate">{s.type}</div>
-                      <div className="text-xs text-slate-400">{fmtTR(s.date)} · {s.time!=="??:??"?s.time:""} · {s.hospital}</div>
+                      <div className="text-xs text-slate-400">{fmtTR(s.date)} · {displayTime(s.time)} · {s.hospital}</div>
                       <div className="text-xs" style={{color:dc}}>{s.doctor}</div>
                     </div>
                     <Badge status={s.status}/>
@@ -2205,7 +2224,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                       <div className="w-1 h-10 rounded-full flex-shrink-0" style={{background:dc}}></div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{s.type}</div>
-                        <div className="text-xs text-slate-500">{fmtTR(s.date)} · {s.time!=="??:??"?s.time+" · ":""}{s.hospital}</div>
+                        <div className="text-xs text-slate-500">{fmtTR(s.date)} · {displayTime(s.time)} · {s.hospital}</div>
                         <div className="text-xs" style={{color:dc}}>{s.doctor}</div>
                       </div>
                       <Badge status={s.status}/>
@@ -2258,7 +2277,7 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                   {ss.map(s=>(
                     <div key={s.id} className="table-row px-5 py-3 flex items-center gap-3">
                       <div className="w-1 h-8 rounded-full flex-shrink-0" style={{background:docColorMap[s.doctor]||"#3b82f6"}}></div>
-                      <div className="text-xs font-mono text-slate-500 w-12 flex-shrink-0">{s.time!=="??:??"?s.time:"??:??"}</div>
+                      <div className="text-xs font-mono text-slate-500 w-16 flex-shrink-0">{displayTime(s.time)}</div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{s.type}</div>
                         <div className="text-xs text-slate-500 truncate">{s.hospital} · {s.doctor}</div>
