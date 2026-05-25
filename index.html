@@ -462,6 +462,15 @@ const findExistingProductByForm=async(form)=>{
   return null;
 };
 const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
+const csvCell=value=>`"${String(value??"").replace(/"/g,'""')}"`;
+const downloadCSV=(filename,headers,rows)=>{
+  const csv=[headers.map(csvCell).join(","),...rows.map(r=>headers.map(h=>csvCell(r[h])).join(","))].join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),500);
+};
 const noteField=(notes,label)=>{
   const m=String(notes||"").match(new RegExp(`${label}:\\s*([^—\\n]+)`,"i"));
   return m?m[1].trim():"";
@@ -3695,6 +3704,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   const [hareketler,setHareketler]=useState([]);
   const [activeTab,setActiveTab]=useState("overview");
   const [hFilter,setHFilter]=useState("");
+  const [stockFilter,setStockFilter]=useState("all");
   const [histFilter,setHistFilter]=useState("");
 
   // Modals
@@ -3745,9 +3755,31 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     return Object.values(m).sort((a,b)=>a.hospital.name.localeCompare(b.hospital.name));
   },[rows]);
 
+  const statusForRow=r=>{
+    const qty=Number(r.quantity)||0;
+    const min=Number(r.urun.min_stock)||0;
+    if(qty<=0)return {label:"Tükendi",color:"#f43f5e",cls:"bg-rose2/15 text-rose2 border-rose2/25"};
+    if(min>0&&qty<=min)return {label:"Kritik",color:"#f59e0b",cls:"bg-amber2/15 text-amber2 border-amber2/25"};
+    return {label:"Normal",color:"#10b981",cls:"bg-emerald2/15 text-emerald2 border-emerald2/25"};
+  };
+  const expiryState=skt=>{
+    if(!skt)return "";
+    const d=new Date(`${skt}T12:00:00`);
+    if(Number.isNaN(d.getTime()))return "";
+    const days=Math.ceil((d-new Date())/86400000);
+    if(days<0)return "expired";
+    if(days<=180)return "near";
+    return "ok";
+  };
   const inventoryRows=useMemo(()=>{
     const q=hFilter.trim().toLocaleLowerCase("tr-TR");
     return rows.filter(r=>{
+      const st=statusForRow(r);
+      const exp=expiryState(r.skt);
+      if(stockFilter==="critical"&&st.label!=="Kritik")return false;
+      if(stockFilter==="empty"&&st.label!=="Tükendi")return false;
+      if(stockFilter==="normal"&&st.label!=="Normal")return false;
+      if(stockFilter==="expiry"&&!(exp==="near"||exp==="expired"))return false;
       if(!q)return true;
       return [
         r.urun.code,
@@ -3761,14 +3793,27 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       String(a.lot||"").localeCompare(String(b.lot||""),"tr")||
       String(a.hospital.name||"").localeCompare(String(b.hospital.name||""),"tr")
     );
-  },[rows,hFilter]);
-
-  const statusForRow=r=>{
-    const qty=Number(r.quantity)||0;
-    const min=Number(r.urun.min_stock)||0;
-    if(qty<=0)return {label:"Tükendi",color:"#f43f5e",cls:"bg-rose2/15 text-rose2 border-rose2/25"};
-    if(min>0&&qty<=min)return {label:"Kritik",color:"#f59e0b",cls:"bg-amber2/15 text-amber2 border-amber2/25"};
-    return {label:"Normal",color:"#10b981",cls:"bg-emerald2/15 text-emerald2 border-emerald2/25"};
+  },[rows,hFilter,stockFilter]);
+  const expiryRiskRows=useMemo(()=>rows.filter(r=>["near","expired"].includes(expiryState(r.skt))),[rows]);
+  const exportStockCSV=()=>{
+    const headers=["REF","LOT","Depo","Adet","Birim","SKT","Durum"];
+    downloadCSV(`artroplus_stok_${todayStr}.csv`,headers,inventoryRows.map(r=>{
+      const st=statusForRow(r);
+      return {"REF":r.urun.code||"REF yok","LOT":r.lot||"LOT yok","Depo":displayLocationName(r.hospital)||r.hospital.name||"Depo yok","Adet":r.quantity||0,"Birim":r.urun.unit||"adet","SKT":r.skt||"","Durum":st.label};
+    }));
+    toast("Stok CSV indirildi","success");
+  };
+  const printStockReport=()=>{
+    printExitDocument({
+      title:"Stok Raporu",
+      subtitle:"REF + LOT + depo bazlı stok listesi",
+      meta:[
+        {label:"Kayıt",value:inventoryRows.length},
+        {label:"Kritik",value:totalCritical},
+        {label:"SKT Risk",value:expiryRiskRows.length},
+      ],
+      rows:inventoryRows.map(r=>({ref:r.urun.code,lot:r.lot,product:"",context:`${displayLocationName(r.hospital)||r.hospital.name||"Depo yok"}${r.skt?` / SKT ${r.skt}`:""} / ${statusForRow(r).label}`,personnel:"",quantity:r.quantity||0}))
+    });
   };
 
   // Stok düzelt (manuel)
@@ -4179,6 +4224,14 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           <p className="text-sm text-slate-500 mt-0.5">REF + LOT + depo bazlı profesyonel stok takibi</p>
         </div>
         <div className="sm:ml-auto flex flex-wrap gap-2">
+          <button onClick={printStockReport}
+            className="px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-300 text-sm font-bold border border-white/8 transition-colors">
+            Yazdır
+          </button>
+          <button onClick={exportStockCSV}
+            className="px-4 py-2 rounded-xl bg-emerald2/20 hover:bg-emerald2/30 text-emerald2 text-sm font-bold border border-emerald2/30 transition-colors">
+            CSV
+          </button>
           <button onClick={()=>{setOp(emptyOp);setOpModal(true);}}
             className="px-4 py-2 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold border border-brand/30 flex items-center gap-2 transition-colors">
             ⊕ İşlem Yap
@@ -4193,12 +4246,13 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       </div>
 
       {/* ── Stat kartları ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {[
           {l:"Lot Satırı",v:totalItems,c:"#3b82f6"},
           {l:"Stok Tamam",v:totalOk,c:"#10b981"},
           {l:"Kritik Stok",v:totalCritical,c:"#f59e0b"},
           {l:"Tükenmiş",v:totalEmpty,c:"#f43f5e"},
+          {l:"SKT Risk",v:expiryRiskRows.length,c:"#fb7185"},
           {l:"Kayıp (30g)",v:lossCount,c:"#94a3b8"},
         ].map(s=>(
           <div key={s.l} className="stat-card rounded-2xl p-4">
@@ -4250,6 +4304,20 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
               <span className="enterprise-badge justify-center">{inventoryRows.length} lot satırı</span>
               <button onClick={()=>{setOp(emptyOp);setOpModal(true);}} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Yeni Hareket</button>
             </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {[
+                ["all","Tümü"],
+                ["normal","Normal"],
+                ["critical","Kritik"],
+                ["empty","Tükenmiş"],
+                ["expiry","SKT Risk"],
+              ].map(([id,label])=>(
+                <button key={id} onClick={()=>setStockFilter(id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${stockFilter===id?"bg-brand/20 text-brand-300 border-brand/30":"bg-navy-800 text-slate-500 border-white/8 hover:text-slate-300"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="card rounded-2xl overflow-hidden">
@@ -4260,6 +4328,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
               <div className="py-14 text-center text-slate-500 text-sm">Stok satırı bulunamadı</div>
             ):inventoryRows.map(r=>{
               const st=statusForRow(r);
+              const exp=expiryState(r.skt);
               return(
                 <div key={r.id||`${r.urun_id}-${r.hospital_id}-${r.lot}`} className="table-row px-5 py-3 lg:grid lg:grid-cols-[1fr_1fr_1.1fr_.65fr_.8fr_.8fr_auto] gap-4 items-center">
                   <div className="min-w-0">
@@ -4269,7 +4338,11 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                   <div className="font-mono text-sm font-bold text-brand-300 truncate">{r.lot||"LOT yok"}</div>
                   <div className="text-sm text-slate-300 truncate">{displayLocationName(r.hospital)||r.hospital.name||"Depo yok"}</div>
                   <div className="text-sm font-black" style={{color:st.color}}>{r.quantity||0}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit}</span></div>
-                  <div className="text-sm text-slate-400 font-mono">{r.skt||"SKT yok"}</div>
+                  <div className="text-sm text-slate-400 font-mono">
+                    <span>{r.skt||"SKT yok"}</span>
+                    {exp==="expired"&&<span className="ml-2 px-1.5 py-0.5 rounded bg-rose2/15 text-rose2 text-[10px] font-bold border border-rose2/20">Geçmiş</span>}
+                    {exp==="near"&&<span className="ml-2 px-1.5 py-0.5 rounded bg-amber2/15 text-amber2 text-[10px] font-bold border border-amber2/20">Yakın</span>}
+                  </div>
                   <div><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${st.cls}`}>{st.label}</span></div>
                   <div className="flex flex-wrap gap-1.5">
                     <button onClick={()=>{setAf({quantity:r.quantity,notes:""});setAdjustModal(r);}} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Düzenle</button>
