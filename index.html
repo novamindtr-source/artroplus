@@ -3833,6 +3833,14 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   const totalLocations=new Set(rows.map(r=>r.hospital_id).filter(Boolean)).size;
   const expiredRows=useMemo(()=>rows.filter(r=>expiryState(r.skt)==="expired"),[rows]);
   const nearExpiryRows=useMemo(()=>rows.filter(r=>expiryState(r.skt)==="near"),[rows]);
+  const actionRows=useMemo(()=>rows.map(r=>{
+    const st=statusForRow(r);
+    const exp=expiryState(r.skt);
+    const priority=exp==="expired"?1:r.quantity===0?2:st.label==="Kritik"?3:exp==="near"?4:99;
+    const reason=exp==="expired"?"SKT geçmiş":r.quantity===0?"Stok tükendi":st.label==="Kritik"?"Kritik stok":exp==="near"?"SKT yaklaşıyor":"Normal";
+    const color=exp==="expired"||r.quantity===0?"#f43f5e":st.label==="Kritik"||exp==="near"?"#f59e0b":"#10b981";
+    return {...r,priority,reason,color};
+  }).filter(r=>r.priority<99).sort((a,b)=>a.priority-b.priority||String(a.urun.code||"").localeCompare(String(b.urun.code||""),"tr")||String(a.lot||"").localeCompare(String(b.lot||""),"tr")),[rows]);
   const printStockReport=()=>{
     printExitDocument({
       title:"Stok Raporu",
@@ -3992,6 +4000,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
 
   const tabs=[
     {id:"overview",label:"Genel Bakış",icon:"⊞"},
+    {id:"actions",label:"Aksiyon",icon:"! ",badge:actionRows.length},
     {id:"hospital",label:"Hastaneler",icon:"⊟"},
     {id:"alerts",label:"Uyarılar",icon:"⚠",badge:alerts.length},
     {id:"history",label:"Hareketler",icon:"◷"},
@@ -4426,6 +4435,52 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         </div>
       )}
 
+      {/* ── Aksiyon görünümü ────────────────────────────────────── */}
+      {activeTab==="actions"&&(
+        <div className="space-y-3">
+          <div className="enterprise-panel rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center gap-3">
+            <div className="flex-1">
+              <div className="enterprise-kicker mb-1">Operasyon Aksiyon Kuyruğu</div>
+              <h3 className="text-base font-black text-white">Müdahale gereken REF + LOT kayıtları</h3>
+              <p className="text-xs text-slate-500 mt-1">SKT geçmiş, tükenmiş, kritik veya SKT yaklaşan lotlar öncelik sırasına göre listelenir.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="quality-chip">Acil: <b className="text-rose2">{actionRows.filter(r=>r.priority<=2).length}</b></span>
+              <span className="quality-chip">Kritik: <b className="text-amber2">{actionRows.filter(r=>r.priority===3).length}</b></span>
+              <span className="quality-chip">SKT Yakın: <b className="text-amber2">{actionRows.filter(r=>r.priority===4).length}</b></span>
+            </div>
+          </div>
+          <div className="card rounded-2xl overflow-hidden">
+            <div className="hidden lg:grid grid-cols-[1fr_1fr_1fr_.7fr_1fr_auto] gap-4 px-5 py-3 border-b border-white/8 bg-navy-900/50">
+              {["REF","LOT","Lokasyon","Adet","Risk","Aksiyon"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}
+            </div>
+            {actionRows.length===0?(
+              <div className="py-16 text-center">
+                <div className="text-3xl mb-2 text-emerald2">✓</div>
+                <p className="text-sm font-bold text-emerald2">Aksiyon bekleyen stok kaydı yok</p>
+                <p className="text-xs text-slate-500 mt-1">Kritik, tükenmiş veya SKT riskli lot bulunmadı.</p>
+              </div>
+            ):actionRows.map(r=>(
+              <div key={r.id||`${r.urun_id}-${r.hospital_id}-${r.lot}-action`} className="table-row px-5 py-3 lg:grid lg:grid-cols-[1fr_1fr_1fr_.7fr_1fr_auto] gap-4 items-center">
+                <div>
+                  <div className="font-mono text-sm font-bold text-white">{r.urun.code||"REF yok"}</div>
+                  <div className="text-[10px] text-slate-600">SKT {r.skt||"yok"}</div>
+                </div>
+                <div><span className="lot-key">{r.lot||"LOT yok"}</span></div>
+                <div className="text-sm text-slate-300 truncate">{displayLocationName(r.hospital)||r.hospital.name||"Depo yok"}</div>
+                <div className="text-sm font-black" style={{color:r.color}}>{r.quantity||0}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit}</span></div>
+                <div><span className="px-2.5 py-1 rounded-full text-xs font-bold border" style={{background:r.color+"18",borderColor:r.color+"35",color:r.color}}>{r.reason}</span></div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={()=>{setAf({quantity:r.quantity,notes:r.reason});setAdjustModal(r);}} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Düzelt</button>
+                  <button onClick={()=>{setOp({...emptyOp,op:"shelf_to_hospital",urun_id:r.urun_id,from_id:r.hospital_id,lot:r.lot});setOpModal(true);}} className="px-2.5 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 text-xs font-bold border border-white/8">Hareket</button>
+                  <button onClick={()=>removeStock(r)} className="px-2.5 py-1.5 rounded-lg bg-rose2/15 hover:bg-rose2/25 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Hastane görünümü ────────────────────────────────────── */}
       {activeTab==="hospital"&&(
         <div className="space-y-4">
@@ -4648,6 +4703,25 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       })
     });
   };
+  const exportMovementCSV=()=>{
+    if(!filtered.length)return toast("Dışa aktarılacak hareket yok","warning");
+    downloadCSV(`artroplus_hareketler_${todayStr}.csv`,["REF","LOT","Lokasyon","Tip","Adet","Tarih","Açıklama"],filtered.map(h=>{
+      const urun=urunler.find(u=>u.id===h.urun_id)||{};
+      const hosp=hospitals.find(x=>x.id===h.hospital_id)||{};
+      const tag=getMovTag(h.notes);
+      const cleanNote=tag?h.notes.replace(tag,"").trim():h.notes;
+      return {
+        "REF":urun.code||"REF yok",
+        "LOT":h.lot||"LOT yok",
+        "Lokasyon":displayLocationName(hosp)||"Lokasyon yok",
+        "Tip":h.type==="in"?"Giriş":"Çıkış",
+        "Adet":h.quantity||0,
+        "Tarih":new Date(h.created_at).toLocaleString("tr-TR"),
+        "Açıklama":cleanNote||""
+      };
+    }));
+    toast("Hareket CSV indirildi","success");
+  };
 
   return(
     <div className="space-y-5">
@@ -4705,6 +4779,10 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           <button onClick={printMovementList}
             className="px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-300 text-sm font-bold border border-white/8 flex items-center gap-2 transition-colors">
             Yazdır
+          </button>
+          <button onClick={exportMovementCSV}
+            className="px-4 py-2 rounded-xl bg-emerald2/20 hover:bg-emerald2/30 text-emerald2 text-sm font-bold border border-emerald2/30 flex items-center gap-2 transition-colors">
+            CSV
           </button>
           <button onClick={()=>setBarcodeModal(true)}
             className="px-4 py-2 rounded-xl bg-amber2/20 hover:bg-amber2/30 text-amber2 text-sm font-bold border border-amber2/30 flex items-center gap-2 transition-colors">
@@ -4831,6 +4909,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   const toast=useToast();
   const [records,setRecords]=useState([]);
   const [modal,setModal]=useState(false);
+  const [search,setSearch]=useState("");
   const emptyInvoiceForm={surgery_id:"",patient_name:"",side:"",personnel:[],items:[{urun_id:"",lot:"",quantity:1}]};
   const [f,setF]=useState(emptyInvoiceForm);
 
@@ -4890,6 +4969,27 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   };
 
   const recordRows=records.map(r=>({h:r,urun:urunler.find(u=>u.id===r.urun_id)||{},surgery:surgeries.find(s=>s.id===r.surgery_id)||{},hospital:hospitals.find(h=>h.id===r.hospital_id)||{}}));
+  const filteredRecordRows=useMemo(()=>{
+    const q=search.trim().toLocaleLowerCase("tr-TR");
+    if(!q)return recordRows;
+    return recordRows.filter(({h,urun,surgery,hospital})=>[
+      urun.code,
+      h.lot,
+      surgery.type,
+      surgery.doctor,
+      displayLocationName(hospital)||surgery.hospital,
+      noteField(h.notes,"Hasta"),
+      noteField(h.notes,"Taraf"),
+      h.notes
+    ].filter(Boolean).join(" ").toLocaleLowerCase("tr-TR").includes(q));
+  },[recordRows,search]);
+  const invoiceTotalQty=filteredRecordRows.reduce((a,r)=>a+(Number(r.h.quantity)||0),0);
+  const invoiceSurgeryCount=new Set(filteredRecordRows.map(r=>r.h.surgery_id).filter(Boolean)).size;
+  const invoiceRefCount=new Set(filteredRecordRows.map(r=>r.urun.code).filter(Boolean)).size;
+  const invoiceTeamCount=new Set(filteredRecordRows.flatMap(r=>{
+    const teamText=r.h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(r.surgery).join(", ");
+    return teamText?teamText.split(",").map(x=>x.trim()).filter(Boolean):[];
+  })).size;
   const invoicePrintRow=({h,urun,surgery,hospital})=>{
     const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
     const patient=noteField(h.notes,"Hasta")||"Hasta yok";
@@ -4918,12 +5018,12 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
     printExitDocument({title:"Fatura / Tüketim Çıkış Fişi",subtitle:"Ameliyat bazlı ürün tüketim belgesi",meta:printable.meta,rows:[printable.row]});
   };
   const printInvoiceList=()=>{
-    if(!recordRows.length)return toast("Yazdırılacak kayıt yok","warning");
-    const rows=recordRows.map(r=>invoicePrintRow(r).row);
+    if(!filteredRecordRows.length)return toast("Yazdırılacak kayıt yok","warning");
+    const rows=filteredRecordRows.map(r=>invoicePrintRow(r).row);
     printExitDocument({
       title:"Fatura / Tüketim Listesi",
       subtitle:"Filtrelenmiş tüketim kayıtları",
-      meta:[{label:"Kayıt Sayısı",value:recordRows.length},{label:"Tarih",value:new Date().toLocaleString("tr-TR")},{label:"Belge Türü",value:"Toplu Çıkış"}],
+      meta:[{label:"Kayıt Sayısı",value:filteredRecordRows.length},{label:"Toplam Adet",value:invoiceTotalQty},{label:"Tarih",value:new Date().toLocaleString("tr-TR")},{label:"Belge Türü",value:"Toplu Çıkış"}],
       rows
     });
   };
@@ -4987,9 +5087,36 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
           <button onClick={()=>setModal(true)} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
         </div>
       </div>
+      <div className="enterprise-panel rounded-2xl p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center">
+          <div>
+            <div className="enterprise-kicker mb-1">Tüketim Denetimi</div>
+            <h3 className="text-base font-black text-white">Ameliyat bazlı ekip sorumluluğu ve ürün tüketimi</h3>
+            <p className="text-xs text-slate-500 mt-1">Fatura kayıtları hasta, ameliyat, doktor, hastane, personel, REF ve LOT ilişkisiyle izlenir.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {[
+              ["Kayıt",filteredRecordRows.length,"#3b82f6"],
+              ["Toplam Adet",invoiceTotalQty,"#f43f5e"],
+              ["Ameliyat",invoiceSurgeryCount,"#8b5cf6"],
+              ["REF",invoiceRefCount,"#60a5fa"],
+              ["Personel",invoiceTeamCount,"#10b981"],
+            ].map(([l,v,c])=>(
+              <div key={l} className="rounded-xl bg-navy-900/60 border border-white/8 px-3 py-2">
+                <div className="text-[10px] text-slate-500 font-bold">{l}</div>
+                <div className="text-xl font-black" style={{color:c}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 relative">
+          <Input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Hasta, ameliyat, doktor, hastane, personel, REF veya LOT ara..."/>
+          {search&&<button onClick={()=>setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-white">Temizle</button>}
+        </div>
+      </div>
       <div className="card rounded-2xl overflow-hidden">
         <div className="hidden lg:grid grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Personel","Adet","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
-        {recordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:recordRows.map(({h,urun,surgery,hospital})=>{
+        {filteredRecordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:filteredRecordRows.map(({h,urun,surgery,hospital})=>{
             const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
             return(
               <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] gap-4">
