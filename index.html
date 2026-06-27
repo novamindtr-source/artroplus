@@ -9,7 +9,6 @@
   <meta name="apple-mobile-web-app-title" content="ARTROPLUS"/>
   <meta name="theme-color" content="#0a0f1e"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  
   <script src="https://cdn.tailwindcss.com/3.4.1"></script>
   <script>
     tailwind.config = {
@@ -24,242 +23,163 @@
             amber2: { DEFAULT:'#f59e0b',light:'#fef3c7',dark:'#d97706' },
             rose2: { DEFAULT:'#f43f5e',light:'#ffe4e6',dark:'#e11d48' },
             violet2: { DEFAULT:'#8b5cf6',light:'#ede9fe',dark:'#7c3aed' }
+          },
+          animation: {
+            'slide-in': 'slideIn .3s ease-out',
+            'fade-up': 'fadeUp .25s ease-out',
+            'pulse-soft': 'pulseSoft 2s infinite',
           }
         }
       }
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
+  <script src="https://unpkg.com/@zxing/browser@0.2.0/umd/zxing-browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <!-- Recharts UMD -->
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- jsPDF AutoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <!-- PWA -->
+  <meta name="description" content="ARTROPLUS — Medikal Ameliyat Takip ve ERP Sistemi"/>
   <style>
     *{box-sizing:border-box;}
     body{font-family:'Inter',sans-serif;background:#07111f;color:#e2e8f0;margin:0;overflow-x:hidden;}
+    @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulseSoft{0%,100%{opacity:1}50%{opacity:.6}}
+    @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+    @keyframes skeletonPulse{0%{opacity:.6}50%{opacity:.3}100%{opacity:.6}}
+    @keyframes toastProgress{from{width:100%}to{width:0}}
+    .toast-in{animation:slideIn .3s ease-out}
+    .fade-up{animation:fadeUp .25s ease-out}
+    .pulse-soft{animation:pulseSoft 2s infinite}
     ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:transparent}
     ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
-    input:focus,select:focus,textarea:focus{outline:none !important;border-color:#2563eb !important;}
+    ::-webkit-scrollbar-thumb:hover{background:#475569}
+    input:focus,select:focus,textarea:focus{outline:none !important;border-color:#2563eb !important;box-shadow:0 0 0 3px rgba(37,99,235,.15) !important;}
+    /* Glass Premium */
     .glass{background:rgba(10,16,37,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);}
-    .card-premium{background:linear-gradient(180deg,rgba(15,26,48,.96),rgba(10,19,36,.98));border:1px solid rgba(148,163,184,.14);box-shadow:0 18px 45px rgba(0,0,0,.18);}
-    .sidebar-item{border:1px solid transparent;transition:all 0.2s;}
-    .sidebar-item:hover{background:rgba(37,99,235,.08);color:#dbeafe;}
-    .sidebar-item.active{background:rgba(37,99,235,.16);border-color:rgba(96,165,250,.32);color:#fff;box-shadow:inset 3px 0 0 #60a5fa;}
-    .enterprise-topbar{background:rgba(8,17,32,.96);border-bottom:1px solid rgba(148,163,184,.14);}
+    .glass-premium{background:rgba(255,255,255,.05);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.3),inset 0 1px 1px rgba(255,255,255,.04);}
+    .glass-light{background:rgba(15,26,53,.6);backdrop-filter:blur(12px);}
+    /* Cards */
+    .card{background:linear-gradient(135deg,#0f1a35 0%,#0d1730 100%);border:1px solid rgba(255,255,255,.07);}
+    .card-premium{background:linear-gradient(135deg,rgba(15,26,53,.96),rgba(13,23,48,.96));border:1px solid rgba(255,255,255,.07);border-radius:24px;box-shadow:0 8px 30px rgba(0,0,0,.35);}
+    .card-hover{transition:all .2s;cursor:pointer;}
+    .card-hover:hover{border-color:rgba(37,99,235,.4);box-shadow:0 0 20px rgba(37,99,235,.1);transform:translateY(-1px);}
+    .shimmer{background:linear-gradient(90deg,#0f1a35 25%,#162448 50%,#0f1a35 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;}
+    /* Skeleton */
+    .skeleton-box{border-radius:12px;background:#0f1a35;animation:skeletonPulse 1.6s ease-in-out infinite;position:relative;overflow:hidden;}
+    .skeleton-box::after{content:'';position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);animation:shimmer 1.6s infinite;}
+    /* Sidebar */
+    .sidebar-item{transition:all .18s ease;}
+    .sidebar-item:hover{background:rgba(37,99,235,.12);color:#93c5fd;}
+    .sidebar-item.active{background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;box-shadow:0 4px 15px rgba(37,99,235,.35);}
+    /* Buttons */
+    .btn-primary{background:linear-gradient(135deg,#1d4ed8,#2563eb);transition:all .2s;}
+    .btn-primary:hover{background:linear-gradient(135deg,#1e40af,#1d4ed8);box-shadow:0 6px 20px rgba(37,99,235,.45);transform:translateY(-1px);}
+    .btn-danger{background:linear-gradient(135deg,#be123c,#f43f5e);transition:all .2s;}
+    .btn-danger:hover{box-shadow:0 4px 15px rgba(244,63,94,.3);}
+    .btn-premium{background:linear-gradient(135deg,#2563eb,#3b82f6);transition:all .22s;border:none;color:white;cursor:pointer;}
+    .btn-premium:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(37,99,235,.35);}
+    /* Stats */
+    .stat-card{background:linear-gradient(135deg,#0f1a35 0%,#0d1730 100%);border:1px solid rgba(255,255,255,.07);transition:all .2s;}
+    .stat-card:hover{border-color:rgba(37,99,235,.3);box-shadow:0 8px 30px rgba(0,0,0,.3);}
+    /* Inputs */
+    .input-dark{background:#0a1025;border:1px solid rgba(255,255,255,.12);color:#e2e8f0;transition:border-color .2s;}
+    .input-dark::placeholder{color:#475569;}
+    .input-dark:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15);}
+    /* Badges */
+    .badge-planned{background:rgba(37,99,235,.2);color:#93c5fd;border:1px solid rgba(37,99,235,.3);}
+    .badge-done{background:rgba(16,185,129,.2);color:#6ee7b7;border:1px solid rgba(16,185,129,.3);}
+    .badge-cancelled{background:rgba(244,63,94,.2);color:#fda4af;border:1px solid rgba(244,63,94,.3);}
+    .badge-postponed{background:rgba(245,158,11,.2);color:#fcd34d;border:1px solid rgba(245,158,11,.3);}
+    /* Table */
+    .table-row{border-bottom:1px solid rgba(255,255,255,.05);transition:background .15s;}
+    .table-row:hover{background:rgba(37,99,235,.06);}
+    /* Modal */
+    .modal-bg{background:rgba(0,0,0,.72);backdrop-filter:blur(10px);}
+    .modal-box{background:linear-gradient(135deg,#0f1a35,#0a1025);border:1px solid rgba(255,255,255,.1);}
+    /* Nav */
+    .nav-tab.active{border-bottom:2px solid #2563eb;color:#60a5fa;}
+    .progress-bar{background:linear-gradient(90deg,#1d4ed8,#60a5fa);}
+    /* Calendar */
+    .calendar-day{transition:all .15s;}
+    .calendar-day:hover{background:rgba(37,99,235,.15);}
+    .calendar-day.today{background:rgba(37,99,235,.2);border:1px solid rgba(37,99,235,.5);}
+    .calendar-day.has-surgery{border-bottom:2px solid #2563eb;}
+    /* Recharts overrides */
+    .recharts-tooltip-wrapper{z-index:50!important;}
+    .recharts-cartesian-grid-horizontal line,.recharts-cartesian-grid-vertical line{stroke:rgba(255,255,255,.06)!important;}
+    .recharts-text{fill:#94a3b8!important;font-size:11px!important;}
+    .recharts-tooltip-content{background:#0f1a35!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:12px!important;color:#e2e8f0!important;}
+    .recharts-legend-item-text{color:#94a3b8!important;font-size:11px!important;}
+    /* Mobile sidebar overlay */
+    .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:39;backdrop-filter:blur(4px);}
+    .sidebar-overlay.show{display:block;}
+    @media(max-width:1023px){
+      .sidebar-mobile-hidden{transform:translateX(-100%);transition:transform .28s ease;}
+      .sidebar-mobile-open{transform:translateX(0)!important;}
+      .table-scroll{overflow-x:auto;}
+    }
+    /* Enterprise polish */
+    body::before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(15,23,42,.92),rgba(7,17,31,1));z-index:-2;}
+    body::after{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:32px 32px;mask-image:linear-gradient(180deg,rgba(0,0,0,.6),transparent 70%);z-index:-1;}
+    .glass{background:rgba(8,17,32,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
+    .card,.stat-card,.card-premium{background:linear-gradient(180deg,rgba(15,26,48,.96),rgba(10,19,36,.98));border:1px solid rgba(148,163,184,.14);box-shadow:0 1px 0 rgba(255,255,255,.03),0 18px 45px rgba(0,0,0,.18);}
+    .card.rounded-2xl,.stat-card.rounded-2xl,.card-premium.rounded-2xl{border-radius:10px!important;}
+    .rounded-xl{border-radius:10px!important;}
+    .rounded-2xl{border-radius:12px!important;}
+    .sidebar-item{border:1px solid transparent;}
+    .sidebar-item:hover{background:rgba(37,99,235,.08);border-color:rgba(148,163,184,.12);color:#dbeafe;}
+    .sidebar-item.active{background:rgba(37,99,235,.16);border-color:rgba(96,165,250,.32);color:#fff;box-shadow:inset 3px 0 0 #60a5fa,0 8px 20px rgba(15,23,42,.22);}
+    .btn-primary,.btn-premium{background:#2563eb;box-shadow:0 1px 0 rgba(255,255,255,.08) inset;}
+    .btn-primary:hover,.btn-premium:hover{background:#1d4ed8;box-shadow:0 10px 24px rgba(37,99,235,.26);transform:translateY(-1px);}
+    .btn-danger{background:#dc2626;}
+    .input-dark{background:#08111f;border-color:rgba(148,163,184,.18);}
+    .input-dark:hover{border-color:rgba(148,163,184,.28);}
+    .table-row{border-bottom-color:rgba(148,163,184,.09);}
+    .table-row:hover{background:rgba(96,165,250,.055);}
+    .modal-bg{background:rgba(2,6,23,.78);backdrop-filter:blur(12px);}
+    .modal-box{background:#0b1528;border:1px solid rgba(148,163,184,.18);box-shadow:0 24px 80px rgba(0,0,0,.42);}
+    .enterprise-topbar{background:rgba(8,17,32,.96);border-bottom:1px solid rgba(148,163,184,.14);box-shadow:0 1px 0 rgba(255,255,255,.03);}
+    .enterprise-kicker{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800;}
     .enterprise-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.7);color:#cbd5e1;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700;}
     .enterprise-dot{width:7px;height:7px;border-radius:999px;background:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.12);}
-    body::before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(15,23,42,.92),rgba(7,17,31,1));z-index:-2;}
+    .enterprise-panel{background:linear-gradient(180deg,rgba(15,23,42,.88),rgba(8,17,32,.96));border:1px solid rgba(148,163,184,.16);box-shadow:0 14px 42px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.035);}
+    .enterprise-metric{border-left:1px solid rgba(148,163,184,.12);}
+    .enterprise-metric:first-child{border-left:0;}
+    .quality-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.16);background:rgba(15,23,42,.72);font-size:11px;font-weight:800;color:#cbd5e1;}
+    .lot-key{display:inline-flex;align-items:center;gap:6px;padding:4px 7px;border-radius:8px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.16);color:#bfdbfe;font-family:monospace;font-size:11px;font-weight:800;}
+    .card,.stat-card,.card-premium{width:100%!important;max-width:100%!important;box-sizing:border-box;}
+    .flex-responsive{display:flex;flex-wrap:wrap;gap:.75rem;}
+    .timeline-container{display:flex;flex-direction:column;max-height:560px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    .timeline-row{display:grid;grid-template-columns:64px 1fr;align-items:stretch;min-height:60px;border-bottom:1px solid rgba(255,255,255,.05);}
+    .timeline-hour{font-family:monospace;font-size:.82rem;color:#64748b;font-weight:700;}
+    .timeline-cell{position:relative;width:100%;min-width:0;padding:4px;}
+    .surgery-block{width:100%;cursor:pointer;}
+    .surgery-block:hover{background:rgba(37,99,235,.22)!important;transform:translateY(-1px);}
+    @media(max-width:768px){
+      .flex-responsive{flex-direction:column;}
+      .timeline-row{grid-template-columns:52px 1fr;}
+      .timeline-hour{font-size:.72rem;}
+      .toast-stack{left:12px;right:12px;top:12px;}
+      .toast{min-width:0;width:100%;}
+      input,select,textarea,button{max-width:100%;}
+      .enterprise-metric{border-left:0;border-top:1px solid rgba(148,163,184,.12);}
+      .enterprise-metric:first-child{border-top:0;}
+    }
   </style>
 </head>
 <body>
-  
-  <div id="root"></div>
-
-  <script type="text/babel" data-type="module" data-presets="react">
-    const { useState, useEffect, useMemo } = React;
-
-    // SUPABASE BAGLANTISI (Buraya kendi bilgilerinizi ekleyebilirsiniz)
-    const SUPABASE_URL = "https://your-supabase-url.supabase.co";
-    const SUPABASE_ANON_KEY = "your-anon-key";
-    const SB = supabase.createClient ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-
-    function App() {
-      const [page, setPage] = useState("dashboard");
-      const [loading, setLoading] = useState(false);
-      const [searchQuery, setSearchQuery] = useState("");
-
-      // FIX 1: VARSAYILAN KULLANICIYI DOĞRUDAN MEHMET UZUNER VE ADMİN YAPTIK (Mavi Ekranı Kırar)
-      const [profile, setProfile] = useState({
-        id: "1713fcd3-aa39-4b0a-84de-d994952b6d30",
-        full_name: "Mehmet Uzuner",
-        role: "admin",
-        status: "active"
-      });
-
-      // GÜVENLİ MOCK DATA DEPOSU (Veritabanı tablonuz hatalı olsa bile arayüzün dolmasını sağlar)
-      const [surgeries, setSurgeries] = useState([
-        { id: 1, patient_name: "Ahmet Yılmaz", doctor: "Prof. Dr. Can Bölükbaşı", hospital: "Acıbadem Hastanesi", type: "Artroskopi", date: "2026-06-27", status: "Tamamlandı" },
-        { id: 2, patient_name: "Ayşe Demir", doctor: "Doç. Dr. Elif Kaya", hospital: "Medipol Hastanesi", type: "Diz Protezi", date: "2026-06-28", status: "Beklemede" }
-      ]);
-      const [doctors, setDoctors] = useState([
-        { id: 1, name: "Prof. Dr. Can Bölükbaşı", branch: "Ortopedi", phone: "0532 000 00 00" },
-        { id: 2, name: "Doç. Dr. Elif Kaya", branch: "Travmatoloji", phone: "0533 111 11 11" }
-      ]);
-      const [hospitals, setHospitals] = useState([
-        { id: 1, name: "Acıbadem Maslak Hastanesi", city: "İstanbul" },
-        { id: 2, name: "Medipol Mega Üniversite Hastanesi", city: "İstanbul" }
-      ]);
-      const [stoklar, setStoklar] = useState([
-        { id: 1, ad: "Artroplasti Diz Seti X1", miktar: 14, kritik: 5 },
-        { id: 2, ad: "Titanyum Çivi 4.5mm", miktar: 3, kritik: 10 }
-      ]);
-
-      // FIX 2: AKILLI VERİ YÜKLEME (Herhangi bir tablo yetki hatası verirse çökmez, devam eder)
-      const loadAll = async () => {
-        if (!SB) return;
-        setLoading(true);
-        try {
-          const safeFetch = async (table) => {
-            try {
-              const { data, error } = await SB.from(table).select("*");
-              if (!error && data) return data;
-            } catch (e) { console.warn(`${table} tablosu okunamadı, yedek veriler devrede.`); }
-            return null;
-          };
-
-          const sData = await safeFetch("surgeries"); if(sData) setSurgeries(sData);
-          const dData = await safeFetch("doctors"); if(dData) setDoctors(dData);
-          const hData = await safeFetch("hospitals"); if(hData) setHospitals(hData);
-          const stData = await safeFetch("stok"); if(stData) setStoklar(stData);
-        } catch (err) {
-          console.error("Yükleme sırasında hata tolere edildi:", err);
-        } finally {
-          setLoading(false); // Ne olursa olsun yükleme ekranını kapatır
-        }
-      };
-
-      useEffect(() => {
-        loadAll();
-      }, []);
-
-      // DASYBOARD GÖRÜNÜMÜ
-      const DashboardView = () => (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="card-premium p-5 rounded-xl">
-              <div className="text-xs text-slate-400 font-bold uppercase">Toplam Ameliyat</div>
-              <div className="text-2xl font-black text-white mt-1">{surgeries.length}</div>
-            </div>
-            <div className="card-premium p-5 rounded-xl">
-              <div className="text-xs text-slate-400 font-bold uppercase">Aktif Doktorlar</div>
-              <div className="text-2xl font-black text-brand-400 mt-1">{doctors.length}</div>
-            </div>
-            <div className="card-premium p-5 rounded-xl">
-              <div className="text-xs text-slate-400 font-bold uppercase">Anlaşmalı Hastaneler</div>
-              <div className="text-2xl font-black text-emerald2 mt-1">{hospitals.length}</div>
-            </div>
-            <div className="card-premium p-5 rounded-xl">
-              <div className="text-xs text-slate-400 font-bold uppercase">Kritik Stok Uyarısı</div>
-              <div className="text-2xl font-black text-rose2 mt-1">
-                {stoklar.filter(s => s.miktar <= s.kritik).length} Ürün
-              </div>
-            </div>
-          </div>
-
-          <div className="card-premium p-6 rounded-xl">
-            <h3 className="text-base font-bold text-white mb-4">Güncel Ameliyat Takip Listesi</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-white/10 text-xs text-slate-400 uppercase">
-                    <th className="pb-3 font-semibold">Hasta</th>
-                    <th className="pb-3 font-semibold">Doktor</th>
-                    <th className="pb-3 font-semibold">Hastane</th>
-                    <th className="pb-3 font-semibold">Operasyon Tipi</th>
-                    <th className="pb-3 font-semibold">Tarih</th>
-                    <th className="pb-3 font-semibold">Durum</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm divide-y divide-white/5">
-                  {surgeries.map(s => (
-                    <tr key={s.id} className="hover:bg-white/5 transition-colors">
-                      <td className="py-3 font-medium text-white">{s.patient_name}</td>
-                      <td className="py-3 text-slate-300">{s.doctor}</td>
-                      <td className="py-3 text-slate-300">{s.hospital}</td>
-                      <td className="py-3 text-brand-300 font-mono text-xs">{s.type}</td>
-                      <td className="py-3 text-slate-400">{s.date}</td>
-                      <td className="py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${s.status === 'Tamamlandı' ? 'bg-emerald2/20 text-emerald2' : 'bg-amber2/20 text-amber2'}`}>
-                          {s.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      );
-
-      // SAYFA YÖNLENDİRİCİSİ (Hata durumunda çökmesini önleyen Default Korumalı)
-      const renderPage = () => {
-        switch(page) {
-          case "dashboard": return <DashboardView />;
-          case "ameliyatlar": return <div className="card-premium p-6 rounded-xl"><h2 className="text-xl font-bold mb-4">Ameliyat Yönetim Paneli</h2><p className="text-slate-400 text-sm">Ameliyat kayıt ve takip modülü aktif.</p></div>;
-          case "doktorlar": return <div className="card-premium p-6 rounded-xl"><h2 className="text-xl font-bold mb-4">Doktor Veritabanı</h2><p className="text-slate-400 text-sm">Doktor yönetim listesi aktif.</p></div>;
-          case "stok": return <div className="card-premium p-6 rounded-xl"><h2 className="text-xl font-bold mb-4">Urun & Stok Sayım Paneli</h2><p className="text-slate-400 text-sm">Medikal envanter ve kritik seviye kontrolleri.</p></div>;
-          default: return <DashboardView />;
-        }
-      };
-
-      return (
-        <div className="min-h-screen flex flex-col">
-          <div className="enterprise-topbar px-6 py-4 flex items-center justify-between glass sticky top-0 z-50">
-            <div className="flex items-center gap-6">
-              <span className="text-xl font-black text-white tracking-widest bg-gradient-to-r from-blue-400 to-brand bg-clip-text text-transparent">ARTROPLUS</span>
-              <div className="relative hidden md:block">
-                <input 
-                  type="text" 
-                  placeholder="Sistem içinde arama yapın..." 
-                  className="bg-navy-900 border border-white/10 rounded-xl px-4 py-1.5 text-xs w-64 text-slate-200"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="enterprise-badge">
-                <span className="enterprise-dot"></span>
-                Sistem Aktif (Admin Modu)
-              </div>
-              <div className="flex items-center gap-2 bg-navy-800 border border-white/10 px-3 py-1.5 rounded-xl">
-                <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center text-white text-xs font-bold">
-                  {profile.full_name[0]}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-white leading-tight">{profile.full_name}</span>
-                  <span className="text-[10px] text-brand-400 uppercase font-bold tracking-wider">{profile.role}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-1">
-            <div className="w-64 bg-navy-900/60 border-r border-white/10 p-4 space-y-1 hidden md:block">
-              <button onClick={() => setPage("dashboard")} className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${page === "dashboard" ? "active" : "text-slate-400"}`}>
-                <span>📊</span> Dashboard Paneli
-              </button>
-              <button onClick={() => setPage("ameliyatlar")} className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${page === "ameliyatlar" ? "active" : "text-slate-400"}`}>
-                <span>🩺</span> Ameliyat Takip
-              </button>
-              <button onClick={() => setPage("doktorlar")} className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${page === "doktorlar" ? "active" : "text-slate-400"}`}>
-                <span>👨‍⚕️</span> Doktor Yönetimi
-              </button>
-              <button onClick={() => setPage("stok")} className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${page === "stok" ? "active" : "text-slate-400"}`}>
-                <span>📦</span> Ürün & Stok Sayım
-              </button>
-            </div>
-
-            <div className="flex-1 p-6 lg:p-8 bg-[#07111f]">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-24 space-y-3">
-                  <div className="w-8 h-8 border-4 border-brand border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-xs text-slate-500 font-mono">Modüller güvenli senkronize ediliyor...</p>
-                </div>
-              ) : renderPage()}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // FIX 3: Yazım hatası düzeltildi (React-dom yerine birleşik ReactDOM kullanıldı)
-    const container = document.getElementById('root');
-    const root = ReactDOM.createRoot(container);
-    root.render(<App />);
-  </script>
-
-</body>
-</html>
+<div id="root"></div>
+<script>
+const LOGO_LIGHT_SRC = "data:image/png;base64,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
