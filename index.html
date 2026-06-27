@@ -41,12 +41,12 @@
             
             <!-- MENÜ BUTONLARI -->
             <div class="grid grid-cols-3 gap-4 mb-6">
+                <button class="menu-btn bg-gray-700 hover:bg-gray-600 p-4 rounded-xl transition" data-page="dashboard">📊 Dashboard</button>
                 <button class="menu-btn bg-gray-700 hover:bg-gray-600 p-4 rounded-xl transition" data-page="surgeries">⚕️ Ameliyatlar</button>
                 <button class="menu-btn bg-gray-700 hover:bg-gray-600 p-4 rounded-xl transition" data-page="patients">👤 Hastalar</button>
                 <button class="menu-btn bg-gray-700 hover:bg-gray-600 p-4 rounded-xl transition" data-page="products">📦 Ürünler</button>
                 <button class="menu-btn bg-gray-700 hover:bg-gray-600 p-4 rounded-xl transition" data-page="stock">📊 Stok</button>
                 <button class="menu-btn bg-gray-700 hover:bg-gray-600 p-4 rounded-xl transition" data-page="finance">💰 Finans</button>
-                <button class="menu-btn bg-gray-700 hover:bg-gray-600 p-4 rounded-xl transition" data-page="settings">⚙️ Ayarlar</button>
             </div>
 
             <!-- SAYFA İÇERİKLERİ -->
@@ -107,21 +107,12 @@
                     </div>
                     <div id="invoicesList" class="space-y-2"></div>
                 </div>
-
-                <div id="page-settings" class="hidden">
-                    <h2 class="text-xl font-bold mb-4">⚙️ Ayarlar</h2>
-                    <div class="bg-gray-700 rounded-xl p-6">
-                        <p class="text-gray-400">Sürüm: ARTROPLUS v3.0</p>
-                        <p class="text-gray-400">Veritabanı: <span class="text-green-400">● Bağlı</span></p>
-                        <button id="refreshBtn" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl text-sm font-bold transition">🔄 Yenile</button>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- MODAL (Ekleme Penceresi) -->
+<!-- MODAL -->
 <div id="modalOverlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50">
     <div class="bg-gray-800 rounded-2xl p-8 max-w-md w-full border border-gray-700">
         <div class="flex justify-between items-center mb-4">
@@ -137,9 +128,9 @@
 // ============================================================
 // SUPABASE BAĞLANTI
 // ============================================================
-const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SB_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
+const sb = supabase.createClient(SB_URL, SB_KEY);
 
 // ============================================================
 // DOM ELEMENTLERİ
@@ -159,37 +150,33 @@ const modalCloseBtn = document.getElementById('modalCloseBtn');
 // FONKSİYONLAR
 // ============================================================
 
-// Hata göster
 function showError(msg) {
     errorMessage.textContent = msg;
     errorMessage.classList.remove('hidden');
     setTimeout(() => errorMessage.classList.add('hidden'), 5000);
 }
 
-// Sayfa göster
 function showPage(page) {
     document.querySelectorAll('[id^="page-"]').forEach(el => el.classList.add('hidden'));
     const target = document.getElementById('page-' + page);
     if (target) target.classList.remove('hidden');
 }
 
-// Dashboard güncelle
 async function refreshDashboard() {
     try {
-        const { count: surgeries } = await supabase.from('surgeries').select('*', { count: 'exact', head: true });
-        const { count: patients } = await supabase.from('patients').select('*', { count: 'exact', head: true });
-        const { count: products } = await supabase.from('urunler').select('*', { count: 'exact', head: true });
+        const { count: surgeries } = await sb.from('surgeries').select('*', { count: 'exact', head: true });
+        const { count: patients } = await sb.from('patients').select('*', { count: 'exact', head: true });
+        const { count: products } = await sb.from('urunler').select('*', { count: 'exact', head: true });
         document.getElementById('statSurgeries').textContent = surgeries || 0;
         document.getElementById('statPatients').textContent = patients || 0;
         document.getElementById('statProducts').textContent = products || 0;
     } catch(e) {
-        console.error('Dashboard güncelleme hatası:', e);
+        console.error('Dashboard hatası:', e);
     }
 }
 
-// Oturum kontrolü
 async function checkSession() {
-    const { data } = await supabase.auth.getSession();
+    const { data } = await sb.auth.getSession();
     if (data.session) {
         loginScreen.classList.add('hidden');
         dashboardScreen.classList.remove('hidden');
@@ -214,7 +201,7 @@ loginBtn.addEventListener('click', async () => {
     loginBtn.disabled = true;
     loginBtn.textContent = 'Giriş yapılıyor...';
     
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     
     loginBtn.disabled = false;
     loginBtn.textContent = 'Giriş Yap';
@@ -224,12 +211,11 @@ loginBtn.addEventListener('click', async () => {
 });
 
 logoutBtn.addEventListener('click', async () => {
-    await supabase.auth.signOut();
+    await sb.auth.signOut();
     loginScreen.classList.remove('hidden');
     dashboardScreen.classList.add('hidden');
 });
 
-// Enter tuşu
 passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
 emailInput.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
 
@@ -264,7 +250,7 @@ modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) c
 // AMELİYATLAR
 // ============================================================
 async function loadSurgeries() {
-    const { data } = await supabase.from('surgeries').select('*').order('date', { ascending: false });
+    const { data } = await sb.from('surgeries').select('*').order('date', { ascending: false });
     const list = document.getElementById('surgeriesList');
     if (!data || data.length === 0) {
         list.innerHTML = '<div class="text-gray-500 text-center py-4">Ameliyat yok</div>';
@@ -293,7 +279,7 @@ document.getElementById('addSurgeryBtn').addEventListener('click', () => {
         </select>
     `);
     document.getElementById('modalSaveBtn').onclick = async () => {
-        const { error } = await supabase.from('surgeries').insert({
+        const { error } = await sb.from('surgeries').insert({
             date: document.getElementById('fSurgeryDate').value,
             time: document.getElementById('fSurgeryTime').value,
             type: document.getElementById('fSurgeryType').value,
@@ -311,7 +297,7 @@ document.getElementById('addSurgeryBtn').addEventListener('click', () => {
 // HASTALAR
 // ============================================================
 async function loadPatients() {
-    const { data } = await supabase.from('patients').select('*').order('name');
+    const { data } = await sb.from('patients').select('*').order('name');
     const list = document.getElementById('patientsList');
     if (!data || data.length === 0) {
         list.innerHTML = '<div class="text-gray-500 text-center py-4">Hasta yok</div>';
@@ -334,7 +320,7 @@ document.getElementById('addPatientBtn').addEventListener('click', () => {
         <input class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 text-white mb-3" placeholder="E-posta" id="fPatientEmail">
     `);
     document.getElementById('modalSaveBtn').onclick = async () => {
-        const { error } = await supabase.from('patients').insert({
+        const { error } = await sb.from('patients').insert({
             name: document.getElementById('fPatientName').value,
             phone: document.getElementById('fPatientPhone').value,
             email: document.getElementById('fPatientEmail').value
@@ -350,7 +336,7 @@ document.getElementById('addPatientBtn').addEventListener('click', () => {
 // ÜRÜNLER
 // ============================================================
 async function loadProducts() {
-    const { data } = await supabase.from('urunler').select('*');
+    const { data } = await sb.from('urunler').select('*');
     const list = document.getElementById('productsList');
     if (!data || data.length === 0) {
         list.innerHTML = '<div class="text-gray-500 text-center py-4">Ürün yok</div>';
@@ -375,7 +361,7 @@ document.getElementById('addProductBtn').addEventListener('click', () => {
         <input class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 text-white" type="number" placeholder="Min. Stok" id="fProductMinStock">
     `);
     document.getElementById('modalSaveBtn').onclick = async () => {
-        const { error } = await supabase.from('urunler').insert({
+        const { error } = await sb.from('urunler').insert({
             ad: document.getElementById('fProductName').value,
             kod: document.getElementById('fProductCode').value,
             birim: document.getElementById('fProductUnit').value,
@@ -392,7 +378,7 @@ document.getElementById('addProductBtn').addEventListener('click', () => {
 // STOK
 // ============================================================
 async function loadStock() {
-    const { data } = await supabase.from('stok').select('*, urunler(ad)');
+    const { data } = await sb.from('stok').select('*, urunler(ad)');
     const list = document.getElementById('stockList');
     if (!data || data.length === 0) {
         list.innerHTML = '<div class="text-gray-500 text-center py-4">Stok yok</div>';
@@ -410,7 +396,7 @@ async function loadStock() {
 }
 
 document.getElementById('addStockBtn').addEventListener('click', async () => {
-    const { data: products } = await supabase.from('urunler').select('id, ad');
+    const { data: products } = await sb.from('urunler').select('id, ad');
     let options = products.map(p => `<option value="${p.id}">${p.ad}</option>`).join('');
     openModal('Stok Girişi', `
         <select class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 text-white mb-3" id="fStockProduct">${options}</select>
@@ -419,7 +405,7 @@ document.getElementById('addStockBtn').addEventListener('click', async () => {
         <input class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 text-white" type="date" id="fStockSkt">
     `);
     document.getElementById('modalSaveBtn').onclick = async () => {
-        const { error } = await supabase.from('stok').insert({
+        const { error } = await sb.from('stok').insert({
             urun_id: document.getElementById('fStockProduct').value,
             miktar: parseInt(document.getElementById('fStockQty').value) || 1,
             lot: document.getElementById('fStockLot').value,
@@ -433,10 +419,10 @@ document.getElementById('addStockBtn').addEventListener('click', async () => {
 });
 
 // ============================================================
-// FİNANS - FATURALAR
+// FİNANS
 // ============================================================
 async function loadInvoices() {
-    const { data } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
+    const { data } = await sb.from('invoices').select('*').order('created_at', { ascending: false });
     const list = document.getElementById('invoicesList');
     if (!data || data.length === 0) {
         list.innerHTML = '<div class="text-gray-500 text-center py-4">Fatura yok</div>';
@@ -454,7 +440,7 @@ async function loadInvoices() {
 }
 
 document.getElementById('addInvoiceBtn').addEventListener('click', async () => {
-    const { data: surgeries } = await supabase.from('surgeries').select('id, type');
+    const { data: surgeries } = await sb.from('surgeries').select('id, type');
     let options = surgeries.map(s => `<option value="${s.id}">${s.type}</option>`).join('');
     openModal('Yeni Fatura', `
         <select class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 text-white mb-3" id="fInvoiceSurgery">${options}</select>
@@ -465,7 +451,7 @@ document.getElementById('addInvoiceBtn').addEventListener('click', async () => {
         </select>
     `);
     document.getElementById('modalSaveBtn').onclick = async () => {
-        const { error } = await supabase.from('invoices').insert({
+        const { error } = await sb.from('invoices').insert({
             surgery_id: document.getElementById('fInvoiceSurgery').value,
             total_amount: parseFloat(document.getElementById('fInvoiceAmount').value) || 0,
             status: document.getElementById('fInvoiceStatus').value,
@@ -476,18 +462,6 @@ document.getElementById('addInvoiceBtn').addEventListener('click', async () => {
         loadInvoices();
         refreshDashboard();
     };
-});
-
-// ============================================================
-// AYARLAR
-// ============================================================
-document.getElementById('refreshBtn').addEventListener('click', () => {
-    refreshDashboard();
-    loadSurgeries();
-    loadPatients();
-    loadProducts();
-    loadStock();
-    loadInvoices();
 });
 
 // ============================================================
