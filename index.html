@@ -18,19 +18,14 @@
         .btn-primary{background:linear-gradient(135deg,#2563eb,#3b82f6);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s}
         .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(37,99,235,.4)}
         .btn-danger{background:linear-gradient(135deg,#dc2626,#ef4444);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s}
-        .btn-danger:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(220,38,38,.4)}
-        .btn-success{background:linear-gradient(135deg,#059669,#10b981);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s}
-        .btn-success:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(16,185,129,.4)}
+        .btn-success{background:linear-gradient(135deg,#059669,#10b981);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer}
         .input-dark{background:#0f1a35;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 16px;color:#e2e8f0;width:100%;transition:all .3s}
         .input-dark:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.2)}
-        .input-dark::placeholder{color:#475569}
         .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600}
         .badge-blue{background:#1d4ed8;color:#93c5fd}
         .badge-green{background:#065f46;color:#6ee7b7}
         .badge-red{background:#7f1d1d;color:#fca5a5}
         .badge-yellow{background:#78350f;color:#fcd34d}
-        .badge-purple{background:#4c1d95;color:#c4b5fd}
-        .badge-gray{background:#1e293b;color:#94a3b8}
         .sidebar{position:fixed;left:0;top:0;height:100%;width:240px;background:linear-gradient(180deg,#0a1628,#060e1f);border-right:1px solid rgba(255,255,255,.06);padding:20px 0;overflow-y:auto;z-index:100}
         .sidebar-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:#94a3b8;cursor:pointer;transition:all .3s;border-left:3px solid transparent;font-size:14px;font-weight:500}
         .sidebar-item:hover{background:rgba(59,130,246,.08);color:#e2e8f0}
@@ -44,14 +39,12 @@
         .modal-box{background:#0f1a35;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:32px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto}
         .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
         .modal-header h2{font-size:20px;font-weight:700}
-        .close-btn{background:transparent;border:none;color:#94a3b8;font-size:24px;cursor:pointer;transition:all .3s}
-        .close-btn:hover{color:#fff}
+        .close-btn{background:transparent;border:none;color:#94a3b8;font-size:24px;cursor:pointer}
         .mobile-toggle{display:none;background:transparent;border:none;color:#fff;font-size:24px;cursor:pointer}
-        @media(max-width:768px){.sidebar{transform:translateX(-100%);transition:transform .3s}.sidebar.open{transform:translateX(0)}.main{padding-left:0}.topbar{padding:12px 16px}.mobile-toggle{display:block!important}}
+        @media(max-width:768px){.sidebar{transform:translateX(-100%);transition:transform .3s}.sidebar.open{transform:translateX(0)}.main{padding-left:0}.mobile-toggle{display:block!important}}
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:#475569}
         table{width:100%;border-collapse:collapse}
         th{text-align:left;padding:12px 16px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)}
         td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);font-size:14px}
@@ -71,7 +64,7 @@
         <div style="font-size:22px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">ARTROPLUS</div>
         <div style="font-size:10px;color:#475569;letter-spacing:.1em;text-transform:uppercase;margin-top:2px">Medikal ERP v3.0</div>
     </div>
-    <div style="padding:12px 0" id="sidebarMenu">
+    <div style="padding:12px 0">
         <div class="sidebar-item active" data-page="dashboard"><span class="icon">📊</span> Dashboard</div>
         <div class="sidebar-item" data-page="surgeries"><span class="icon">⚕️</span> Ameliyatlar</div>
         <div class="sidebar-item" data-page="patients"><span class="icon">👤</span> Hastalar</div>
@@ -113,22 +106,18 @@
         <!-- DASHBOARD -->
         <div id="page-dashboard">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">Dashboard</h1><p style="color:#64748b;font-size:14px">Genel işletme özeti ve istatistikler</p></div>
+                <div><h1 style="font-size:24px;font-weight:700">Dashboard</h1><p style="color:#64748b;font-size:14px">Genel işletme özeti</p></div>
                 <button class="btn-primary" onclick="refreshDashboard()">🔄 Yenile</button>
             </div>
-            <div class="grid-4" id="statsGrid">
-                <div class="card"><div style="color:#64748b;font-size:13px">Toplam Ameliyat</div><div class="stat-number" id="statSurgeries">0</div><div style="color:#475569;font-size:12px;margin-top:4px">Bugün: <span id="statToday">0</span></div></div>
-                <div class="card"><div style="color:#64748b;font-size:13px">Aktif Hastalar</div><div class="stat-number" id="statPatients">0</div><div style="color:#475569;font-size:12px;margin-top:4px">Bu ay: <span id="statNewPatients">0</span></div></div>
-                <div class="card"><div style="color:#64748b;font-size:13px">Stok Ürün</div><div class="stat-number" id="statProducts">0</div><div style="color:#475569;font-size:12px;margin-top:4px">Kritik: <span id="statCritical">0</span></div></div>
-                <div class="card"><div style="color:#64748b;font-size:13px">Ciro</div><div class="stat-number" id="statRevenue">₺0</div><div style="color:#475569;font-size:12px;margin-top:4px">Bu ay: <span id="statMonthlyRevenue">₺0</span></div></div>
-            </div>
-            <div class="grid-2" style="margin-top:16px">
-                <div class="card"><div style="font-weight:600;margin-bottom:12px">📈 Haftalık Ameliyat Trendi</div><div id="weeklyChart" style="height:180px;display:flex;align-items:flex-end;gap:8px"></div></div>
-                <div class="card"><div style="font-weight:600;margin-bottom:12px">📋 Son Ameliyatlar</div><div id="recentSurgeries" style="max-height:180px;overflow-y:auto"></div></div>
+            <div class="grid-4">
+                <div class="card"><div style="color:#64748b;font-size:13px">Toplam Ameliyat</div><div class="stat-number" id="statSurgeries">0</div></div>
+                <div class="card"><div style="color:#64748b;font-size:13px">Aktif Hastalar</div><div class="stat-number" id="statPatients">0</div></div>
+                <div class="card"><div style="color:#64748b;font-size:13px">Stok Ürün</div><div class="stat-number" id="statProducts">0</div></div>
+                <div class="card"><div style="color:#64748b;font-size:13px">Ciro</div><div class="stat-number" id="statRevenue">₺0</div></div>
             </div>
             <div class="grid-3" style="margin-top:16px">
+                <div class="card"><div style="font-weight:600;margin-bottom:12px">📋 Son Ameliyatlar</div><div id="recentSurgeries" style="max-height:180px;overflow-y:auto"></div></div>
                 <div class="card"><div style="font-weight:600;margin-bottom:12px">🏥 Ameliyat Durumu</div><div id="statusDistribution"></div></div>
-                <div class="card"><div style="font-weight:600;margin-bottom:12px">👨‍⚕️ En Çok Ameliyat Yapan Doktor</div><div id="topDoctors"></div></div>
                 <div class="card"><div style="font-weight:600;margin-bottom:12px">⚠️ Stok Uyarıları</div><div id="stockAlerts"></div></div>
             </div>
         </div>
@@ -136,8 +125,8 @@
         <!-- AMELİYATLAR -->
         <div id="page-surgeries" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">⚕️ Ameliyatlar</h1><p style="color:#64748b;font-size:14px">Tüm ameliyat kayıtlarını yönetin</p></div>
-                <button class="btn-primary" onclick="openSurgeryModal()">+ Yeni Ameliyat</button>
+                <div><h1 style="font-size:24px;font-weight:700">⚕️ Ameliyatlar</h1><p style="color:#64748b;font-size:14px">Tüm ameliyat kayıtları</p></div>
+                <button class="btn-primary" onclick="openSurgeryModal()">+ Yeni</button>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
                 <input class="input-dark" id="surgerySearch" placeholder="🔍 Ara..." style="max-width:300px" oninput="renderSurgeries()">
@@ -146,15 +135,12 @@
                     <option value="planned">Planlandı</option>
                     <option value="done">Tamamlandı</option>
                     <option value="cancelled">İptal</option>
-                    <option value="postponed">Ertelendi</option>
                 </select>
-                <button class="btn-success" onclick="exportSurgeriesExcel()" style="padding:10px 18px;font-size:13px">📊 Excel</button>
-                <button class="btn-primary" onclick="exportSurgeriesPDF()" style="padding:10px 18px;font-size:13px">📄 PDF</button>
             </div>
             <div class="card" style="padding:0;overflow:hidden">
                 <div style="overflow-x:auto">
                     <table>
-                        <thead><tr><th>Tarih</th><th>Saat</th><th>Tür</th><th>Hastane</th><th>Doktor</th><th>Hasta</th><th>Durum</th><th style="text-align:right">İşlem</th></tr></thead>
+                        <thead><tr><th>Tarih</th><th>Tür</th><th>Doktor</th><th>Hasta</th><th>Durum</th><th style="text-align:right">İşlem</th></tr></thead>
                         <tbody id="surgeriesTable"></tbody>
                     </table>
                 </div>
@@ -164,16 +150,14 @@
         <!-- HASTALAR -->
         <div id="page-patients" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">👤 Hastalar</h1><p style="color:#64748b;font-size:14px">Hasta kayıtlarını yönetin</p></div>
-                <button class="btn-primary" onclick="openPatientModal()">+ Yeni Hasta</button>
+                <div><h1 style="font-size:24px;font-weight:700">👤 Hastalar</h1><p style="color:#64748b;font-size:14px">Hasta kayıtları</p></div>
+                <button class="btn-primary" onclick="openPatientModal()">+ Yeni</button>
             </div>
-            <div style="display:flex;gap:12px;margin-bottom:16px">
-                <input class="input-dark" id="patientSearch" placeholder="🔍 Ara..." style="max-width:300px" oninput="renderPatients()">
-            </div>
+            <input class="input-dark" id="patientSearch" placeholder="🔍 Ara..." style="max-width:300px;margin-bottom:16px" oninput="renderPatients()">
             <div class="card" style="padding:0;overflow:hidden">
                 <div style="overflow-x:auto">
                     <table>
-                        <thead><tr><th>Ad Soyad</th><th>Telefon</th><th>E-posta</th><th>Doğum</th><th>Cinsiyet</th><th style="text-align:right">İşlem</th></tr></thead>
+                        <thead><tr><th>Ad Soyad</th><th>Telefon</th><th>E-posta</th><th style="text-align:right">İşlem</th></tr></thead>
                         <tbody id="patientsTable"></tbody>
                     </table>
                 </div>
@@ -183,7 +167,7 @@
         <!-- PROGRAM -->
         <div id="page-program" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">📅 Program</h1><p style="color:#64748b;font-size:14px">Haftalık ameliyat programı</p></div>
+                <div><h1 style="font-size:24px;font-weight:700">📅 Program</h1><p style="color:#64748b;font-size:14px">Haftalık program</p></div>
                 <div style="display:flex;gap:8px">
                     <button class="btn-primary" onclick="changeWeek(-1)">‹</button>
                     <span style="padding:8px 16px;background:#0f1a35;border-radius:10px;font-weight:600" id="weekLabel">Bu Hafta</span>
@@ -203,16 +187,14 @@
         <!-- ÜRÜNLER -->
         <div id="page-products" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">📦 Ürünler</h1><p style="color:#64748b;font-size:14px">Ürün kataloğunu yönetin</p></div>
-                <button class="btn-primary" onclick="openProductModal()">+ Yeni Ürün</button>
+                <div><h1 style="font-size:24px;font-weight:700">📦 Ürünler</h1><p style="color:#64748b;font-size:14px">Ürün kataloğu</p></div>
+                <button class="btn-primary" onclick="openProductModal()">+ Yeni</button>
             </div>
-            <div style="display:flex;gap:12px;margin-bottom:16px">
-                <input class="input-dark" id="productSearch" placeholder="🔍 Ara..." style="max-width:300px" oninput="renderProducts()">
-            </div>
+            <input class="input-dark" id="productSearch" placeholder="🔍 Ara..." style="max-width:300px;margin-bottom:16px" oninput="renderProducts()">
             <div class="card" style="padding:0;overflow:hidden">
                 <div style="overflow-x:auto">
                     <table>
-                        <thead><tr><th>Kod</th><th>Ad</th><th>Birim</th><th>Stok</th><th>Min.</th><th>Durum</th><th style="text-align:right">İşlem</th></tr></thead>
+                        <thead><tr><th>Kod</th><th>Ad</th><th>Stok</th><th>Durum</th><th style="text-align:right">İşlem</th></tr></thead>
                         <tbody id="productsTable"></tbody>
                     </table>
                 </div>
@@ -222,22 +204,13 @@
         <!-- STOK -->
         <div id="page-stock" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">📊 Stok</h1><p style="color:#64748b;font-size:14px">Stok takibi ve hareketler</p></div>
+                <div><h1 style="font-size:24px;font-weight:700">📊 Stok</h1><p style="color:#64748b;font-size:14px">Stok takibi</p></div>
                 <button class="btn-primary" onclick="openStockModal()">+ Stok Girişi</button>
-            </div>
-            <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-                <input class="input-dark" id="stockSearch" placeholder="🔍 Ara..." style="max-width:300px" oninput="renderStock()">
-                <select class="input-dark" id="stockFilter" style="max-width:180px" onchange="renderStock()">
-                    <option value="all">Tümü</option>
-                    <option value="critical">Kritik</option>
-                    <option value="normal">Normal</option>
-                    <option value="empty">Tükendi</option>
-                </select>
             </div>
             <div class="card" style="padding:0;overflow:hidden">
                 <div style="overflow-x:auto">
                     <table>
-                        <thead><tr><th>Ürün</th><th>LOT</th><th>Depo</th><th>Adet</th><th>SKT</th><th>Durum</th><th style="text-align:right">İşlem</th></tr></thead>
+                        <thead><tr><th>Ürün</th><th>Adet</th><th>Durum</th><th style="text-align:right">İşlem</th></tr></thead>
                         <tbody id="stockTable"></tbody>
                     </table>
                 </div>
@@ -247,18 +220,13 @@
         <!-- FİNANS -->
         <div id="page-finance" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">💰 Finans</h1><p style="color:#64748b;font-size:14px">Gelir/gider takibi</p></div>
-                <button class="btn-primary" onclick="openInvoiceModal()">+ Fatura Oluştur</button>
-            </div>
-            <div class="grid-3" style="margin-bottom:16px">
-                <div class="card"><div style="color:#64748b;font-size:13px">Toplam Ciro</div><div class="stat-number" id="financeTotal">₺0</div></div>
-                <div class="card"><div style="color:#64748b;font-size:13px">Bu Ay</div><div class="stat-number" id="financeMonthly">₺0</div></div>
-                <div class="card"><div style="color:#64748b;font-size:13px">Fatura Sayısı</div><div class="stat-number" id="financeCount">0</div></div>
+                <div><h1 style="font-size:24px;font-weight:700">💰 Finans</h1><p style="color:#64748b;font-size:14px">Gelir/gider</p></div>
+                <button class="btn-primary" onclick="openInvoiceModal()">+ Fatura</button>
             </div>
             <div class="card" style="padding:0;overflow:hidden">
                 <div style="overflow-x:auto">
                     <table>
-                        <thead><tr><th>Fatura No</th><th>Ameliyat</th><th>Tutar</th><th>Durum</th><th>Tarih</th><th style="text-align:right">İşlem</th></tr></thead>
+                        <thead><tr><th>Fatura No</th><th>Tutar</th><th>Durum</th><th style="text-align:right">İşlem</th></tr></thead>
                         <tbody id="invoicesTable"></tbody>
                     </table>
                 </div>
@@ -268,13 +236,11 @@
         <!-- RAPORLAR -->
         <div id="page-reports" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div><h1 style="font-size:24px;font-weight:700">📄 Raporlar</h1><p style="color:#64748b;font-size:14px">Gelişmiş raporlama ve analiz</p></div>
+                <div><h1 style="font-size:24px;font-weight:700">📄 Raporlar</h1><p style="color:#64748b;font-size:14px">Raporlama</p></div>
             </div>
             <div class="grid-2">
-                <div class="card"><h3 style="font-weight:600;margin-bottom:12px">📊 Ameliyat Raporu</h3><p style="color:#64748b;font-size:13px;margin-bottom:12px">Tüm ameliyatların detaylı raporu</p><button class="btn-primary" onclick="generateSurgeryReport()">Rapor Oluştur</button></div>
-                <div class="card"><h3 style="font-weight:600;margin-bottom:12px">💰 Finansal Rapor</h3><p style="color:#64748b;font-size:13px;margin-bottom:12px">Gelir-gider analizi</p><button class="btn-primary" onclick="generateFinanceReport()">Rapor Oluştur</button></div>
-                <div class="card"><h3 style="font-weight:600;margin-bottom:12px">📦 Stok Raporu</h3><p style="color:#64748b;font-size:13px;margin-bottom:12px">Stok durumu ve kritik ürünler</p><button class="btn-primary" onclick="generateStockReport()">Rapor Oluştur</button></div>
-                <div class="card"><h3 style="font-weight:600;margin-bottom:12px">👨‍⚕️ Doktor Performansı</h3><p style="color:#64748b;font-size:13px;margin-bottom:12px">Doktor bazlı ameliyat istatistikleri</p><button class="btn-primary" onclick="generateDoctorReport()">Rapor Oluştur</button></div>
+                <div class="card"><h3 style="font-weight:600;margin-bottom:12px">📊 Ameliyat Raporu</h3><button class="btn-primary" onclick="generateReport('surgeries')">Oluştur</button></div>
+                <div class="card"><h3 style="font-weight:600;margin-bottom:12px">📦 Stok Raporu</h3><button class="btn-primary" onclick="generateReport('stock')">Oluştur</button></div>
             </div>
         </div>
 
@@ -284,34 +250,30 @@
                 <div><h1 style="font-size:24px;font-weight:700">⚙️ Ayarlar</h1><p style="color:#64748b;font-size:14px">Sistem ayarları</p></div>
             </div>
             <div class="card">
-                <h3 style="font-weight:600;margin-bottom:16px">Profil Bilgileri</h3>
+                <h3 style="font-weight:600;margin-bottom:16px">Profil</h3>
                 <div class="grid-2">
                     <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Ad Soyad</label><input class="input-dark" id="settingsName" placeholder="Ad Soyad"></div>
-                    <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">E-posta</label><input class="input-dark" id="settingsEmail" placeholder="E-posta" disabled></div>
-                    <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Rol</label><input class="input-dark" id="settingsRole" placeholder="Rol" disabled></div>
-                    <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Durum</label><input class="input-dark" id="settingsStatus" placeholder="Durum" disabled></div>
+                    <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">E-posta</label><input class="input-dark" id="settingsEmail" disabled></div>
                 </div>
-                <button class="btn-primary" style="margin-top:16px" onclick="updateProfile()">Profili Güncelle</button>
+                <button class="btn-primary" style="margin-top:16px" onclick="updateProfile()">Güncelle</button>
             </div>
         </div>
 
     </div>
 </div>
 
-<!-- ============================================================
-MODALLAR
-============================================================ -->
+<!-- MODALLAR -->
 <div class="modal-overlay" id="surgeryModal">
     <div class="modal-box">
         <div class="modal-header"><h2 id="surgeryModalTitle">Yeni Ameliyat</h2><button class="close-btn" onclick="closeModal('surgeryModal')">✕</button></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Tarih</label><input class="input-dark" type="date" id="surgeryDate"></div>
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Saat</label><input class="input-dark" type="time" id="surgeryTime"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Tür</label><input class="input-dark" id="surgeryType" placeholder="Ameliyat türü"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Hastane</label><input class="input-dark" id="surgeryHospital" placeholder="Hastane"></div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Tür</label><input class="input-dark" id="surgeryType" placeholder="Tür"></div>
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Doktor</label><input class="input-dark" id="surgeryDoctor" placeholder="Doktor"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Hasta</label><select class="input-dark" id="surgeryPatient"><option value="">Seçin...</option></select></div>
-            <div style="grid-column:span 2"><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Notlar</label><input class="input-dark" id="surgeryNotes" placeholder="Ek notlar"></div>
+            <div style="grid-column:span 2"><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Hasta</label>
+                <select class="input-dark" id="surgeryPatient"><option value="">Seçin...</option></select>
+            </div>
         </div>
         <div style="display:flex;gap:12px;margin-top:20px">
             <button class="btn-primary" onclick="saveSurgery()" style="flex:1">Kaydet</button>
@@ -326,10 +288,7 @@ MODALLAR
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Ad Soyad</label><input class="input-dark" id="patientName" placeholder="Ad Soyad"></div>
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Telefon</label><input class="input-dark" id="patientPhone" placeholder="Telefon"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">E-posta</label><input class="input-dark" id="patientEmail" placeholder="E-posta"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Doğum Tarihi</label><input class="input-dark" type="date" id="patientBirth"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Cinsiyet</label><select class="input-dark" id="patientGender"><option value="Erkek">Erkek</option><option value="Kadın">Kadın</option></select></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Notlar</label><input class="input-dark" id="patientNotes" placeholder="Notlar"></div>
+            <div style="grid-column:span 2"><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Notlar</label><input class="input-dark" id="patientNotes" placeholder="Notlar"></div>
         </div>
         <div style="display:flex;gap:12px;margin-top:20px">
             <button class="btn-primary" onclick="savePatient()" style="flex:1">Kaydet</button>
@@ -342,7 +301,121 @@ MODALLAR
     <div class="modal-box">
         <div class="modal-header"><h2>Yeni Ürün</h2><button class="close-btn" onclick="closeModal('productModal')">✕</button></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Kod</label><input class="input-dark" id="productCode" placeholder="Ürün kodu"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Ad</label><input class="input-dark" id="productName" placeholder="Ürün adı"></div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Kod</label><input class="input-dark" id="productCode" placeholder="Kod"></div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Ad</label><input class="input-dark" id="productName" placeholder="Ad"></div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Min. Stok</label><input class="input-dark" type="number" id="productMinStock" placeholder="0"></div>
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Birim</label><input class="input-dark" id="productUnit" placeholder="adet"></div>
-            <div><label style="color:#64748b
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px">
+            <button class="btn-primary" onclick="saveProduct()" style="flex:1">Kaydet</button>
+            <button class="btn-danger" onclick="closeModal('productModal')" style="flex:1">İptal</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="stockModal">
+    <div class="modal-box">
+        <div class="modal-header"><h2>Stok Girişi</h2><button class="close-btn" onclick="closeModal('stockModal')">✕</button></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="grid-column:span 2"><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Ürün</label>
+                <select class="input-dark" id="stockProduct"><option value="">Seçin...</option></select>
+            </div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Adet</label><input class="input-dark" type="number" id="stockQuantity" placeholder="1"></div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">LOT</label><input class="input-dark" id="stockLot" placeholder="LOT"></div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">SKT</label><input class="input-dark" type="date" id="stockExpiry"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px">
+            <button class="btn-primary" onclick="saveStock()" style="flex:1">Kaydet</button>
+            <button class="btn-danger" onclick="closeModal('stockModal')" style="flex:1">İptal</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="invoiceModal">
+    <div class="modal-box">
+        <div class="modal-header"><h2>Yeni Fatura</h2><button class="close-btn" onclick="closeModal('invoiceModal')">✕</button></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="grid-column:span 2"><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Ameliyat</label>
+                <select class="input-dark" id="invoiceSurgery"><option value="">Seçin...</option></select>
+            </div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Tutar</label><input class="input-dark" type="number" id="invoiceAmount" placeholder="0"></div>
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Durum</label>
+                <select class="input-dark" id="invoiceStatus"><option value="pending">Bekliyor</option><option value="paid">Ödendi</option></select>
+            </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px">
+            <button class="btn-primary" onclick="saveInvoice()" style="flex:1">Kaydet</button>
+            <button class="btn-danger" onclick="closeModal('invoiceModal')" style="flex:1">İptal</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+JAVASCRIPT - TÜM FONKSİYONLAR
+============================================================ -->
+<script>
+// ============================================================
+// KONFIGÜRASYON - KENDİ BİLGİLERİNİZİ GİRİN
+// ============================================================
+const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
+
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ============================================================
+// GLOBAL DEĞİŞKENLER
+// ============================================================
+let currentUser = null;
+let surgeriesData = [];
+let patientsData = [];
+let productsData = [];
+let stockData = [];
+let invoicesData = [];
+let currentWeekOffset = 0;
+
+// ============================================================
+// SAYFA YÜKLENİNCE
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Sidebar tıklama
+    document.querySelectorAll('.sidebar-item[data-page]').forEach(item => {
+        item.addEventListener('click', function() {
+            const page = this.dataset.page;
+            navigateTo(page);
+        });
+    });
+
+    // Çıkış
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    // Oturum kontrolü
+    checkSession();
+});
+
+// ============================================================
+// OTURUM KONTROLÜ
+// ============================================================
+async function checkSession() {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+        currentUser = data.session.user;
+        document.getElementById('userDisplay').textContent = currentUser.email;
+        loadAllData();
+        showPage('dashboard');
+    } else {
+        showLogin();
+    }
+}
+
+// ============================================================
+// GİRİŞ EKRANI
+// ============================================================
+function showLogin() {
+    // Basit giriş ekranı oluştur
+    document.body.innerHTML = `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0f1e">
+            <div style="background:#111d3a;padding:40px;border-radius:20px;max-width:400px;width:90%;border:1px solid rgba(255,255,255,.1)">
+                <h1 style="font-size:28px;font-weight:900;text-align:center;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px">ARTROPLUS</h1>
+                <p style="text-align:center;color:#64748b;margin-bottom:24px">Medikal Yönetim Sistemi</p>
+                <input class="input-dark" id="loginEmail" placeholder="E-posta" style="margin-bottom:12px">
+                <input class
