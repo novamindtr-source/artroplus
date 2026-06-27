@@ -22,15 +22,19 @@
         .btn-danger:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(220,38,38,.4)}
         .btn-success{background:linear-gradient(135deg,#059669,#10b981);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s}
         .btn-success:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(16,185,129,.4)}
+        .btn-warning{background:linear-gradient(135deg,#d97706,#f59e0b);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s}
+        .btn-warning:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(245,158,11,.4)}
         .input-dark{background:#0f1a35;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 16px;color:#e2e8f0;width:100%;transition:all .3s}
         .input-dark:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.2)}
         .input-dark::placeholder{color:#475569}
+        .input-dark:disabled{opacity:.4;cursor:not-allowed}
         .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600}
         .badge-blue{background:#1d4ed8;color:#93c5fd}
         .badge-green{background:#065f46;color:#6ee7b7}
         .badge-red{background:#7f1d1d;color:#fca5a5}
         .badge-yellow{background:#78350f;color:#fcd34d}
         .badge-purple{background:#4c1d95;color:#c4b5fd}
+        .badge-gray{background:#1e293b;color:#94a3b8}
         .sidebar{position:fixed;left:0;top:0;height:100%;width:240px;background:linear-gradient(180deg,#0a1628,#060e1f);border-right:1px solid rgba(255,255,255,.06);padding:20px 0;overflow-y:auto;z-index:100}
         .sidebar-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:#94a3b8;cursor:pointer;transition:all .3s;border-left:3px solid transparent;font-size:14px;font-weight:500}
         .sidebar-item:hover{background:rgba(59,130,246,.08);color:#e2e8f0}
@@ -46,6 +50,8 @@
         .modal-header h2{font-size:20px;font-weight:700}
         .close-btn{background:transparent;border:none;color:#94a3b8;font-size:24px;cursor:pointer;transition:all .3s}
         .close-btn:hover{color:#fff}
+        .loading-spinner{display:inline-block;width:20px;height:20px;border:2px solid rgba(255,255,255,.1);border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
         @media(max-width:768px){.sidebar{transform:translateX(-100%);transition:transform .3s}.sidebar.open{transform:translateX(0)}.main{padding-left:0}.topbar{padding:12px 16px}.mobile-toggle{display:block!important}}
         .mobile-toggle{display:none;background:transparent;border:none;color:#fff;font-size:24px;cursor:pointer}
         ::-webkit-scrollbar{width:4px;height:4px}
@@ -102,7 +108,7 @@ SIDEBAR
         <div style="font-size:22px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">ARTROPLUS</div>
         <div style="font-size:10px;color:#475569;letter-spacing:.1em;text-transform:uppercase;margin-top:2px">Medikal ERP v3.0</div>
     </div>
-    <div style="padding:12px 0">
+    <div style="padding:12px 0" id="sidebarMenu">
         <div class="sidebar-item active" data-page="dashboard"><span class="icon">📊</span> Dashboard</div>
         <div class="sidebar-item" data-page="surgeries"><span class="icon">⚕️</span> Ameliyatlar</div>
         <div class="sidebar-item" data-page="patients"><span class="icon">👤</span> Hastalar</div>
@@ -143,27 +149,21 @@ MAIN CONTENT
     <!-- PAGE CONTENT -->
     <div style="padding:24px 32px" id="pageContent">
 
-        <!-- ============================================================
-        DASHBOARD
-        ============================================================ -->
+        <!-- DASHBOARD -->
         <div id="page-dashboard">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div>
                     <h1 style="font-size:24px;font-weight:700">Dashboard</h1>
                     <p style="color:#64748b;font-size:14px">Genel işletme özeti ve istatistikler</p>
                 </div>
-                <div style="display:flex;gap:8px">
-                    <button class="btn-primary" onclick="refreshDashboard()">🔄 Yenile</button>
-                </div>
+                <button class="btn-primary" onclick="refreshDashboard()">🔄 Yenile</button>
             </div>
-
             <div class="grid-4" id="statsGrid">
                 <div class="card"><div style="color:#64748b;font-size:13px">Toplam Ameliyat</div><div class="stat-number" id="statSurgeries">0</div><div style="color:#475569;font-size:12px;margin-top:4px">Bugün: <span id="statToday">0</span></div></div>
                 <div class="card"><div style="color:#64748b;font-size:13px">Aktif Hastalar</div><div class="stat-number" id="statPatients">0</div><div style="color:#475569;font-size:12px;margin-top:4px">Bu ay: <span id="statNewPatients">0</span></div></div>
                 <div class="card"><div style="color:#64748b;font-size:13px">Stok Ürün</div><div class="stat-number" id="statProducts">0</div><div style="color:#475569;font-size:12px;margin-top:4px">Kritik: <span id="statCritical">0</span></div></div>
                 <div class="card"><div style="color:#64748b;font-size:13px">Ciro</div><div class="stat-number" id="statRevenue">₺0</div><div style="color:#475569;font-size:12px;margin-top:4px">Bu ay: <span id="statMonthlyRevenue">₺0</span></div></div>
             </div>
-
             <div class="grid-2" style="margin-top:16px">
                 <div class="card">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -179,7 +179,6 @@ MAIN CONTENT
                     <div id="recentSurgeries" style="max-height:200px;overflow-y:auto"></div>
                 </div>
             </div>
-
             <div class="grid-3" style="margin-top:16px">
                 <div class="card">
                     <div style="font-weight:600;margin-bottom:12px">🏥 Ameliyat Durumu</div>
@@ -196,9 +195,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        AMELİYATLAR
-        ============================================================ -->
+        <!-- AMELİYATLAR -->
         <div id="page-surgeries" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">⚕️ Ameliyatlar</h1><p style="color:#64748b;font-size:14px">Tüm ameliyat kayıtlarını yönetin</p></div>
@@ -228,9 +225,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        HASTALAR
-        ============================================================ -->
+        <!-- HASTALAR -->
         <div id="page-patients" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">👤 Hastalar</h1><p style="color:#64748b;font-size:14px">Hasta kayıtlarını yönetin</p></div>
@@ -251,9 +246,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        PROGRAM
-        ============================================================ -->
+        <!-- PROGRAM -->
         <div id="page-program" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">📅 Program</h1><p style="color:#64748b;font-size:14px">Haftalık ameliyat programı</p></div>
@@ -273,9 +266,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        ÜRÜNLER
-        ============================================================ -->
+        <!-- ÜRÜNLER -->
         <div id="page-products" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">📦 Ürünler</h1><p style="color:#64748b;font-size:14px">Ürün kataloğunu yönetin</p></div>
@@ -296,9 +287,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        STOK
-        ============================================================ -->
+        <!-- STOK -->
         <div id="page-stock" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">📊 Stok</h1><p style="color:#64748b;font-size:14px">Stok takibi ve hareketler</p></div>
@@ -325,9 +314,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        FİNANS
-        ============================================================ -->
+        <!-- FİNANS -->
         <div id="page-finance" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">💰 Finans</h1><p style="color:#64748b;font-size:14px">Gelir/gider takibi</p></div>
@@ -350,9 +337,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        RAPORLAR
-        ============================================================ -->
+        <!-- RAPORLAR -->
         <div id="page-reports" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">📄 Raporlar</h1><p style="color:#64748b;font-size:14px">Gelişmiş raporlama ve analiz</p></div>
@@ -381,9 +366,7 @@ MAIN CONTENT
             </div>
         </div>
 
-        <!-- ============================================================
-        AYARLAR
-        ============================================================ -->
+        <!-- AYARLAR -->
         <div id="page-settings" class="hidden">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div><h1 style="font-size:24px;font-weight:700">⚙️ Ayarlar</h1><p style="color:#64748b;font-size:14px">Sistem ayarları ve yapılandırma</p></div>
@@ -427,9 +410,4 @@ MODALLAR
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Saat</label><input class="input-dark" type="time" id="surgeryTime"></div>
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Tür</label><input class="input-dark" id="surgeryType" placeholder="Ameliyat türü"></div>
             <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Hastane</label><input class="input-dark" id="surgeryHospital" placeholder="Hastane"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Doktor</label><input class="input-dark" id="surgeryDoctor" placeholder="Doktor adı"></div>
-            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Hasta</label>
-                <select class="input-dark" id="surgeryPatient"><option value="">Seçin...</option></select>
-            </div>
-            <div style="grid-column:span 2">
-                <label style="color:#64748b;font-size:13px;display:
+            <div><label style="color:#64748b;font-size:13px;display:block;margin-bottom:4px">Doktor</label><input class="input-dark" id="surgeryDoctor" placeholder
