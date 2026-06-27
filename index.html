@@ -233,7 +233,7 @@ const sendTelegram=async(msg)=>{
     });
   }catch(e){}
 };
-const SUPABASE_URL="https://etrmnfjaomrgbbpydvgq.supabase.co";
+const SUPABASE_URL="https://gvzkldgueygixbypyfsp.supabase.co";
 const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0cm1uZmphb21yZ2JicHlkdmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODgwNDAsImV4cCI6MjA5NDI2NDA0MH0.jWYGZYtfahRTzAAtIp5kdffNmVDCeEQM9YHEKMUiIX0";
 const SB=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const autoDoc=n=>{const t=n.trim();return t&&!DR_PREFIXES.some(p=>t.startsWith(p))?"Dr. "+t:t;};
