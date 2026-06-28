@@ -33,6 +33,9 @@
 
 <div id="toast-box" class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2"></div>
 
+<!-- ============================================================
+🔐 TEMİZ GİRİŞ PANELİ (SABİT VERİLER KALDIRILDI)
+============================================================ -->
 <div id="loginPage" class="fixed inset-0 z-[500] flex items-center justify-center bg-[#0d1117]">
     <div class="card w-full max-w-md p-8 bg-[#161b22] border border-[#30363d]">
         <div class="text-center mb-6">
@@ -42,7 +45,7 @@
         <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4 text-xs">
             <div>
                 <label class="block text-slate-400 mb-1">E-posta Adresi</label>
-                <input type="email" id="loginEmail" class="input-dark" placeholder="ornek@artroplus.com" required value="serhat@artroplus.com">
+                <input type="email" id="loginEmail" class="input-dark" placeholder="ornek@artroplus.com" required>
             </div>
             <div>
                 <label class="block text-slate-400 mb-1">Şifre</label>
@@ -53,11 +56,15 @@
     </div>
 </div>
 
+<!-- ============================================================
+💻 ANA UYGULAMA PANELİ
+============================================================ -->
 <div id="appLayout" class="hidden">
+    <!-- SIDEBAR -->
     <div class="sidebar" id="sidebar">
         <div class="px-6 pb-6 border-b border-slate-800 flex items-center justify-between">
             <div class="bg-[#1f242c] p-2 rounded border border-slate-700 font-bold text-sm tracking-wide text-[#58a6ff]">ARTRO+</div>
-            <div id="roleBadge" class="text-[9px] bg-red-950 text-red-400 border border-red-900/40 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">ADMIN</div>
+            <div id="roleBadge" class="text-[9px] bg-red-950 text-red-400 border border-red-900/40 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">YÜKLENİYOR</div>
         </div>
         <div class="py-6" id="menuContainer">
             <div class="sidebar-item" data-target="dashboard">📊 Dashboard</div>
@@ -73,19 +80,22 @@
         </div>
     </div>
 
+    <!-- WORKSPACE -->
     <div class="main flex flex-col">
+        <!-- TOPBAR -->
         <div class="w-full bg-[#161b22] border-b border-[#30363d] p-4 flex justify-between items-center sticky top-0 z-50">
             <div class="flex items-center gap-3">
                 <button class="lg:hidden text-2xl text-slate-400" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
                 <h1 id="panelTitle" class="text-base font-semibold text-slate-200">Ameliyat Programı</h1>
             </div>
             <div class="flex items-center gap-4">
-                <span class="text-xs text-slate-400 font-mono">Yönetici: <strong id="topbarUserDisplay">Serhat Karataş</strong></span>
+                <span class="text-xs text-slate-400 font-mono">Giriş Yapan: <strong id="topbarUserDisplay">...</strong></span>
             </div>
         </div>
 
         <div class="p-4 md:p-8 flex-1 w-full mx-auto space-y-6">
             
+            <!-- DASHBOARD -->
             <div id="view-dashboard" class="view-section hidden space-y-6">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                     <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Planlanan Operasyon</div><div class="text-3xl font-bold text-blue-400 mt-2" id="dashPlanned">0</div></div>
@@ -94,6 +104,7 @@
                 </div>
             </div>
 
+            <!-- AMELİYAT PROGRAMI -->
             <div id="view-program" class="view-section space-y-4">
                 <div class="flex justify-between items-center flex-wrap gap-4 bg-[#161b22] p-4 rounded-xl border border-[#30363d]">
                     <div class="flex gap-2">
@@ -122,6 +133,7 @@
                 <div id="calendarListContainer" class="hidden space-y-4"></div>
             </div>
 
+            <!-- OPERASYON TÜKETİM -->
             <div id="view-consumption" class="view-section hidden space-y-4">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="card space-y-4 h-fit">
@@ -150,6 +162,7 @@
                 </div>
             </div>
 
+            <!-- ENVANTER SORGULAMA -->
             <div id="view-stock" class="view-section hidden space-y-4">
                 <div class="flex justify-between items-center">
                     <h2 class="text-lg font-bold">📦 Ambar Stok Listesi</h2>
@@ -170,6 +183,7 @@
                 </div>
             </div>
 
+            <!-- TANIMLAMALAR KÜTÜPHANESİ -->
             <div id="view-definitions" class="view-section hidden space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="card space-y-4">
@@ -199,6 +213,7 @@
                 </div>
             </div>
 
+            <!-- YETKİ MATRİSİ PANELİ -->
             <div id="view-permissions" class="view-section hidden space-y-4">
                 <div>
                     <h2 class="text-lg font-bold text-purple-400">👑 Kullanıcı Rolleri & Erişim Yetki Matrisi</h2>
@@ -227,12 +242,13 @@
                 </div>
             </div>
 
+            <!-- RAPORLAR -->
             <div id="view-reports" class="view-section hidden space-y-4">
                 <div class="card p-0 overflow-hidden border border-slate-900">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse text-xs">
                             <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider">
-                                <tr><th class="p-4">Ameliyat Türü</th><th class="p-4">Hastane Adı</th><th class="p-4">Sorumlu Cerrahi Hekim</th><th class="p-4">Taraf</th><th class="p-4">Görevli Cerrahi Kadro</th><th class="p-4">Tüketilen REF+LOT Detayları</th><th class="p-4">İşlem Tarihi</th></tr>
+                                <tr><th class="p-4">Ameliyat Türü</th><th class="p-4">Hastane Adı</th><th class="p-4">Sorumlu Cerrahi Hekim</th><th class="p-4">Taraf</th><th class="p-4">Görevli Cerrahi Kadro</th><th class="p-4">Tüketilen REF+LOT Kalemleri</th><th class="p-4">İşlem Tarihi</th></tr>
                             </thead>
                             <tbody id="reportsTableBody" class="divide-y divide-slate-900/60 font-mono"></tbody>
                         </table>
@@ -244,6 +260,7 @@
     </div>
 </div>
 
+<!-- PLANLAMA MODAL -->
 <div class="modal-overlay" id="planModal">
     <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
         <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Yeni Ameliyat Operasyonu Planla</h3>
@@ -265,6 +282,7 @@
     </div>
 </div>
 
+<!-- STOK GİRİŞ MODAL -->
 <div class="modal-overlay" id="stockInModal">
     <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
         <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Envantere Mal Kabul Girişi</h3>
@@ -282,6 +300,7 @@
     </div>
 </div>
 
+<!-- AMELİYAT DETAY MODAL -->
 <div class="modal-overlay" id="detailModal">
     <div class="modal-box bg-[#1c2128] border border-[#30363d] max-w-md w-full p-6 rounded-xl space-y-5 shadow-2xl">
         <div class="flex justify-between items-center border-b border-[#30363d] pb-3">
@@ -292,9 +311,9 @@
     </div>
 </div>
 
+<!-- SYSTEM RUNTIME ENGINE -->
 <script>
     const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
-    // 🛠️ BURASI DÜZELTİLDİ: SİZİN EKLEDİĞİNİZ ANAHTAR DOĞRUDAN KİLİTLENDİ
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ"; 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -302,18 +321,9 @@
     let currentYear = 2026;
     let currentMonth = 6; 
     let calendarViewMode = 'view-month';
-    let userRole = "admin";
+    let userRole = "personel";
+    let loggedInUserEmail = "";
 
-    let cache = {
-        surgeries: [],
-        stock: [],
-        consumptionRecords: [],
-        activeConsumptionItems: [],
-        userRoles: [],
-        definitions: { doctors: [], hospitals: [], surgery_types: [] }
-    };
-
-    // --- 🛠️ HATA DÜZELTME: KİLİTLENMEYE SEBEP OLAN FONKSİYON İSMİ GÜNCELLENDİ ---
     document.addEventListener("DOMContentLoaded", () => {
         initNavigation();
         checkAuthAndSync(); 
@@ -324,21 +334,24 @@
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
+                loggedInUserEmail = session.user.email;
                 document.getElementById("loginPage").classList.add("hidden");
                 document.getElementById("appLayout").classList.remove("hidden");
-                document.getElementById("topbarUserDisplay").innerText = session.user.email;
+                document.getElementById("topbarUserDisplay").innerText = loggedInUserEmail;
                 
-                const { data: roleData } = await supabaseClient.from('user_roles').select('role').eq('email', session.user.email).single();
+                const { data: roleData } = await supabaseClient.from('user_roles').select('role').eq('email', loggedInUserEmail).single();
                 if (roleData) {
                     userRole = roleData.role;
                     document.getElementById("roleBadge").innerText = userRole.toUpperCase();
                     if(userRole === 'admin') {
                         document.getElementById("menu-permissions").classList.remove("hidden");
+                    } else {
+                        document.getElementById("menu-permissions").classList.add("hidden");
                     }
                 }
             } else {
-                // Oturum bulunamadıysa giriş ekranını göster, ancak verileri arka planda çekmeye başla
-                console.log("Mevcut oturum yok, giriş bekleniyor.");
+                document.getElementById("loginPage").classList.remove("hidden");
+                document.getElementById("appLayout").classList.add("hidden");
             }
             await syncEngine();
         } catch(e) {
@@ -375,14 +388,319 @@
             populateFormDropdowns();
             renderRolesTable();
         } catch (err) {
-            showToast("Veri hattında senkronizasyon hatası!", "danger");
+            showToast("Veri senkronizasyonu durduruldu.", "danger");
         }
     }
 
-    // --- GİRİŞ / ÇAKIŞMA AKSİYONLARI ---
     async function handleLogin(e) {
         e.preventDefault();
-        const email = document.getElementById("loginEmail").value;
+        const email = document.getElementById("loginEmail").value.trim();
         const password = document.getElementById("loginPassword").value;
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) show
+        if (error) showToast("Hatalı Bilgi: " + error.message, "danger");
+        else { showToast("Giriş yapıldı.", "success"); checkAuthAndSync(); }
+    }
+
+    async function handleLogout() {
+        await supabaseClient.auth.signOut();
+        loggedInUserEmail = "";
+        document.getElementById("loginPage").classList.remove("hidden");
+        document.getElementById("appLayout").classList.add("hidden");
+    }
+
+    async function saveUserRole(e) {
+        e.preventDefault();
+        let email = document.getElementById("roleEmailInput").value.trim();
+        let role = document.getElementById("roleTypeSelect").value;
+        await supabaseClient.from('user_roles').upsert([{ email, role }], { onConflict: 'email' });
+        showToast("Yetki mühürlendi.", "success");
+        document.getElementById("roleForm").reset();
+        syncEngine();
+    }
+
+    async function removeUserRole(id) {
+        if(!confirm("Erişim yetkisini kaldırmak istiyor musunuz?")) return;
+        await supabaseClient.from('user_roles').delete().eq('id', id);
+        syncEngine();
+    }
+
+    function renderRolesTable() {
+        const tbody = document.getElementById("rolesTableBody"); tbody.innerHTML = "";
+        cache.userRoles.forEach(u => {
+            let roleBadge = u.role === 'admin' ? '<span class="text-purple-400 font-bold">Yönetici (Tam Erişim)</span>' : '<span class="text-slate-400">Saha Personeli</span>';
+            tbody.innerHTML += `<tr><td class="p-4">${u.email}</td><td class="p-4">${roleBadge}</td><td class="p-4 text-right"><button class="text-red-400" onclick="removeUserRole('${u.id}')">Kaldır</button></td></tr>`;
+        });
+    }
+
+    async function addDefinition(type) {
+        let inputId = type === 'doctor' ? "defDoctorInput" : type === 'hospital' ? "defHospitalInput" : "defSurgeryInput";
+        let value = document.getElementById(inputId).value.trim();
+        if(!value) return;
+        await supabaseClient.from('definitions').insert([{ type, name: value }]);
+        document.getElementById(inputId).value = "";
+        showToast("Veri eklendi.", "success");
+        syncEngine();
+    }
+
+    async function deleteDefinition(id) {
+        if(!confirm("Kütüphaneden silinsin mi?")) return;
+        await supabaseClient.from('definitions').delete().eq('id', id);
+        syncEngine();
+    }
+
+    function renderDefinitionsLists() {
+        const buildList = (elId, array) => {
+            const ul = document.getElementById(elId); ul.innerHTML = array.length === 0 ? '<li class="text-slate-600 p-2">Kayıt Yok</li>' : '';
+            array.forEach(x => { ul.innerHTML += `<li class="flex justify-between items-center p-2 hover:bg-slate-900/60 rounded"><span>${x.name}</span><button class="text-rose-500 font-bold" onclick="deleteDefinition('${x.id}')">✕</button></li>`; });
+        };
+        buildList("defDoctorList", cache.definitions.doctors);
+        buildList("defHospitalList", cache.definitions.hospitals);
+        buildList("defSurgeryList", cache.definitions.surgery_types);
+    }
+
+    function populateFormDropdowns() {
+        const buildSelect = (elId, array, typeLabel) => {
+            const select = document.getElementById(elId); select.innerHTML = `<option value="?">? (${typeLabel} Belirsiz)</option>`;
+            array.forEach(x => { select.innerHTML += `<option value="${x.name}">${x.name}</option>`; });
+        };
+        buildSelect("formDoc", cache.definitions.doctors, "Doktor");
+        buildSelect("formHosp", cache.definitions.hospitals, "Hastane");
+        buildSelect("formSurgName", cache.definitions.surgery_types, "Ameliyat");
+    }
+
+    function setCalendarView(mode) { calendarViewMode = mode; renderCalendarStructure(); }
+    function resetToCurrentMonth() { currentYear = 2026; currentMonth = 6; renderCalendarStructure(); }
+
+    function renderCalendarStructure() {
+        const grid = document.getElementById("calendarDaysGrid");
+        const listContainer = document.getElementById("calendarListContainer");
+        const normalCal = document.getElementById("calendarContainer");
+        
+        if (calendarViewMode === 'view-list') {
+            normalCal.classList.add("hidden"); listContainer.classList.remove("hidden"); renderListLayout(); return;
+        }
+        normalCal.classList.remove("hidden"); listContainer.classList.add("hidden"); grid.innerHTML = "";
+
+        let firstDay = new Date(currentYear, currentMonth, 1).getDay();
+        let totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) { grid.innerHTML += `<div class="calendar-day bg-[#0d1117]/30"></div>`; }
+
+        for (let day = 1; day <= totalDays; day++) {
+            let dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            let daySurgeries = cache.surgeries.filter(s => s.surgery_date === dateStr);
+            let nodesHTML = "";
+            daySurgeries.forEach(s => {
+                nodesHTML += `<div class="event-node" onclick="showSurgeryDetails('${s.id}')">● ${s.surgery_time === "?" ? "" : s.surgery_time.substring(0,5)} ${s.doctor_name}</div>`;
+            });
+            grid.innerHTML += `<div class="calendar-day"><div class="calendar-day-header">${day}</div><div class="space-y-1 overflow-y-auto max-h-[80px]">${nodesHTML}</div></div>`;
+        }
+    }
+
+    function renderListLayout() {
+        const listContainer = document.getElementById("calendarListContainer"); listContainer.innerHTML = "";
+        let labels = ["Pazartesi - 29 Haziran 2026", "Salı - 30 Haziran 2026", "Çarşamba - 1 Temmuz 2026"];
+        let daysToRender = [29, 30, 1]; let monthsToRender = [6, 6, 7];
+
+        labels.forEach((label, idx) => {
+            let dateStr = `2026-${String(monthsToRender[idx]).padStart(2,'0')}-${String(daysToRender[idx]).padStart(2,'0')}`;
+            let daySurgeries = cache.surgeries.filter(s => s.surgery_date === dateStr);
+            let linesHTML = "";
+
+            daySurgeries.forEach(s => {
+                linesHTML += `
+                    <div class="flex items-start justify-between p-3 hover:bg-[#1f242c]/60 rounded-lg cursor-pointer transition" onclick="showSurgeryDetails('${s.id}')">
+                        <div class="flex gap-4">
+                            <span class="font-mono text-slate-400 font-bold text-sm w-12">${s.surgery_time === "?" ? "??" : s.surgery_time.substring(0,5)}</span>
+                            <div>
+                                <div class="font-bold text-white flex items-center gap-1.5"><span class="text-blue-400">●</span> Dr. ${s.doctor_name} <span class="text-slate-400 font-normal text-xs ml-2">${s.hospital_name}</span></div>
+                                <div class="text-xs text-slate-400 mt-1">${s.surgery_name}</div>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            listContainer.innerHTML += `<div class="card p-4"><h3 class="text-xs font-bold text-slate-400 border-b border-[#30363d] pb-2 mb-2 uppercase tracking-wide">${label}</h3><div>${linesHTML || '<p class="text-xs text-slate-600 italic p-2">Planlanmış ameliyat kaydı bulunmuyor.</p>'}</div></div>`;
+        });
+    }
+
+    function showSurgeryDetails(id) {
+        let s = cache.surgeries.find(x => x.id === id); if (!s) return;
+        let displayUser = loggedInUserEmail || "Sistem";
+        document.getElementById("detailContent").innerHTML = `
+            <div class="space-y-4 text-sm text-slate-300">
+                <div><span class="text-xs text-slate-500 block">Kaydeden</span><span class="text-slate-200 font-medium">${displayUser}</span></div>
+                <div><span class="text-xs text-slate-500 block">Tarih / Saat</span><span class="text-slate-200 font-mono">${s.surgery_date} ${s.surgery_time}</span></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><span class="text-xs text-slate-500 block">Doktor</span><span class="text-white font-bold">${s.doctor_name}</span></div>
+                    <div><span class="text-xs text-slate-500 block">Hastane</span><span class="text-slate-200">${s.hospital_name}</span></div>
+                </div>
+                <div><span class="text-xs text-slate-500 block">Ameliyat Türü</span><span class="text-blue-400 font-bold">${s.surgery_name}</span></div>
+                <div><span class="text-xs text-slate-500 block">Operasyon Notu</span><span class="text-slate-400 italic">${s.surgery_side ? 'Yön: ' + s.surgery_side : 'Ek açıklama girilmemiş.'}</span></div>
+                <div class="flex gap-2 justify-end pt-4 border-t border-slate-800 text-xs">
+                    <button class="bg-rose-950/40 border border-rose-900/60 text-rose-400 px-4 py-2 rounded-lg" onclick="deleteSurgery('${s.id}'); closeModal('detailModal');">Sil</button>
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold" onclick="goToConsumptionPage('${s.id}')">Evrak Ekle</button>
+                    <button class="bg-slate-900 text-slate-400 px-4 py-2 rounded-lg" onclick="closeModal('detailModal')">Kapat</button>
+                </div>
+            </div>`;
+        openModal("detailModal");
+    }
+
+    function goToConsumptionPage(surgeryId) {
+        closeModal('detailModal'); document.querySelector('[data-target="consumption"]').click();
+        document.getElementById('conSurgerySelect').value = surgeryId; onConsumptionSurgeryChange();
+    }
+
+    function startCameraScanner(mode) {
+        if (html5QrcodeScanner) stopCameraScanner();
+        let targetDivId = mode === 'con' ? "con-camera-reader" : "stockin-camera-reader";
+        document.getElementById(targetDivId).classList.remove("hidden");
+        html5QrcodeScanner = new Html5Qrcode(targetDivId);
+        html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 300, height: 140 } },
+            (decodedText) => {
+                showToast("Barkod Yakalandı.", "success");
+                if (mode === 'con') { processScannedItem(decodedText); }
+                else {
+                    let parsed = parseGS1Barcode(decodedText); stopCameraScanner(); openStockInModal();
+                    document.getElementById("formRef").value = parsed.gtin; document.getElementById("formLot").value = parsed.lot; document.getElementById("formExp").value = parsed.skt;
+                }
+            }, (err) => {}
+        ).catch(e => showToast("Kamera hatası.", "danger"));
+    }
+
+    function stopCameraScanner() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => { html5QrcodeScanner = null; document.getElementById("stockin-camera-reader").classList.add("hidden"); }).catch(e => html5QrcodeScanner = null);
+        }
+    }
+
+    function parseGS1Barcode(raw) {
+        let clean = raw.trim(); let result = { gtin: clean, lot: 'LOT15043027', skt: '2028-06-30' };
+        if (clean.includes('(01)')) {
+            let gtinMatch = clean.match(/\(01\)(\d+)/); let lotMatch = clean.match(/\(10\)([A-Za-z0-9\-]+)/); let sktMatch = clean.match(/\(17\)(\d{6})/);
+            if (gtinMatch) result.gtin = gtinMatch[1]; if (lotMatch) result.lot = lotMatch[1];
+            if (sktMatch) result.skt = `20${sktMatch[1].substring(0,2)}-${sktMatch[1].substring(2,4)}-${sktMatch[1].substring(4,6)}`;
+        }
+        return result;
+    }
+
+    function processScannedItem(barcodeText) {
+        let parsed = parseGS1Barcode(barcodeText);
+        let existing = cache.activeConsumptionItems.find(x => x.ref === parsed.gtin && x.lot === parsed.lot);
+        if (existing) { existing.quantity++; } 
+        else { cache.activeConsumptionItems.push({ ref: parsed.gtin, lot: parsed.lot, skt: parsed.skt, quantity: 1 }); }
+        renderActiveConsumptionItems();
+    }
+
+    function filterStockTable() {
+        const query = document.getElementById("stockSearchInput").value.toLowerCase();
+        document.querySelectorAll("#stockTableBody tr").forEach(row => {
+            row.classList.toggle("hidden", !(row.children[0].innerText.toLowerCase().includes(query) || row.children[1].innerText.toLowerCase().includes(query)));
+        });
+    }
+
+    async function savePlannedSurgery(e) {
+        e.preventDefault();
+        let teamArray = document.getElementById("formTeam").value.split(",").map(t => t.trim());
+        let rawTime = document.getElementById("formTime").value;
+        await supabaseClient.from('surgeries').insert([{
+            doctor_name: document.getElementById("formDoc").value,
+            hospital_name: document.getElementById("formHosp").value,
+            surgery_name: document.getElementById("formSurgName").value,
+            surgery_date: document.getElementById("formDate").value,
+            surgery_time: rawTime ? rawTime + ":00" : "?",
+            team_members: teamArray,
+            status: 'planned'
+        }]);
+        closeModal("planModal"); syncEngine(); showToast("Kayıt Eklendi.", "success");
+    }
+
+    function onConsumptionSurgeryChange() { cache.activeConsumptionItems = []; renderActiveConsumptionItems(); }
+    function handleConsumptionBarcode(e) { if (e.key === 'Enter') { if (!e.target.value) return; processScannedItem(e.target.value); e.target.value = ""; } }
+
+    function renderActiveConsumptionItems() {
+        const tbody = document.getElementById("conItemsTableBody"); tbody.innerHTML = "";
+        cache.activeConsumptionItems.forEach((item, index) => {
+            tbody.innerHTML += `<tr><td>${item.ref}</td><td>${item.lot}</td><td>${item.skt}</td><td>${item.quantity} Adet</td><td class="text-right"><button class="text-rose-500" onclick="removeActiveConItem(${index})">❌</button></td></tr>`;
+        });
+    }
+
+    function removeActiveConItem(index) { cache.activeConsumptionItems.splice(index, 1); renderActiveConsumptionItems(); }
+
+    async function submitConsumption() {
+        let surgeryId = document.getElementById("conSurgerySelect").value; if (!surgeryId || cache.activeConsumptionItems.length === 0) return;
+        let surg = cache.surgeries.find(x => x.id === surgeryId); let side = document.getElementById("conSurgerySide").value;
+
+        for (let item of cache.activeConsumptionItems) {
+            let match = cache.stock.find(st => st.ref_number === item.ref && st.lot_number === item.lot);
+            let finalQty = (match ? match.quantity : 0) - item.quantity;
+            await supabaseClient.from('stock').update({ quantity: finalQty }).eq('ref_number', item.ref).eq('lot_number', item.lot);
+            await supabaseClient.from('hareketler').insert([{ surgery_id: surgeryId, ref_number: item.ref, lot_number: item.lot, quantity: item.quantity, transaction_type: 'out', hospital_name: surg.hospital_name }]);
+        }
+        await supabaseClient.from('consumption_records').insert([{ surgery_id: surgeryId, doctor_name: surg.doctor_name, hospital_name: surg.hospital_name, surgery_name: surg.surgery_name, surgery_side: side, team_members: surg.team_members, items: cache.activeConsumptionItems }]);
+        await supabaseClient.from('surgeries').update({ status: 'done', surgery_side: side }).eq('id', surgeryId);
+        cache.activeConsumptionItems = []; document.getElementById("conSurgerySelect").value = ""; stopCameraScanner(); generateDocumentId(); renderActiveConsumptionItems(); syncEngine(); showToast("Tüketim kilitlendi.", "success");
+    }
+
+    function renderStockTable() {
+        const tbody = document.getElementById("stockTableBody"); tbody.innerHTML = "";
+        cache.stock.forEach(s => {
+            tbody.innerHTML += `<tr><td class="p-4 font-bold text-slate-300">${s.ref_number}</td><td class="p-4 text-amber-500">${s.lot_number}</td><td class="p-4 text-slate-400">${s.expiration_date}</td><td class="p-4 font-black text-emerald-400">${s.quantity} Adet</td><td class="p-4 text-slate-400">${s.warehouse}</td></tr>`;
+        });
+        filterStockTable();
+    }
+
+    async function saveStockIn(e) {
+        e.preventDefault();
+        let payload = { ref_number: document.getElementById("formRef").value, lot_number: document.getElementById("formLot").value, expiration_date: document.getElementById("formExp").value, quantity: parseInt(document.getElementById("formQty").value), warehouse: document.getElementById("formWh").value };
+        await supabaseClient.from('stock').insert([payload]); closeModal("stockInModal"); syncEngine(); showToast("Envanter güncellendi.", "success");
+    }
+
+    function renderReportsTable() {
+        const tbody = document.getElementById("reportsTableBody"); tbody.innerHTML = "";
+        cache.consumptionRecords.forEach(r => {
+            let itemLines = r.items.map(i => `• REF: ${i.ref} | LOT: ${i.lot} (${i.quantity} Adet)`).join("<br>");
+            tbody.innerHTML += `<tr><td class="p-4 font-bold text-blue-400">${r.surgery_name}</td><td class="p-4 font-semibold text-slate-300">${r.hospital_name}</td><td class="p-4 font-semibold text-slate-200">Dr. ${r.doctor_name}</td><td class="p-4">${r.surgery_side}</td><td class="p-4 text-slate-400">${r.team_members.join(", ")}</td><td class="p-4 text-emerald-400 font-mono text-[11px]">${itemLines}</td><td class="p-4 text-slate-500">${new Date(r.created_at).toLocaleDateString('tr-TR')}</td></tr>`;
+        });
+    }
+
+    function buildDashboardMetrics() {
+        document.getElementById("dashPlanned").innerText = cache.surgeries.filter(s => s.status === 'planned').length;
+        document.getElementById("dashCritical").innerText = cache.stock.filter(s => s.quantity <= 5).length;
+        document.getElementById("dashUniqueRef").innerText = new Set(cache.stock.map(s => s.ref_number)).size;
+    }
+
+    async function deleteSurgery(id) {
+        if (!confirm("Operasyon kaydı silinsin mi?")) return;
+        await supabaseClient.from('surgeries').delete().eq('id', id); syncEngine();
+    }
+
+    function generateDocumentId() {
+        const el = document.getElementById("dynamicDocumentId");
+        if(el) el.innerText = Math.floor(48000 + Math.random() * 2000);
+    }
+
+    function initNavigation() {
+        document.querySelectorAll("#menuContainer .sidebar-item").forEach(btn => {
+            btn.addEventListener("click", () => {
+                stopCameraScanner(); document.querySelectorAll("#menuContainer .sidebar-item").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active"); let target = btn.getAttribute("data-target");
+                document.getElementById("panelTitle").innerText = btn.innerText;
+                document.querySelectorAll(".view-section").forEach(v => v.classList.add("hidden"));
+                document.getElementById(`view-${target}`).classList.remove("hidden"); document.getElementById('sidebar').classList.remove('open');
+            });
+        });
+    }
+
+    function openPlanModal() { document.getElementById("planForm").reset(); openModal("planModal"); }
+    function openStockInModal() { document.getElementById("stockInForm").reset(); openModal("stockInModal"); }
+    function openModal(id) { document.getElementById(id).classList.add("active"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+
+    function showToast(text, type = "info") {
+        const box = document.getElementById("toast-box"); const el = document.createElement("div");
+        el.className = `p-3 rounded-xl text-xs font-bold shadow-2xl transition duration-300 text-white ${type === 'success' ? 'bg-emerald-600' : type === 'danger' ? 'bg-rose-600' : 'bg-slate-800'}`;
+        el.innerText = text; box.appendChild(el); setTimeout(() => el.remove(), 4000);
+    }
+</script>
+</body>
+</html>
