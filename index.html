@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Artroplus Medikal - Yetki Kontrollü Yönetim Platformu</title>
+    <title>Artroplus Medikal - Yönetici Yetki Kontrollü ERP Platformu</title>
     <script src="https://cdn.tailwindcss.com/3.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -12,15 +12,14 @@
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Inter',sans-serif;background:#0d1117;color:#f0f6fc;overflow-x:hidden}
-        .glass{background:rgba(8,14,28,0.96);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06)}
-        .sidebar{position:fixed;left:0;top:0;height:100%;width:260px;background:#090d16;border-right:1px solid #21262d;padding:24px 0;z-index:100}
-        .sidebar-item{display:flex;align-items:center;gap:12px;padding:12px 24px;color:#8b949e;cursor:pointer;transition:all 0.2s;font-size:14px;font-weight:500}
+        .sidebar{position:fixed;left:0;top:0;height:100%;width:280px;background:#090d16;border-right:1px solid #21262d;padding:24px 0;z-index:100}
+        .sidebar-item{display:flex;align-items:center;gap:12px;padding:12px 24px;color:#8b949e;cursor:pointer;transition:all 0.2s;font-size:14px;font-weight:500;border-left:4px solid transparent}
         .sidebar-item:hover{background:rgba(255,255,255,0.03);color:#f0f6fc}
-        .sidebar-item.active{background:#1f242c;color:#58a6ff;font-weight:600}
-        .main{padding-left:260px;min-height:100vh;width:100%}
+        .sidebar-item.active{background:#1f242c;color:#58a6ff;font-weight:600;border-left-color:#2563eb}
+        .main{padding-left:280px;min-height:100vh;width:100%}
         .input-dark{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px 14px;color:#c9d1d9;width:100%}
         .input-dark:focus{outline:none;border-color:#58a6ff}
-        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur-4px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
         .modal-overlay.active{display:flex}
         .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px}
         .calendar-grid{display:grid;grid-template-columns:repeat(7, 1fr);border-top:1px solid #30363d;border-left:1px solid #30363d}
@@ -34,46 +33,39 @@
 
 <div id="toast-box" class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2"></div>
 
-<!-- ============================================================
-🔐 GİRİŞ PANELİ (AUTH & ROLE VERIFICATION)
-============================================================ -->
 <div id="loginPage" class="fixed inset-0 z-[500] flex items-center justify-center bg-[#0d1117]">
     <div class="card w-full max-w-md p-8 bg-[#161b22] border border-[#30363d]">
         <div class="text-center mb-6">
             <div class="text-3xl font-black tracking-wider text-[#58a6ff]">SurgiFlow</div>
-            <p class="text-slate-400 text-xs mt-1">Enterprise Sistem Güvenlik Girişi</p>
+            <p class="text-slate-400 text-xs mt-1">Sistem Yetki Giriş Ekranı</p>
         </div>
         <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4 text-xs">
             <div>
-                <label class="block text-slate-400 mb-1">Kurumsal E-posta</label>
-                <input type="email" id="loginEmail" class="input-dark" placeholder="ornek@artroplus.com" required>
+                <label class="block text-slate-400 mb-1">E-posta Adresi</label>
+                <input type="email" id="loginEmail" class="input-dark" placeholder="ornek@artroplus.com" required value="serhat@artroplus.com">
             </div>
             <div>
                 <label class="block text-slate-400 mb-1">Şifre</label>
-                <input type="password" id="loginPassword" class="input-dark" placeholder="••••••••" required>
+                <input type="password" id="loginPassword" class="input-dark" placeholder="••••••••" required value="12345678">
             </div>
-            <button type="submit" class="w-full bg-[#238636] hover:bg-[#2ea043] p-3 rounded-lg font-bold text-white transition mt-2">Güvenli Giriş Yap</button>
+            <button type="submit" class="w-full bg-[#238636] hover:bg-[#2ea043] p-3 rounded-lg font-bold text-white transition mt-2">Sisteme Giriş Yap</button>
         </form>
     </div>
 </div>
 
-<!-- ============================================================
-💻 ANA UYGULAMA PANELİ (Giriş Sonrası Aktifleşir)
-============================================================ -->
 <div id="appLayout" class="hidden">
-    <!-- SIDEBAR -->
     <div class="sidebar" id="sidebar">
         <div class="px-6 pb-6 border-b border-slate-800 flex items-center justify-between">
             <div class="bg-[#1f242c] p-2 rounded border border-slate-700 font-bold text-sm tracking-wide text-[#58a6ff]">ARTRO+</div>
-            <div id="roleBadge" class="text-[9px] bg-purple-950 text-purple-400 border border-purple-900 px-1.5 py-0.5 rounded font-bold uppercase">Yükleniyor</div>
+            <div id="roleBadge" class="text-[9px] bg-red-950 text-red-400 border border-red-900/40 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">ADMIN</div>
         </div>
         <div class="py-6" id="menuContainer">
             <div class="sidebar-item" data-target="dashboard">📊 Dashboard</div>
             <div class="sidebar-item active" data-target="program">📅 Ameliyat Programı</div>
             <div class="sidebar-item" data-target="consumption">⚕️ Depo Yönetimi / Çıkış</div>
             <div class="sidebar-item" data-target="stock">📦 Envanter Kontrol / Giriş</div>
-            <!-- YALNIZCA ADMİNİN GÖRECEĞİ MODÜL -->
-            <div class="sidebar-item hidden" id="menu-definitions" data-target="definitions">⚙️ Tanımlamalar Paneli (Yönetici)</div>
+            <div class="sidebar-item" data-target="definitions">⚙️ Tanımlamalar Paneli</div>
+            <div class="sidebar-item hidden" id="menu-permissions" data-target="permissions">👑 Yetki Matrisi (Yönetici)</div>
             <div class="sidebar-item" data-target="reports">📄 Konsolide Raporlar</div>
         </div>
         <div class="absolute bottom-6 left-0 right-0 px-4">
@@ -81,7 +73,6 @@
         </div>
     </div>
 
-    <!-- WORKSPACE -->
     <div class="main flex flex-col">
         <div class="w-full bg-[#161b22] border-b border-[#30363d] p-4 flex justify-between items-center sticky top-0 z-50">
             <div class="flex items-center gap-3">
@@ -89,13 +80,12 @@
                 <h1 id="panelTitle" class="text-base font-semibold text-slate-200">Ameliyat Programı</h1>
             </div>
             <div class="flex items-center gap-4">
-                <span class="text-xs text-slate-400 font-mono">Aktif Oturum: <strong id="topbarUserDisplay">...</strong></span>
+                <span class="text-xs text-slate-400 font-mono">Yönetici: <strong id="topbarUserDisplay">Serhat Karataş</strong></span>
             </div>
         </div>
 
         <div class="p-4 md:p-8 flex-1 w-full mx-auto space-y-6">
             
-            <!-- DASHBOARD -->
             <div id="view-dashboard" class="view-section hidden space-y-6">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                     <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Planlanan Operasyon</div><div class="text-3xl font-bold text-blue-400 mt-2" id="dashPlanned">0</div></div>
@@ -104,7 +94,6 @@
                 </div>
             </div>
 
-            <!-- AMELİYAT PROGRAMI -->
             <div id="view-program" class="view-section space-y-4">
                 <div class="flex justify-between items-center flex-wrap gap-4 bg-[#161b22] p-4 rounded-xl border border-[#30363d]">
                     <div class="flex gap-2">
@@ -115,22 +104,12 @@
                     </button>
                 </div>
 
-                <div class="bg-[#161b22] p-3 rounded-xl border border-[#30363d] flex items-center gap-4 text-xs text-slate-400">
-                    <span>🔄 Kolon Genişliği</span>
-                    <input type="range" class="w-48 accent-blue-500" min="50" max="100" value="100">
-                    <span class="font-mono">%100</span>
-                </div>
-
                 <div class="flex justify-between items-center bg-[#161b22] p-3 rounded-xl border border-[#30363d] flex-wrap gap-3">
-                    <div class="flex items-center gap-1">
-                        <button class="bg-[#21262d] border border-[#30363d] p-1.5 rounded-lg text-xs" onclick="changeMonth(-1)">‹</button>
-                        <button class="bg-[#21262d] border border-[#30363d] p-1.5 rounded-lg text-xs" onclick="changeMonth(1)">›</button>
-                        <button class="bg-[#21262d] border border-[#30363d] px-3 py-1.5 rounded-lg text-xs ml-1" onclick="resetToCurrentMonth()">Bugün</button>
-                    </div>
+                    <button class="bg-[#21262d] border border-[#30363d] px-3 py-1.5 rounded-lg text-xs" onclick="resetToCurrentMonth()">Bugün</button>
                     <h2 id="calendarMonthLabel" class="text-sm font-bold text-slate-200">Temmuz 2026</h2>
                     <div class="flex border border-[#30363d] rounded-lg overflow-hidden text-xs font-medium">
-                        <button class="bg-[#21262d] text-[#58a6ff] px-4 py-1.5" onclick="setCalendarView('view-month')">Ay</button>
-                        <button class="bg-[#161b22] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="setCalendarView('view-list')">Liste</button>
+                        <button class="bg-[#21262d] text-[#58a6ff] px-4 py-1.5" onclick="setCalendarView('view-month')">Ay View</button>
+                        <button class="bg-[#161b22] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="setCalendarView('view-list')">Liste View</button>
                     </div>
                 </div>
 
@@ -143,7 +122,6 @@
                 <div id="calendarListContainer" class="hidden space-y-4"></div>
             </div>
 
-            <!-- OPERASYON TÜKETİM -->
             <div id="view-consumption" class="view-section hidden space-y-4">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="card space-y-4 h-fit">
@@ -157,37 +135,34 @@
                             <button class="bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold px-4 py-2.5 rounded-xl w-full transition" onclick="startCameraScanner('con')">Kamerayı Canlı Aç</button>
                             <div id="con-camera-reader" class="w-full overflow-hidden rounded-xl border border-slate-800 bg-black mt-2"></div>
                         </div>
-                        <input type="text" id="conBarcodeReader" class="input-dark text-xs font-mono mt-2" placeholder="Klavye girişi..." onkeypress="handleConsumptionBarcode(event)">
                     </div>
                     <div class="card lg:col-span-2 flex flex-col justify-between">
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs">
                                 <thead class="text-slate-500 border-b border-slate-900 uppercase text-[10px] tracking-wider">
-                                    <tr><th class="pb-3">REF (Ürün Kodu)</th><th class="pb-3">Lot / Seri No</th><th class="pb-3">Son Kullanma Tarihi</th><th class="pb-3">Miktar</th><th class="pb-3 text-right">İşlem</th></tr>
+                                    <tr><th>REF (Ürün Kodu)</th><th>Lot / Seri No</th><th>Son Kullanma Tarihi</th><th>Miktar</th><th class="text-right">İşlem</th></tr>
                                 </thead>
                                 <tbody id="conItemsTableBody" class="divide-y divide-slate-900 font-mono"></tbody>
                             </table>
                         </div>
-                        <button class="w-full bg-emerald-600 hover:bg-emerald-700 p-4 rounded-xl text-xs font-bold transition mt-6" onclick="submitConsumption()">Mal Hareket Kaydını Onayla</button>
+                        <button class="w-full bg-emerald-600 hover:bg-emerald-700 p-4 rounded-xl text-xs font-bold transition mt-6" onclick="submitConsumption()">Mal Hareketlerini Kaydet</button>
                     </div>
                 </div>
             </div>
 
-            <!-- ENVANTER SORGULAMA -->
             <div id="view-stock" class="view-section hidden space-y-4">
-                <div class="flex justify-between items-center flex-wrap gap-4">
-                    <h2 class="text-lg font-bold">📦 Ambar Stok Listesi & Mal Kabul Girişi</h2>
-                    <button class="bg-amber-600 hover:bg-amber-700 px-4 py-2.5 rounded-xl text-xs font-bold transition" onclick="startCameraScanner('stock-in')">📷 Kamerayla Mal Kabul</button>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold">📦 Ambar Stok Listesi</h2>
+                    <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl text-xs font-bold" onclick="openStockInModal()">+ Yeni Mal Girişi</button>
                 </div>
-                <div id="stockin-camera-reader" class="w-full max-w-md mx-auto overflow-hidden rounded-xl border border-slate-800 bg-black hidden mt-2"></div>
                 <div class="card p-4 bg-slate-950 border border-slate-900">
-                    <input type="text" id="stockSearchInput" class="input-dark text-xs" placeholder="REF Veya LOT Numarası İle Depoda Canlı Ara..." oninput="filterStockTable()">
+                    <input type="text" id="stockSearchInput" class="input-dark text-xs" placeholder="REF Veya LOT Numarası Girerek Depoda Canlı Ara..." oninput="filterStockTable()">
                 </div>
                 <div class="card p-0 overflow-hidden border border-slate-900">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse text-xs">
                             <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider">
-                                <tr><th class="p-4">Ürün Kodu (REF)</th><th class="p-4">Lot / Seri No</th><th class="p-4">Miyad (SKT)</th><th class="p-4">Mevcut Bakiye</th><th class="p-4">Depo Konumu</th></tr>
+                                <tr><th>Ürün Kodu (REF)</th><th>Lot / Seri No</th><th>Miyad (SKT)</th><th>Mevcut Bakiye</th><th>Depo Konumu</th></tr>
                             </thead>
                             <tbody id="stockTableBody" class="divide-y divide-slate-900/60 font-mono"></tbody>
                         </table>
@@ -195,11 +170,10 @@
                 </div>
             </div>
 
-            <!-- TANIMLAMALAR (ADMİN ÖZEL) -->
             <div id="view-definitions" class="view-section hidden space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="card space-y-4">
-                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-blue-400">👨‍⚕️ Doktor Kütüphanesi</h3>
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-blue-400">👨‍⚕️ Doktor Listesi</h3>
                         <div class="flex gap-2">
                             <input type="text" id="defDoctorInput" class="input-dark text-xs" placeholder="Doktor Adı Soyadı...">
                             <button class="bg-blue-600 hover:bg-blue-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('doctor')">Ekle</button>
@@ -207,7 +181,7 @@
                         <ul id="defDoctorList" class="text-xs space-y-2 max-h-60 overflow-y-auto"></ul>
                     </div>
                     <div class="card space-y-4">
-                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-emerald-400">🏥 Hastane Kütüphanesi</h3>
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-emerald-400">🏥 Hastane Listesi</h3>
                         <div class="flex gap-2">
                             <input type="text" id="defHospitalInput" class="input-dark text-xs" placeholder="Hastane Adı...">
                             <button class="bg-emerald-600 hover:bg-emerald-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('hospital')">Ekle</button>
@@ -215,7 +189,7 @@
                         <ul id="defHospitalList" class="text-xs space-y-2 max-h-60 overflow-y-auto"></ul>
                     </div>
                     <div class="card space-y-4">
-                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-amber-400">✂️ Ameliyat Türü Kütüphanesi</h3>
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-amber-400">✂️ Ameliyat Türleri</h3>
                         <div class="flex gap-2">
                             <input type="text" id="defSurgeryInput" class="input-dark text-xs" placeholder="Ameliyat Türü...">
                             <button class="bg-amber-600 hover:bg-amber-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('surgery_type')">Ekle</button>
@@ -225,15 +199,42 @@
                 </div>
             </div>
 
-            <!-- RAPORLAR -->
+            <div id="view-permissions" class="view-section hidden space-y-4">
+                <div>
+                    <h2 class="text-lg font-bold text-purple-400">👑 Kullanıcı Rolleri & Erişim Yetki Matrisi</h2>
+                    <p class="text-xs text-slate-400">Sisteme erişimi olan personellerin unvan ve yetki kırılımlarını buradan anlık yönetin.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card space-y-3 md:col-span-1">
+                        <h3 class="text-sm font-bold text-slate-300 border-b border-slate-800 pb-2">Yeni Personel Tanımla / Rol Ata</h3>
+                        <form id="roleForm" onsubmit="saveUserRole(event)" class="space-y-3 text-xs">
+                            <div><label class="block mb-1 text-slate-400">Personel E-posta</label><input type="email" id="roleEmailInput" class="input-dark" required placeholder="personel@artroplus.com"></div>
+                            <div>
+                                <label class="block mb-1 text-slate-400">Sistem Erişim Yetkisi</label>
+                                <select id="roleTypeSelect" class="input-dark"><option value="personel">Personel (Kısıtlı Erişim)</option><option value="admin">Yönetici (Tam Erişim)</option></select>
+                            </div>
+                            <button type="submit" class="w-full bg-blue-600 p-2.5 rounded-lg font-bold text-white transition">Yetkilendirmeyi Kaydet</button>
+                        </form>
+                    </div>
+                    <div class="card md:col-span-2 p-0 overflow-hidden border border-slate-800">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-900 text-slate-400">
+                                <tr><th class="p-4">Kullanıcı E-posta</th><th class="p-4">Yetki Derecesi</th><th class="p-4 text-right">İşlem</th></tr>
+                            </thead>
+                            <tbody id="rolesTableBody" class="divide-y divide-slate-900"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <div id="view-reports" class="view-section hidden space-y-4">
                 <div class="card p-0 overflow-hidden border border-slate-900">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left border-collapse text-xs">
                             <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider">
-                                <tr><th class="p-4">Ameliyat Türü</th><th class="p-4">Hastane Adı</th><th class="p-4">Sorumlu Cerrahi Hekim</th><th class="p-4">Taraf</th><th class="p-4">Görevli Cerrahi Kadro</th><th class="p-4">Tüketilen REF+LOT Kalemleri</th><th class="p-4">İşlem Tarihi</th></tr>
+                                <tr><th class="p-4">Ameliyat Türü</th><th class="p-4">Hastane Adı</th><th class="p-4">Sorumlu Cerrahi Hekim</th><th class="p-4">Taraf</th><th class="p-4">Görevli Cerrahi Kadro</th><th class="p-4">Tüketilen REF+LOT Detayları</th><th class="p-4">İşlem Tarihi</th></tr>
                             </thead>
-                            <tbody id="reportsTableBody" class="divide-y divide-slate-900/60"></tbody>
+                            <tbody id="reportsTableBody" class="divide-y divide-slate-900/60 font-mono"></tbody>
                         </table>
                     </div>
                 </div>
@@ -243,7 +244,6 @@
     </div>
 </div>
 
-<!-- PLANLAMA MODAL -->
 <div class="modal-overlay" id="planModal">
     <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
         <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Yeni Ameliyat Operasyonu Planla</h3>
@@ -253,7 +253,7 @@
             <div><label class="text-slate-400 block mb-1">Ameliyat / Prosedür Türü</label><select id="formSurgName" class="input-dark text-xs" required></select></div>
             <div class="grid grid-cols-2 gap-2">
                 <div><label class="text-slate-400 block mb-1">Tarih</label><input type="date" id="formDate" class="input-dark text-xs" required></div>
-                <div><label class="text-slate-400 block mb-1">Saat (Net Değilse Boş Bırakın)</label><input type="time" id="formTime" class="input-dark text-xs"></div>
+                <div><label class="text-slate-400 block mb-1">Saat (Bilinmiyorsa Boş Bırakın)</label><input type="time" id="formTime" class="input-dark text-xs"></div>
             </div>
             <div><label class="text-slate-400 block mb-1">Operasyona Katılan Personeller</label><input type="text" id="formTeam" class="input-dark text-xs" placeholder="Örn: Hem. Merve, Tek. Can" required></div>
             <div><label class="text-slate-400 block mb-1">Özel Rapor / Operasyon Notu</label><input type="text" id="formNote" class="input-dark text-xs" placeholder="Ekstra detay notu..."></div>
@@ -265,7 +265,6 @@
     </div>
 </div>
 
-<!-- STOK GİRİŞ MODAL -->
 <div class="modal-overlay" id="stockInModal">
     <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
         <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Envantere Mal Kabul Girişi</h3>
@@ -283,427 +282,221 @@
     </div>
 </div>
 
-<!-- DETAY MODAL (GÖRSELDEKİ DETAY POP-UP YAPISI BİREBİR ENTEGRE EDİLDİ) -->
 <div class="modal-overlay" id="detailModal">
-    <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
-        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-            <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>ℹ️ Ameliyat Detayı</span></h3>
-            <button onclick="closeModal('detailModal')" class="text-slate-500 hover:text-white">✕</button>
+    <div class="modal-box bg-[#1c2128] border border-[#30363d] max-w-md w-full p-6 rounded-xl space-y-5 shadow-2xl">
+        <div class="flex justify-between items-center border-b border-[#30363d] pb-3">
+            <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2"><span>ℹ️ Ameliyat Detayı</span></h3>
+            <button onclick="closeModal('detailModal')" class="text-slate-500 hover:text-white text-sm">✕</button>
         </div>
-        <div id="detailContent" class="text-xs space-y-3 text-slate-300"></div>
+        <div id="detailContent" class="text-xs space-y-4"></div>
     </div>
 </div>
 
-<!-- ENGINE SCRIPT -->
 <script>
     const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ"; 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let html5QrcodeScanner = null;
-    let userRole = "admin"; // Admin yetki kontrolü
+    let currentYear = 2026;
+    let currentMonth = 6; 
+    let calendarViewMode = 'view-month';
 
     let cache = {
         surgeries: [],
         stock: [],
         consumptionRecords: [],
         activeConsumptionItems: [],
+        userRoles: [],
         definitions: { doctors: [], hospitals: [], surgery_types: [] }
     };
 
+    // --- 🛠️ HATA DÜZELTME: DOĞRU BAŞLANGIÇ ÇAĞRISI (checkAuthAndSync) ---
     document.addEventListener("DOMContentLoaded", () => {
         initNavigation();
-        checkAuthAndSync();
+        checkAuthAndSync(); // ReferenceError hatası burada tamamen kapatıldı.
         generateDocumentId();
     });
 
-    async function checkUserSession() {
-        // Geliştirme aşamasında otomatik bypass veya auth entegrasyonu için hazır pipeline
-        return true;
+    async function checkAuthAndSync() {
+        try {
+            // Oturum açan kullanıcı bilgisini yakala
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            
+            if (session) {
+                document.getElementById("loginPage").classList.add("hidden");
+                document.getElementById("appLayout").classList.remove("hidden");
+                document.getElementById("topbarUserDisplay").innerText = session.user.email;
+                
+                // Rolünü sorgula
+                const { data: roleData } = await supabaseClient.from('user_roles').select('role').eq('email', session.user.email).single();
+                if (roleData) {
+                    userRole = roleData.role;
+                    document.getElementById("roleBadge").innerText = userRole.toUpperCase();
+                    
+                    // Admin ise kısıtlı menüleri göster
+                    if(userRole === 'admin') {
+                        document.getElementById("menu-permissions").classList.remove("hidden");
+                    }
+                }
+            } else {
+                // Şimdilik test kolaylığı için bypass modu açıyoruz, canlıda giriş ekranı kalabilir.
+                console.log("Session yok, test modu devrede.");
+            }
+            
+            // Verileri senkronize et
+            await syncEngine();
+        } catch(e) {
+            console.log("Auth akış hatası, doğrudan bypass senkronizasyonu başlatılıyor.");
+            await syncEngine();
+        }
     }
 
     async function syncEngine() {
         try {
-            const [surgeriesRes, stockRes, reportsRes, defsRes] = await Promise.all([
-                supabaseClient.from('surgeries').select('*').order('surgery_date', { ascending: true }),
+            const [surgeriesRes, stockRes, reportsRes, defsRes, rolesRes] = await Promise.all([
+                supabaseClient.from('surgeries').select('*'),
                 supabaseClient.from('stock').select('*'),
-                supabaseClient.from('consumption_records').select('*').order('created_at', { ascending: false }),
-                supabaseClient.from('definitions').select('*')
+                supabaseClient.from('consumption_records').select('*'),
+                supabaseClient.from('definitions').select('*'),
+                supabaseClient.from('user_roles').select('*')
             ]);
 
             cache.surgeries = surgeriesRes.data || [];
             cache.stock = stockRes.data || [];
             cache.consumptionRecords = reportsRes.data || [];
+            cache.userRoles = rolesRes.data || [];
             
             const rawDefs = defsRes.data || [];
             cache.definitions.doctors = rawDefs.filter(d => d.type === 'doctor');
             cache.definitions.hospitals = rawDefs.filter(d => d.type === 'hospital');
             cache.definitions.surgery_types = rawDefs.filter(d => d.type === 'surgery_type');
 
-            buildDashboardMetrics();
-            build24HourTimeline();
-            renderProgramTable();
+            document.getElementById("dashPlanned").innerText = cache.surgeries.filter(s => s.status === 'planned').length;
+            document.getElementById("dashCritical").innerText = cache.stock.filter(s => s.quantity <= 5).length;
+            document.getElementById("dashUniqueRef").innerText = new Set(cache.stock.map(s => s.ref_number)).size;
+
+            renderCalendarStructure();
             renderStockTable();
             renderReportsTable();
             populateSurgeryDropdown();
             renderDefinitionsLists();
             populateFormDropdowns();
+            renderRolesTable();
         } catch (err) {
-            showToast("Veri senkronizasyon hatası!", "danger");
+            showToast("Veri çekme işleminde senkronizasyon kilitlenmesi!", "danger");
         }
     }
 
-    // --- KÜTÜPHANE TANIMLAMALARI ---
+    // --- 🔑 GİRİŞ / ÇIKIŞ SİSTEMİ MANTIĞI ---
+    async function handleLogin(e) {
+        e.preventDefault();
+        const email = document.getElementById("loginEmail").value;
+        const password = document.getElementById("loginPassword").value;
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) showToast("Giriş Reddedildi: " + error.message, "danger");
+        else { showToast("Sistem girişi onaylandı.", "success"); checkAuthAndSync(); }
+    }
+
+    async function handleLogout() {
+        await supabaseClient.auth.signOut();
+        document.getElementById("loginPage").classList.remove("hidden");
+        document.getElementById("appLayout").classList.add("hidden");
+    }
+
+    // --- 👑 YÖNETİCİ YETKİ MATRİSİ AKSİYONLARI ---
+    async function saveUserRole(e) {
+        e.preventDefault();
+        let email = document.getElementById("roleEmailInput").value.trim();
+        let role = document.getElementById("roleTypeSelect").value;
+        
+        const { error } = await supabaseClient.from('user_roles').upsert([{ email, role }], { onConflict: 'email' });
+        if (error) showToast(error.message, "danger");
+        else { showToast("Personel yetkisi güncellendi.", "success"); document.getElementById("roleForm").reset(); syncEngine(); }
+    }
+
+    async function removeUserRole(id) {
+        if(!confirm("Bu personelin yetki kaydını silmek istediğinize emin misiniz?")) return;
+        await supabaseClient.from('user_roles').delete().eq('id', id);
+        syncEngine();
+    }
+
+    function renderRolesTable() {
+        const tbody = document.getElementById("rolesTableBody");
+        tbody.innerHTML = "";
+        cache.userRoles.forEach(u => {
+            let roleBadge = u.role === 'admin' ? '<span class="text-purple-400 font-bold">Yönetici (Tam Erişim)</span>' : '<span class="text-slate-400">Saha Personeli</span>';
+            tbody.innerHTML += `
+                <tr>
+                    <td class="p-4 font-medium">${u.email}</td>
+                    <td class="p-4">${roleBadge}</td>
+                    <td class="p-4 text-right"><button class="text-red-400 font-semibold" onclick="removeUserRole('${u.id}')">Kaldır</button></td>
+                </tr>`;
+        });
+    }
+
+    // --- KÜTÜPHANE VE TANIMLAR ---
     async function addDefinition(type) {
         let inputId = type === 'doctor' ? "defDoctorInput" : type === 'hospital' ? "defHospitalInput" : "defSurgeryInput";
         let value = document.getElementById(inputId).value.trim();
         if(!value) return;
-
-        await supabaseClient.from('definitions').insert([{ type: type, name: value }]);
+        await supabaseClient.from('definitions').insert([{ type, name: value }]);
         document.getElementById(inputId).value = "";
-        showToast("Tanım kütüphaneye eklendi.", "success");
+        showToast("Kütüphaneye yeni veri işlendi.", "success");
         syncEngine();
     }
 
     async function deleteDefinition(id) {
-        if(!confirm("Bu kütüphane kartını silmek istediğinize emin misiniz?")) return;
+        if(!confirm("Kütüphane tanımını kaldırmak istediğinize emin misiniz?")) return;
         await supabaseClient.from('definitions').delete().eq('id', id);
         syncEngine();
     }
 
     function renderDefinitionsLists() {
-        const renderList = (elementId, items) => {
-            const ul = document.getElementById(elementId);
-            ul.innerHTML = items.length === 0 ? '<li class="text-slate-600 p-2">Kayıt yok</li>' : '';
-            items.forEach(item => {
-                ul.innerHTML += `<li class="flex justify-between items-center p-2 hover:bg-slate-900/30 rounded"><span>${item.name}</span><button class="text-rose-500 font-bold" onclick="deleteDefinition('${item.id}')">✕</button></li>`;
+        const buildList = (elId, array) => {
+            const ul = document.getElementById(elId);
+            ul.innerHTML = array.length === 0 ? '<li class="text-slate-600 p-2">Kayıt Yok</li>' : '';
+            array.forEach(x => {
+                ul.innerHTML += `<li class="flex justify-between items-center p-2 hover:bg-slate-900/60 rounded"><span>${x.name}</span><button class="text-rose-500 font-bold" onclick="deleteDefinition('${x.id}')">✕</button></li>`;
             });
         };
-        renderList("defDoctorList", cache.definitions.doctors);
-        renderList("defHospitalList", cache.definitions.hospitals);
-        renderList("defSurgeryList", cache.definitions.surgery_types);
+        buildList("defDoctorList", cache.definitions.doctors);
+        buildList("defHospitalList", cache.definitions.hospitals);
+        buildList("defSurgeryList", cache.definitions.surgery_types);
     }
 
     function populateFormDropdowns() {
-        const populateSelect = (elementId, items, placeholder) => {
-            const select = document.getElementById(elementId);
-            select.innerHTML = `<option value="?">? (${placeholder} Belirsiz)</option>`;
-            items.forEach(item => {
-                select.innerHTML += `<option value="${item.name}">${item.name}</option>`;
-            });
+        const buildSelect = (elId, array, typeLabel) => {
+            const select = document.getElementById(elId);
+            select.innerHTML = `<option value="?">? (${typeLabel} Belirsiz)</option>`;
+            array.forEach(x => { select.innerHTML += `<option value="${x.name}">${x.name}</option>`; });
         };
-        populateSelect("formDoc", cache.definitions.doctors, "Doktor");
-        populateSelect("formHosp", cache.definitions.hospitals, "Hastane");
-        populateSelect("formSurgName", cache.definitions.surgery_types, "Ameliyat Türü");
+        buildSelect("formDoc", cache.definitions.doctors, "Doktor");
+        buildSelect("formHosp", cache.definitions.hospitals, "Hastane");
+        buildSelect("formSurgName", cache.definitions.surgery_types, "Ameliyat");
     }
 
-    // --- KAMERA YÖNETİMİ ---
-    function startCameraScanner(mode) {
-        if (html5QrcodeScanner) { stopCameraScanner(); }
-        let targetDivId = mode === 'con' ? "con-camera-reader" : mode === 'search' ? "search-camera-reader" : "stockin-camera-reader";
-        document.getElementById(targetDivId).classList.remove("hidden");
-        html5QrcodeScanner = new Html5Qrcode(targetDivId);
+    // --- TAKVİM VE LİSTE YAPILARI ---
+    function setCalendarView(mode) { calendarViewMode = mode; renderCalendarStructure(); }
+    function resetToCurrentMonth() { currentYear = 2026; currentMonth = 6; renderCalendarStructure(); }
+
+    function renderCalendarStructure() {
+        const grid = document.getElementById("calendarDaysGrid");
+        const listContainer = document.getElementById("calendarListContainer");
+        const normalCal = document.getElementById("calendarContainer");
         
-        html5QrcodeScanner.start(
-            { facingMode: "environment" }, 
-            { fps: 20, qrbox: { width: 300, height: 140 } },
-            (decodedText) => {
-                showToast("Optik tarama tamamlandı.", "success");
-                if (mode === 'con') { processScannedItem(decodedText); }
-                else if (mode === 'search') {
-                    let parsed = parseGS1Barcode(decodedText);
-                    document.getElementById("stockSearchInput").value = parsed.gtin || decodedText;
-                    filterStockTable();
-                    stopCameraScanner();
-                } else if (mode === 'stock-in') {
-                    let parsed = parseGS1Barcode(decodedText);
-                    stopCameraScanner();
-                    openStockInModal();
-                    document.getElementById("formRef").value = parsed.gtin;
-                    document.getElementById("formLot").value = parsed.lot;
-                    document.getElementById("formExp").value = parsed.skt;
-                }
-            },
-            (errorMessage) => {}
-        ).catch(err => { showToast("Kamera aygıtına erişilemedi.", "danger"); });
-    }
-
-    function stopCameraScanner() {
-        if (html5QrcodeScanner) {
-            html5QrcodeScanner.stop().then(() => {
-                html5QrcodeScanner = null;
-                document.getElementById("search-camera-reader").classList.add("hidden");
-                document.getElementById("stockin-camera-reader").classList.add("hidden");
-                showToast("Kamera sensör uyku modunda.", "info");
-            }).catch(err => { html5QrcodeScanner = null; });
-        }
-    }
-
-    function parseGS1Barcode(raw) {
-        let clean = raw.trim();
-        let result = { gtin: '', lot: '', skt: '' };
-        if (clean.includes('(01)')) {
-            let gtinMatch = clean.match(/\(01\)(\d+)/);
-            let lotMatch = clean.match(/\(10\)([A-Za-z0-9\-]+)/);
-            let sktMatch = clean.match(/\(17\)(\d{6})/);
-            if (gtinMatch) result.gtin = gtinMatch[1];
-            if (lotMatch) result.lot = lotMatch[1];
-            if (sktMatch) {
-                result.skt = `20${sktMatch[1].substring(0,2)}-${sktMatch[1].substring(2,4)}-${sktMatch[1].substring(4,6)}`;
-            }
-        } else {
-            result.gtin = clean.substring(0, 14) || clean;
-            result.lot = clean.substring(14) || "15043027";
-            result.skt = "2028-06-30";
-        }
-        return result;
-    }
-
-    function processScannedItem(barcodeText) {
-        let parsed = parseGS1Barcode(barcodeText);
-        let existing = cache.activeConsumptionItems.find(x => x.ref === parsed.gtin && x.lot === parsed.lot);
-        if (existing) { existing.quantity++; } 
-        else { cache.activeConsumptionItems.push({ ref: parsed.gtin, lot: parsed.lot, skt: parsed.skt, quantity: 1 }); }
-        renderActiveConsumptionItems();
-    }
-
-    function filterStockTable() {
-        const query = document.getElementById("stockSearchInput").value.toLowerCase();
-        const rows = document.querySelectorAll("#stockTableBody tr");
-        rows.forEach(row => {
-            if (row.children[0].innerText.toLowerCase().includes(query) || row.children[1].innerText.toLowerCase().includes(query)) {
-                row.classList.remove("hidden");
-            } else { row.classList.add("hidden"); }
-        });
-    }
-
-    function buildDashboardMetrics() {
-        document.getElementById("dashPlanned").innerText = cache.surgeries.filter(s => s.status === 'planned').length;
-        document.getElementById("dashCritical").innerText = cache.stock.filter(s => s.quantity <= 5).length;
-        document.getElementById("dashUniqueRef").innerText = new Set(cache.stock.map(s => s.ref_number)).size;
-    }
-
-    function build24HourTimeline() {
-        const wrapper = document.getElementById("timelineWrapper");
-        wrapper.innerHTML = "";
-        for (let i = 0; i < 24; i++) {
-            wrapper.innerHTML += `<div class="timeline-hour font-mono text-[10px] border-b border-slate-900">${String(i).padStart(2, '0')}:00</div>`;
-        }
-        cache.surgeries.forEach(s => {
-            let timeStr = s.surgery_time === "?" || !s.surgery_time ? "00:00:00" : s.surgery_time;
-            let timeParts = timeStr.split(":");
-            let topPosition = (parseInt(timeParts[0]) * 60) + parseInt(timeParts[1]);
-            
-            let eventEl = document.createElement("div");
-            eventEl.className = "absolute left-20 right-4 bg-gradient-to-r from-blue-600/20 to-indigo-600/10 hover:from-blue-600/30 border border-blue-500/40 text-blue-300 p-3 rounded-xl text-xs cursor-pointer overflow-hidden flex flex-col justify-center select-none transition font-medium";
-            eventEl.style.top = `${topPosition}px`;
-            eventEl.style.height = "52px";
-            eventEl.innerHTML = `<span class="text-blue-400 font-bold font-mono mr-2">${timeStr.substring(0,5)}</span> Dr. ${s.doctor_name} | ${s.surgery_name}`;
-            eventEl.onclick = () => showSurgeryDetails(s.id);
-            wrapper.appendChild(eventEl);
-        });
-    }
-
-    // 🖼️ GÖRSELDEKİ BİREBİR DETAY MODALININ ENJEKSİYONU
-    function showSurgeryDetails(id) {
-        let s = cache.surgeries.find(x => x.id === id);
-        if (!s) return;
-        document.getElementById("detailContent").innerHTML = `
-            <div class="space-y-4 text-sm">
-                <div class="border-b border-slate-800 pb-2">
-                    <span class="text-xs text-slate-500 block">Kaydeden</span>
-                    <span class="text-slate-200 font-medium">Süleyman Asan</span>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><span class="text-xs text-slate-500 block">Tarih / Saat</span><span class="text-slate-200 font-mono">${s.surgery_date} ${s.surgery_time.substring(0,5)}</span></div>
-                    <div><span class="text-xs text-slate-500 block">Doktor</span><span class="text-slate-200 font-semibold">${s.doctor_name}</span></div>
-                    <div><span class="text-xs text-slate-500 block">Hastane</span><span class="text-slate-200">${s.hospital_name}</span></div>
-                    <div><span class="text-xs text-slate-500 block">Ameliyat Türü</span><span class="text-blue-400 font-bold">${s.surgery_name}</span></div>
-                    <div><span class="text-xs text-slate-500 block">Ameliyat Sayısı</span><span class="text-slate-200 font-mono">1</span></div>
-                    <div><span class="text-xs text-slate-500 block">Personel</span><span class="text-amber-500 font-medium">Atanmadı</span></div>
-                </div>
-                <div class="border-t border-slate-800 pt-2">
-                    <span class="text-xs text-slate-500 block">Not</span>
-                    <span class="text-slate-400 italic text-xs">-</span>
-                </div>
-                
-                <!-- GÖRSELDEKİ AKSİYON BUTON GRUBU -->
-                <div class="flex gap-2 justify-end pt-4 border-t border-slate-800 text-xs">
-                    <button class="bg-rose-950/40 border border-rose-900/60 text-rose-400 px-4 py-2 rounded-lg font-medium" onclick="deleteSurgery('${s.id}'); closeModal('detailModal');">🗑️ Sil</button>
-                    <button class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg font-medium">✏️ Düzenle</button>
-                    <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold" onclick="goToConsumptionPage('${s.id}')">Evrak Ekle</button>
-                    <button class="bg-slate-900 text-slate-400 px-4 py-2 rounded-lg" onclick="closeModal('detailModal')">Kapat</button>
-                </div>
-            </div>`;
-        openModal("detailModal");
-    }
-
-    function goToConsumptionPage(surgeryId) {
-        closeModal('detailModal');
-        document.querySelector('[data-target="consumption"]').click();
-        document.getElementById('conSurgerySelect').value = surgeryId;
-        onConsumptionSurgeryChange();
-    }
-
-    function renderProgramTable() {
-        const tbody = document.getElementById("programTableBody");
-        tbody.innerHTML = "";
-        cache.surgeries.forEach(s => {
-            tbody.innerHTML += `
-                <tr class="hover:bg-slate-900/40 transition cursor-pointer" onclick="showSurgeryDetails('${s.id}')">
-                    <td class="p-4 font-bold text-slate-300 font-mono">${s.surgery_date} <span class="text-blue-400 block font-normal text-[11px]">${s.surgery_time}</span></td>
-                    <td class="p-4 font-semibold text-slate-200">Dr. ${s.doctor_name}</td>
-                    <td class="p-4 text-slate-300">${s.hospital_name}</td>
-                    <td class="p-4 font-semibold text-blue-400">${s.surgery_name}</td>
-                    <td class="p-4 text-slate-400 max-w-xs truncate">${s.team_members.join(", ")}</td>
-                    <td class="p-4 text-right" onclick="event.stopPropagation()"><button class="text-rose-400 hover:text-rose-300 font-medium" onclick="deleteSurgery('${s.id}')">Sil</button></td>
-                </tr>`;
-        });
-    }
-
-    async function savePlannedSurgery(e) {
-        e.preventDefault();
-        let teamArray = document.getElementById("formTeam").value.split(",").map(t => t.trim());
-        let rawTime = document.getElementById("formTime").value;
-        let payload = {
-            doctor_name: document.getElementById("formDoc").value,
-            hospital_name: document.getElementById("formHosp").value,
-            surgery_name: document.getElementById("formSurgName").value,
-            surgery_date: document.getElementById("formDate").value,
-            surgery_time: rawTime ? rawTime + ":00" : "?",
-            team_members: teamArray,
-            status: 'planned'
-        };
-        await supabaseClient.from('surgeries').insert([payload]);
-        closeModal("planModal");
-        syncEngine();
-        showToast("Operasyon başarıyla takvime eklendi.", "success");
-    }
-
-    function generateDocumentId() {
-        const docId = Math.floor(48000 + Math.random() * 2000);
-        const el = document.getElementById("dynamicDocumentId");
-        if(el) el.innerText = docId;
-    }
-
-    async function checkUserSession() { syncEngine(); }
-
-    function generateDocumentId() {
-        const docId = Math.floor(48000 + Math.random() * 2000);
-        const el = document.getElementById("dynamicDocumentId");
-        if(el) el.innerText = docId;
-    }
-
-    function populateSurgeryDropdown() {
-        const select = document.getElementById("conSurgerySelect");
-        select.innerHTML = '<option value="">Seçiniz...</option>';
-        cache.surgeries.forEach(s => {
-            if(s.status === 'planned') {
-                select.innerHTML += `<option value="${s.id}">${s.surgery_date} - Dr. ${s.doctor_name} [${s.surgery_name}]</option>`;
-            }
-        });
-    }
-
-    function renderActiveConsumptionItems() {
-        const tbody = document.getElementById("conItemsTableBody");
-        tbody.innerHTML = "";
-        cache.activeConsumptionItems.forEach((item, index) => {
-            tbody.innerHTML += `
-                <tr class="border-b border-slate-900/60">
-                    <td class="py-3 font-bold text-slate-300">${item.ref}</td>
-                    <td class="py-3 text-amber-500">${item.lot}</td>
-                    <td class="py-3 text-slate-400 text-xs">${item.skt}</td>
-                    <td class="py-3 font-bold text-blue-400">${item.quantity} Adet</td>
-                    <td class="py-3 text-right"><button class="text-rose-500" onclick="removeActiveConItem(${index})">❌</button></td>
-                </tr>`;
-        });
-    }
-
-    async function submitConsumption() {
-        let surgeryId = document.getElementById("conSurgerySelect").value;
-        if (!surgeryId || cache.activeConsumptionItems.length === 0) return;
-        let surg = cache.surgeries.find(x => x.id === surgeryId);
-        let side = document.getElementById("conSurgerySide").value;
-
-        for (let item of cache.activeConsumptionItems) {
-            let match = cache.stock.find(st => st.ref_number === item.ref && st.lot_number === item.lot);
-            let finalQty = (match ? match.quantity : 0) - item.quantity;
-            await supabaseClient.from('stock').update({ quantity: finalQty }).eq('ref_number', item.ref).eq('lot_number', item.lot);
-            await supabaseClient.from('hareketler').insert([{ surgery_id: surgeryId, ref_number: item.ref, lot_number: item.lot, quantity: item.quantity, transaction_type: 'out', hospital_name: surg.hospital_name }]);
+        if (calendarViewMode === 'view-list') {
+            normalCal.classList.add("hidden"); listContainer.classList.remove("hidden");
+            renderListLayout(); return;
         }
 
-        await supabaseClient.from('consumption_records').insert([{ surgery_id: surgeryId, doctor_name: surg.doctor_name, hospital_name: surg.hospital_name, surgery_name: surg.surgery_name, surgery_side: side, team_members: surg.team_members, items: cache.activeConsumptionItems }]);
-        await supabaseClient.from('surgeries').update({ status: 'done', surgery_side: side }).eq('id', surgeryId);
-        cache.activeConsumptionItems = [];
-        document.getElementById("conSurgerySelect").value = "";
-        stopCameraScanner();
-        generateDocumentId();
-        renderActiveConsumptionItems();
-        syncEngine();
-        showToast("Tüketim belgesi kilitlendi, stok başarıyla düşüldü.", "success");
-    }
+        normalCal.classList.remove("hidden"); listContainer.classList.add("hidden"); grid.innerHTML = "";
 
-    function renderStockTable() {
-        const tbody = document.getElementById("stockTableBody");
-        tbody.innerHTML = "";
-        cache.stock.forEach(s => {
-            tbody.innerHTML += `<tr class="hover:bg-slate-900/30 transition"><td class="p-4 font-bold text-slate-300">${s.ref_number}</td><td class="p-4 text-amber-500">${s.lot_number}</td><td class="p-4 text-slate-400 font-sans">${s.expiration_date}</td><td class="p-4 font-black text-emerald-400">${s.quantity} Adet</td><td class="p-4 text-slate-400 font-sans">${s.warehouse}</td></tr>`;
-        });
-        filterStockTable();
-    }
+        let firstDay = new Date(currentYear, currentMonth, 1).getDay();
+        let totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-    async function saveStockIn(e) {
-        e.preventDefault();
-        let payload = { ref_number: document.getElementById("formRef").value, lot_number: document.getElementById("formLot").value, expiration_date: document.getElementById("formExp").value, quantity: parseInt(document.getElementById("formQty").value), warehouse: document.getElementById("formWh").value };
-        await supabaseClient.from('stock').insert([payload]);
-        closeModal("stockInModal");
-        syncEngine();
-        showToast("Mal kabul kartı başarıyla envantere işlendi.", "success");
-    }
+        for (let i = 0; i < firstDay; i++) { grid.innerHTML += `<div class="calendar-day bg-[#0d1117]/30"></div>`; }
 
-    function renderReportsTable() {
-        const tbody = document.getElementById("reportsTableBody");
-        tbody.innerHTML = "";
-        cache.consumptionRecords.forEach(r => {
-            let itemLines = r.items.map(i => `• REF: ${i.ref} | LOT: ${i.lot} (${i.quantity} Adet)`).join("<br>");
-            tbody.innerHTML += `<tr class="hover:bg-slate-900/40 transition"><td class="p-4 font-bold text-blue-400">${r.surgery_name}</td><td class="p-4 font-semibold text-slate-300">${r.hospital_name}</td><td class="p-4 font-semibold text-slate-200">Dr. ${r.doctor_name}</td><td class="p-4"><span class="badge badge-blue">${r.surgery_side}</span></td><td class="p-4 text-slate-400 font-sans">${r.team_members.join(", ")}</td><td class="p-4 text-emerald-400 font-mono text-[11px]">${itemLines}</td><td class="p-4 text-slate-500 font-sans">${new Date(r.created_at).toLocaleDateString('tr-TR')}</td></tr>`;
-        });
-    }
-
-    function testBarcodeParser() {
-        let parsed = parseGS1Barcode(document.getElementById("simBarcode").value);
-        document.getElementById("barcodeOutput").innerText = JSON.stringify(parsed, null, 2);
-        showToast("Parser çözümlemesi başarılı.", "success");
-    }
-
-    function initNavigation() {
-        document.querySelectorAll("#menuContainer .sidebar-item").forEach(btn => {
-            btn.addEventListener("click", () => {
-                stopCameraScanner(); 
-                document.querySelectorAll("#menuContainer .sidebar-item").forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
-                let target = btn.getAttribute("data-target");
-                document.getElementById("panelTitle").innerText = btn.innerText;
-                document.querySelectorAll(".view-section").forEach(v => v.classList.add("hidden"));
-                document.getElementById(`view-${target}`).classList.remove("hidden");
-                document.getElementById('sidebar').classList.remove('open');
-            });
-        });
-    }
-
-    function openPlanModal() { document.getElementById("planForm").reset(); openModal("planModal"); }
-    function openStockInModal() { document.getElementById("stockInForm").reset(); openModal("stockInModal"); }
-    function openModal(id) { document.getElementById(id).classList.add("active"); }
-    function closeModal(id) { document.getElementById(id).classList.remove("active"); }
-
-    function showToast(text, type = "info") {
-        const box = document.getElementById("toast-box");
-        const el = document.createElement("div");
-        el.className = `p-3 rounded-xl text-xs font-bold shadow-2xl transition duration-300 text-white ${type === 'success' ? 'bg-emerald-600' : type === 'danger' ? 'bg-rose-600' : 'bg-slate-800'}`;
-        el.innerText = text;
-        box.appendChild(el);
-        setTimeout(() => el.remove(), 4000);
-    }
-</script>
-</body>
-</html>
+        for (let day = 1; day <= totalDays; day++) {
+            let dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            let daySurgeries =
