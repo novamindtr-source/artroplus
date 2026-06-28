@@ -71,7 +71,7 @@
 
 <div id="toast-container"></div>
 
-<div id="loginPage" class="fixed inset-0 z-[500] flex items-center justify-center bg(#060e1f) glass">
+<div id="loginPage" class="fixed inset-0 z-[500] flex items-center justify-center bg-[#060e1f] glass">
     <div class="card w-full max-w-md p-8">
         <div class="text-center mb-6">
             <div style="font-size:32px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">ARTROPLUS</div>
@@ -427,10 +427,11 @@
 <script>
     // ⚠️ SUPABASE APİ BAĞLANTI AYARLARI
     // Kendi Supabase URL ve Anon Key verilerinizle değiştiriniz.
-    const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_URL.supabase.co";
-    const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY";
+    const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
     
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // Değişken adı 'supabaseClient' olarak güncellendi (İsim çakışma hatası çözümü)
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // Uygulama Belleği (State Cache)
     let state = {
@@ -450,7 +451,7 @@
 
     // Oturum Kontrolü
     async function checkUserSession() {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
         if (session) {
             handleAuthSuccess(session.user);
         } else {
@@ -464,7 +465,7 @@
         const email = document.getElementById("loginEmail").value;
         const password = document.getElementById("loginPassword").value;
 
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) {
             showToast("Giriş Başarısız: " + error.message, "danger");
         } else {
@@ -475,7 +476,7 @@
 
     // Çıkış İşlemi
     async function handleLogout() {
-        await supabase.auth.signOut();
+        await supabaseClient.auth.signOut();
         showLoginLayout();
         showToast("Oturum kapatıldı.", "info");
     }
@@ -498,11 +499,11 @@
     async function fetchAllData() {
         try {
             const [surgeries, patients, products, stock, invoices] = await Promise.all([
-                supabase.from('surgeries').select('*').order('date', { ascending: false }),
-                supabase.from('patients').select('*').order('name'),
-                supabase.from('products').select('*').order('name'),
-                supabase.from('stock').select('*'),
-                supabase.from('invoices').select('*')
+                supabaseClient.from('surgeries').select('*').order('date', { ascending: false }),
+                supabaseClient.from('patients').select('*').order('name'),
+                supabaseClient.from('products').select('*').order('name'),
+                supabaseClient.from('stock').select('*'),
+                supabaseClient.from('invoices').select('*')
             ]);
 
             state.surgeries = surgeries.data || [];
@@ -511,7 +512,6 @@
             state.stock = stock.data || [];
             state.invoices = invoices.data || [];
 
-            // Selectbox listelerini ve tabloları doldur
             populateDropdowns();
             refreshAllTables();
             loadDashboardData();
@@ -521,21 +521,18 @@
     }
 
     function populateDropdowns() {
-        // Ameliyat formundaki hasta seçimi
         const patientSelect = document.getElementById("formSurgeryPatient");
         patientSelect.innerHTML = '<option value="">Hasta seçiniz...</option>';
         state.patients.forEach(p => {
             patientSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
         });
 
-        // Stok formundaki ürün seçimi
         const productSelect = document.getElementById("formStockProduct");
         productSelect.innerHTML = '<option value="">Ürün seçiniz...</option>';
         state.products.forEach(p => {
             productSelect.innerHTML += `<option value="${p.id}">${p.name} (${p.code})</option>`;
         });
 
-        // Fatura formundaki ameliyat seçimi
         const surgerySelect = document.getElementById("formInvoiceSurgery");
         surgerySelect.innerHTML = '<option value="">Ameliyat seçiniz...</option>';
         state.surgeries.forEach(s => {
@@ -557,7 +554,6 @@
         document.getElementById("statSurgeries").innerText = state.surgeries.length;
         document.getElementById("statPatients").innerText = state.patients.length;
         
-        // Kritik Stok Hesaplama
         let criticalCount = 0;
         let stockSummaryHTML = "";
         state.products.forEach(p => {
@@ -570,11 +566,9 @@
         document.getElementById("statCriticalProducts").innerText = criticalCount;
         document.getElementById("dashboardStockTable").innerHTML = stockSummaryHTML || '<tr><td colspan="3" class="text-slate-500 text-center">Kritik limit altında ürün yok.</td></tr>';
 
-        // Finans Hacmi Hesaplama
         const totalRevenue = state.invoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
         document.getElementById("statRevenue").innerText = "₺" + totalRevenue.toLocaleString('tr-TR');
 
-        // Son 5 Ameliyat Tablosu
         let recentSurgeriesHTML = "";
         state.surgeries.slice(0, 5).forEach(s => {
             const patientName = state.patients.find(p => p.id === s.patient_id)?.name || "Bilinmeyen Hasta";
@@ -635,7 +629,6 @@
         });
     }
 
-    // Haftalık Ajanda Çizimi
     function renderWeeklySchedule() {
         const grid = document.getElementById("weeklyScheduleGrid");
         grid.innerHTML = "";
@@ -643,8 +636,7 @@
         
         days.forEach((day, index) => {
             let daySurgeriesHTML = "";
-            // Örnek basit eşleştirme mantığı: haftalık görünüm için ilgili gün adına denk gelen kayıtlar süzülebilir.
-            const filtered = state.surgeries.slice(0, 3); // Tasarımsal simülasyon amacıyla ilk kayıtlar dağıtılır
+            const filtered = state.surgeries.slice(0, 3);
             
             filtered.forEach(s => {
                 daySurgeriesHTML += `<div class="bg-[#0f1a35] p-2 rounded text-xs border border-blue-900 mb-1"><strong>${s.time}</strong> - ${s.doctor}<br><span class="text-slate-400">${s.type}</span></div>`;
@@ -673,8 +665,8 @@
         };
 
         let res;
-        if (id) { res = await supabase.from('surgeries').update(payload).eq('id', id); }
-        else { res = await supabase.from('surgeries').insert([payload]); }
+        if (id) { res = await supabaseClient.from('surgeries').update(payload).eq('id', id); }
+        else { res = await supabaseClient.from('surgeries').insert([payload]); }
 
         if (res.error) showToast("Hata: " + res.error.message, "danger");
         else { showToast("Ameliyat kaydedildi.", "success"); closeModal('surgeryModal'); fetchAllData(); }
@@ -691,8 +683,8 @@
         };
 
         let res;
-        if (id) { res = await supabase.from('patients').update(payload).eq('id', id); }
-        else { res = await supabase.from('patients').insert([payload]); }
+        if (id) { res = await supabaseClient.from('patients').update(payload).eq('id', id); }
+        else { res = await supabaseClient.from('patients').insert([payload]); }
 
         if (res.error) showToast("Hata: " + res.error.message, "danger");
         else { showToast("Hasta kaydedildi.", "success"); closeModal('patientModal'); fetchAllData(); }
@@ -709,8 +701,8 @@
         };
 
         let res;
-        if (id) { res = await supabase.from('products').update(payload).eq('id', id); }
-        else { res = await supabase.from('products').insert([payload]); }
+        if (id) { res = await supabaseClient.from('products').update(payload).eq('id', id); }
+        else { res = await supabaseClient.from('products').insert([payload]); }
 
         if (res.error) showToast("Hata: " + res.error.message, "danger");
         else { showToast("Ürün katalog tanımı güncellendi.", "success"); closeModal('productModal'); fetchAllData(); }
@@ -726,7 +718,7 @@
             expiration_date: document.getElementById("formStockExpiration").value || null
         };
 
-        const { error } = await supabase.from('stock').insert([payload]);
+        const { error } = await supabaseClient.from('stock').insert([payload]);
         if (error) showToast("Hata: " + error.message, "danger");
         else { showToast("Stok girdisi başarılı.", "success"); closeModal('stockModal'); fetchAllData(); }
     }
@@ -740,20 +732,18 @@
             status: document.getElementById("formInvoiceStatus").value
         };
 
-        const { error } = await supabase.from('invoices').insert([payload]);
+        const { error } = await supabaseClient.from('invoices').insert([payload]);
         if (error) showToast("Hata: " + error.message, "danger");
         else { showToast("Fatura kaydı mali deftere işlendi.", "success"); closeModal('invoiceModal'); fetchAllData(); }
     }
 
-    // Kayıt Silme Fonksiyonu
     async function deleteRecord(table, id) {
         if (!confirm("Bu kaydı kalıcı olarak silmek istediğinize emin misiniz?")) return;
-        const { error } = await supabase.from(table).delete().eq('id', id);
+        const { error } = await supabaseClient.from(table).delete().eq('id', id);
         if (error) showToast("Silme hatası: " + error.message, "danger");
         else { showToast("Kayıt sistemden kaldırıldı.", "success"); fetchAllData(); }
     }
 
-    // Düzenleme Form Tetikleyicileri (Edit Modları)
     function editSurgery(id) {
         const item = state.surgeries.find(x => x.id === id);
         if (!item) return;
@@ -836,7 +826,7 @@
                 const targetPage = item.getAttribute("data-page");
                 document.getElementById("pageTitle").innerText = item.innerText.replace(/[^a-zA-ZçğıöşüÇĞİÖŞÜ ]/g, '').trim();
                 
-                document.querySelectorAll(".page-section").forEach(p => p.add("hidden"));
+                document.querySelectorAll(".page-section").forEach(p => p.classList.add("hidden"));
                 const activeSection = document.getElementById(`page-${targetPage}`);
                 if (activeSection) activeSection.classList.remove("hidden");
                 
@@ -845,7 +835,6 @@
         });
     }
 
-    // --- BİLDİRİM (TOAST) SİSTEMİ ---
     function showToast(message, type = "info") {
         const container = document.getElementById("toast-container");
         const toast = document.createElement("div");
