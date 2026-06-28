@@ -1,166 +1,859 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ARTROPLUS</title>
+    <title>ARTROPLUS v3.0 - Medikal ERP</title>
     <script src="https://cdn.tailwindcss.com/3.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:#0a0f1e;color:#e2e8f0}
+        .glass{background:rgba(10,16,37,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06)}
+        .card{background:linear-gradient(145deg,#111d3a,#0a1628);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:24px;transition:all .3s}
+        .card:hover{border-color:rgba(59,130,246,.3);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+        .btn-primary{background:linear-gradient(135deg,#2563eb,#3b82f6);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s; display:inline-flex; align-items:center; justify-content:center;}
+        .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(37,99,235,.4)}
+        .btn-danger{background:linear-gradient(135deg,#dc2626,#ef4444);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s}
+        .btn-danger:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(220,38,38,.4)}
+        .btn-success{background:linear-gradient(135deg,#059669,#10b981);border:none;padding:10px 24px;border-radius:12px;color:#fff;font-weight:600;cursor:pointer;transition:all .3s}
+        .btn-success:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(16,185,129,.4)}
+        .input-dark{background:#0f1a35;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 16px;color:#e2e8f0;width:100%;transition:all .3s}
+        .input-dark:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+        .input-dark::placeholder{color:#475569}
+        .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600}
+        .badge-blue{background:#1d4ed8;color:#93c5fd}
+        .badge-green{background:#065f46;color:#6ee7b7}
+        .badge-red{background:#7f1d1d;color:#fca5a5}
+        .badge-yellow{background:#78350f;color:#fcd34d}
+        .badge-purple{background:#4c1d95;color:#c4b5fd}
+        .sidebar{position:fixed;left:0;top:0;height:100%;width:240px;background:linear-gradient(180deg,#0a1628,#060e1f);border-right:1px solid rgba(255,255,255,.06);padding:20px 0;overflow-y:auto;z-index:100}
+        .sidebar-item{display:flex;align-items:center;gap:12px;padding:12px 20px;color:#94a3b8;cursor:pointer;transition:all .3s;border-left:3px solid transparent;font-size:14px;font-weight:500}
+        .sidebar-item:hover{background:rgba(59,130,246,.08);color:#e2e8f0}
+        .sidebar-item.active{background:rgba(59,130,246,.12);color:#60a5fa;border-left-color:#3b82f6}
+        .sidebar-item .icon{font-size:18px;width:24px;text-align:center}
+        .main{padding-left:240px; min-height:100vh;}
+        .topbar{background:rgba(10,22,40,.9);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.06);padding:16px 32px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+        .stat-number{font-size:28px;font-weight:800;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);z-index:200;display:none;align-items:center;justify-content:center}
+        .modal-overlay.active{display:flex}
+        .modal-box{background:#0f1a35;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:32px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto}
+        .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+        .modal-header h2{font-size:20px;font-weight:700}
+        .close-btn{background:transparent;border:none;color:#94a3b8;font-size:24px;cursor:pointer;transition:all .3s}
+        .close-btn:hover{color:#fff}
+        @media(max-width:768px){.sidebar{transform:translateX(-100%);transition:transform .3s}.sidebar.open{transform:translateX(0)}.main{padding-left:0}.topbar{padding:12px 16px}.mobile-toggle{display:block!important}}
+        .mobile-toggle{display:none;background:transparent;border:none;color:#fff;font-size:24px;cursor:pointer}
+        ::-webkit-scrollbar{width:4px;height:4px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
+        ::-webkit-scrollbar-thumb:hover{background:#475569}
+        table{width:100%;border-collapse:collapse}
+        th{text-align:left;padding:12px 16px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)}
+        td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);font-size:14px}
+        tr:hover{background:rgba(59,130,246,.04)}
+        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+        .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+        .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+        @media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+        
+        /* Toast Bildirimleri */
+        #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 12px 24px; border-radius: 10px; color: #fff; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
 </head>
 <body>
 
-<div id="app" class="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-    <!-- GİRİŞ EKRANI -->
-    <div id="loginBox" class="w-full max-w-md bg-gray-800 rounded-2xl p-8 border border-gray-700">
-        <h1 class="text-3xl font-bold text-white text-center">ARTROPLUS</h1>
-        <p class="text-gray-400 text-center mb-6">Medikal Yönetim Sistemi</p>
-        
-        <div id="errorMsg" class="hidden bg-red-500/20 text-red-300 p-3 rounded-xl mb-4 text-sm"></div>
-        
-        <input type="email" id="email" placeholder="E-posta" 
-            class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 text-white mb-3 focus:outline-none focus:border-blue-500">
-        
-        <input type="password" id="password" placeholder="Şifre" 
-            class="w-full p-3 rounded-xl bg-gray-700 border border-gray-600 text-white mb-4 focus:outline-none focus:border-blue-500">
-        
-        <button id="loginBtn" class="w-full p-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition">
-            Giriş Yap
-        </button>
+<div id="toast-container"></div>
+
+<div id="loginPage" class="fixed inset-0 z-[500] flex items-center justify-center bg(#060e1f) glass">
+    <div class="card w-full max-w-md p-8">
+        <div class="text-center mb-6">
+            <div style="font-size:32px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">ARTROPLUS</div>
+            <p class="text-slate-400 text-sm mt-1">Medikal ERP Giriş Paneli</p>
+        </div>
+        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+            <div>
+                <label class="block text-slate-400 text-sm mb-1">E-posta Adresi</label>
+                <input type="email" id="loginEmail" class="input-dark" placeholder="ornek@firma.com" required value="admin@artroplus.com">
+            </div>
+            <div>
+                <label class="block text-slate-400 text-sm mb-1">Şifre</label>
+                <input type="password" id="loginPassword" class="input-dark" placeholder="••••••••" required value="12345678">
+            </div>
+            <button type="submit" class="btn-primary w-full mt-2">Giriş Yap</button>
+        </form>
+    </div>
+</div>
+
+<div id="appLayout" class="hidden">
+    <div class="sidebar" id="sidebar">
+        <div style="padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div style="font-size:22px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">ARTROPLUS</div>
+            <div style="font-size:10px;color:#475569;letter-spacing:.1em;text-transform:uppercase;margin-top:2px">Medikal ERP v3.0</div>
+        </div>
+        <div style="padding:12px 0" id="sidebarMenu">
+            <div class="sidebar-item active" data-page="dashboard"><span class="icon">📊</span> Dashboard</div>
+            <div class="sidebar-item" data-page="surgeries"><span class="icon">⚕️</span> Ameliyatlar</div>
+            <div class="sidebar-item" data-page="patients"><span class="icon">👤</span> Hastalar</div>
+            <div class="sidebar-item" data-page="program"><span class="icon">📅</span> Program</div>
+            <div class="sidebar-item" data-page="products"><span class="icon">📦</span> Ürünler</div>
+            <div class="sidebar-item" data-page="stock"><span class="icon">📊</span> Stok</div>
+            <div class="sidebar-item" data-page="finance"><span class="icon">💰</span> Finans</div>
+            <div class="sidebar-item" data-page="reports"><span class="icon">📄</span> Raporlar</div>
+            <div class="sidebar-item" data-page="settings"><span class="icon">⚙️</span> Ayarlar</div>
+        </div>
+        <div style="position:absolute;bottom:20px;left:0;right:0;padding:0 20px;border-top:1px solid rgba(255,255,255,.06);padding-top:16px">
+            <div class="sidebar-item" id="logoutBtn" onclick="handleLogout()" style="color:#f87171"><span class="icon">🚪</span> Çıkış Yap</div>
+        </div>
     </div>
 
-    <!-- ANA SAYFA (Gizli) -->
-    <div id="dashboardBox" class="hidden w-full max-w-4xl">
-        <div class="bg-gray-800 rounded-2xl p-8 border border-gray-700">
-            <div class="flex justify-between items-center mb-6">
-                <h1 class="text-2xl font-bold text-white">ARTROPLUS</h1>
-                <button id="logoutBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-xl text-white font-bold">Çıkış</button>
-            </div>
-            <div class="grid grid-cols-3 gap-4">
-                <div class="bg-gray-700 rounded-xl p-6 text-center">
-                    <p class="text-gray-400 text-sm">Toplam</p>
-                    <p class="text-3xl font-bold text-blue-400" id="totalCount">0</p>
-                </div>
-                <div class="bg-gray-700 rounded-xl p-6 text-center">
-                    <p class="text-gray-400 text-sm">Bugün</p>
-                    <p class="text-3xl font-bold text-green-400" id="todayCount">0</p>
-                </div>
-                <div class="bg-gray-700 rounded-xl p-6 text-center">
-                    <p class="text-gray-400 text-sm">Durum</p>
-                    <p class="text-3xl font-bold text-yellow-400">✅</p>
+    <div class="main">
+        <div class="topbar">
+            <div style="display:flex;align-items:center;gap:16px">
+                <button class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+                <div>
+                    <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">ARTROPLUS</div>
+                    <div style="font-weight:700" id="pageTitle">Dashboard</div>
                 </div>
             </div>
-            <p class="text-gray-500 text-center mt-6 text-sm">Hoş geldiniz! Sistem çalışıyor.</p>
+            <div style="display:flex;align-items:center;gap:16px">
+                <div style="display:flex;align-items:center;gap:8px;background:#0f1a35;padding:6px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.06)">
+                    <span style="font-size:10px;color:#10b981">●</span>
+                    <span style="font-size:12px;color:#94a3b8" id="userDisplay">Kullanıcı</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding:24px 32px" id="pageContent">
+
+            <div id="page-dashboard" class="page-section">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 class="text-2xl font-bold">Dashboard</h1>
+                        <p class="text-slate-400 text-sm">Genel işletme özeti ve istatistikler</p>
+                    </div>
+                    <button class="btn-primary" onclick="loadDashboardData()">🔄 Yenile</button>
+                </div>
+                <div class="grid-4 mb-6">
+                    <div class="card">
+                        <div class="text-slate-400 text-sm">Toplam Ameliyat</div>
+                        <div class="stat-number" id="statSurgeries">0</div>
+                    </div>
+                    <div class="card">
+                        <div class="text-slate-400 text-sm">Aktif Kayıtlı Hasta</div>
+                        <div class="stat-number" id="statPatients">0</div>
+                    </div>
+                    <div class="card">
+                        <div class="text-slate-400 text-sm">Kritik Stok Uyarıları</div>
+                        <div class="stat-number" id="statCriticalProducts">0</div>
+                    </div>
+                    <div class="card">
+                        <div class="text-slate-400 text-sm">Toplam Finansal Hacim</div>
+                        <div class="stat-number" id="statRevenue">₺0</div>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="card">
+                        <h3 class="font-bold mb-4">📋 Son Eklenen Ameliyatlar</h3>
+                        <div class="overflow-x-auto">
+                            <table>
+                                <thead><tr><th>Tarih</th><th>Doktor</th><th>Hasta</th><th>Durum</th></tr></thead>
+                                <tbody id="dashboardSurgeriesTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="font-bold mb-4">⚠️ Kritik Stok Listesi</h3>
+                        <div class="overflow-x-auto">
+                            <table>
+                                <thead><tr><th>Ürün Adı</th><th>Mevcut Stok</th><th>Min. Stok</th></tr></thead>
+                                <tbody id="dashboardStockTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-surgeries" class="page-section hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div><h1 class="text-2xl font-bold">⚕️ Ameliyatlar</h1><p class="text-slate-400 text-sm">Tüm ameliyat kayıtlarını yönetin</p></div>
+                    <button class="btn-primary" onclick="openSurgeryModal()">+ Yeni Ameliyat</button>
+                </div>
+                <div class="flex gap-3 mb-4 flex-wrap">
+                    <input class="input-dark max-w-xs" id="surgerySearch" placeholder="🔍 Ara (Doktor, Hasta, Hastane)..." oninput="renderSurgeriesTable()">
+                    <button class="btn-success text-sm" onclick="exportExcel('surgeries')">📊 Excel</button>
+                    <button class="btn-primary text-sm" onclick="exportPDF('surgeries', ['Tarih', 'Saat', 'Tür', 'Hastane', 'Doktor'])">📄 PDF</button>
+                </div>
+                <div class="card p-0 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead><tr><th>Tarih</th><th>Saat</th><th>Tür</th><th>Hastane</th><th>Doktor</th><th>Hasta ID</th><th>Durum</th><th class="text-right">İşlem</th></tr></thead>
+                            <tbody id="surgeriesTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-patients" class="page-section hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div><h1 class="text-2xl font-bold">👤 Hastalar</h1><p class="text-slate-400 text-sm">Hasta kayıt ilişkilerini yönetin</p></div>
+                    <button class="btn-primary" onclick="openPatientModal()">+ Yeni Hasta</button>
+                </div>
+                <div class="flex gap-3 mb-4">
+                    <input class="input-dark max-w-xs" id="patientSearch" placeholder="🔍 Hasta Ara..." oninput="renderPatientsTable()">
+                </div>
+                <div class="card p-0 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead><tr><th>Ad Soyad</th><th>Telefon</th><th>E-posta</th><th>Doğum Tarihi</th><th class="text-right">İşlem</th></tr></thead>
+                            <tbody id="patientsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-program" class="page-section hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div><h1 class="text-2xl font-bold">📅 Haftalık Program</h1><p class="text-slate-400 text-sm">Yaklaşan ameliyat takvimi planlaması</p></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4" id="weeklyScheduleGrid">
+                    </div>
+            </div>
+
+            <div id="page-products" class="page-section hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div><h1 class="text-2xl font-bold">📦 Ürün Kataloğu</h1><p class="text-slate-400 text-sm">Ürün şablon tanımları ve asgari limitler</p></div>
+                    <button class="btn-primary" onclick="openProductModal()">+ Yeni Ürün Tanımı</button>
+                </div>
+                <div class="card p-0 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead><tr><th>Ürün Kodu</th><th>Ürün Adı</th><th>Birim</th><th>Min. Stok</th><th class="text-right">İşlem</th></tr></thead>
+                            <tbody id="productsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-stock" class="page-section hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div><h1 class="text-2xl font-bold">📊 Stok ve Ambar Yönetimi</h1><p class="text-slate-400 text-sm">Fiziksel envanter girdileri ve LOT takipleri</p></div>
+                    <button class="btn-primary" onclick="openStockModal()">+ Stok Girdisi Yap</button>
+                </div>
+                <div class="card p-0 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead><tr><th>Ürün ID</th><th>LOT / Parti No</th><th>Depo Konumu</th><th>Mevcut Miktar</th><th>Son Kullanma Tarihi</th><th class="text-right">İşlem</th></tr></thead>
+                            <tbody id="stockTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-finance" class="page-section hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div><h1 class="text-2xl font-bold">💰 Finans Defteri</h1><p class="text-slate-400 text-sm">Ameliyat hakediş ve faturalandırma kayıtları</p></div>
+                    <button class="btn-primary" onclick="openInvoiceModal()">+ Yeni Fatura Kaydı</button>
+                </div>
+                <div class="card p-0 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead><tr><th>Fatura No</th><th>Ameliyat ID</th><th>Net Tutar</th><th>Ödeme Durumu</th><th>Kayıt Tarihi</th><th class="text-right">İşlem</th></tr></thead>
+                            <tbody id="invoicesTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-reports" class="page-section hidden">
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold">📄 Gelişmiş Raporlama Odası</h1>
+                    <p class="text-slate-400 text-sm">Sistem verilerini anlık analiz raporu olarak dışa aktarın</p>
+                </div>
+                <div class="grid-2">
+                    <div class="card">
+                        <h3 class="font-bold text-lg mb-2">⚕️ Ameliyat ve Operasyon Konsolidasyonu</h3>
+                        <p class="text-slate-400 text-sm mb-4">Tüm geçmiş operasyon planlama verilerini Excel dosyası olarak indirir.</p>
+                        <button class="btn-primary" onclick="exportExcel('surgeries')">Rapor Dosyasını Üret</button>
+                    </div>
+                    <div class="card">
+                        <h3 class="font-bold text-lg mb-2">💰 Finansal Hakediş Dağılım Raporu</h3>
+                        <p class="text-slate-400 text-sm mb-4">Mevcut ciro, ödenmiş ve faturalandırılmış tüm mutabakat listesini indirir.</p>
+                        <button class="btn-primary" onclick="exportExcel('invoices')">Finansal Rapor Üret</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="page-settings" class="page-section hidden">
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold">⚙️ Sistem Ayarları</h1>
+                    <p class="text-slate-400 text-sm">Kullanıcı profili ve bağlantı durumu</p>
+                </div>
+                <div class="card max-w-xl">
+                    <h3 class="font-bold mb-4 text-brand">Oturum Açan Profil Verileri</h3>
+                    <div class="space-y-3 text-sm">
+                        <p><strong>E-posta Kontrolü:</strong> <span id="profileEmail" class="text-slate-300">Yükleniyor...</span></p>
+                        <p><strong>Yetki Kapsamı:</strong> <span class="badge badge-purple">Sistem Yöneticisi</span></p>
+                        <hr class="border-slate-800 my-4">
+                        <p><strong>Yazılım Sürümü:</strong> ARTROPLUS Enterprise v3.0</p>
+                        <p><strong>Veritabanı Motoru:</strong> Supabase PostgreSQL (Bağlı)</p>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
 
+<div class="modal-overlay" id="surgeryModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 class="text-xl font-bold text-white">Ameliyat Kayıt Formu</h2>
+            <button class="close-btn" onclick="closeModal('surgeryModal')">✕</button>
+        </div>
+        <form id="surgeryForm" onsubmit="saveSurgery(event)" class="space-y-4">
+            <input type="hidden" id="surgeryId">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs text-slate-400">Tarih</label><input type="date" id="formSurgeryDate" class="input-dark" required></div>
+                <div><label class="text-xs text-slate-400">Saat</label><input type="time" id="formSurgeryTime" class="input-dark" required></div>
+            </div>
+            <div><label class="text-xs text-slate-400">Operasyon Türü</label><input type="text" id="formSurgeryType" class="input-dark" placeholder="Örn: Total Diz Protezi" required></div>
+            <div><label class="text-xs text-slate-400">Hastane / Merkez</label><input type="text" id="formSurgeryHospital" class="input-dark" placeholder="Hastane adı" required></div>
+            <div><label class="text-xs text-slate-400">Sorumlu Doktor</label><input type="text" id="formSurgeryDoctor" class="input-dark" placeholder="Doktor Unvan Ad Soyad" required></div>
+            <div>
+                <label class="text-xs text-slate-400">İlişkili Hasta</label>
+                <select id="formSurgeryPatient" class="input-dark" required><option value="">Hasta seçiniz...</option></select>
+            </div>
+            <div>
+                <label class="text-xs text-slate-400">Mevcut Aşama Durumu</label>
+                <select id="formSurgeryStatus" class="input-dark">
+                    <option value="planned">Planlandı</option>
+                    <option value="done">Tamamlandı</option>
+                    <option value="cancelled">İptal Edildi</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-primary w-full">Veriyi Sisteme İşle</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="patientModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 class="text-xl font-bold text-white">Hasta Tanım Formu</h2>
+            <button class="close-btn" onclick="closeModal('patientModal')">✕</button>
+        </div>
+        <form id="patientForm" onsubmit="savePatient(event)" class="space-y-4">
+            <input type="hidden" id="patientId">
+            <div><label class="text-xs text-slate-400">Ad Soyad</label><input type="text" id="formPatientName" class="input-dark" required></div>
+            <div><label class="text-xs text-slate-400">Telefon Hattı</label><input type="text" id="formPatientPhone" class="input-dark" placeholder="05xx..." required></div>
+            <div><label class="text-xs text-slate-400">E-posta Adresi</label><input type="email" id="formPatientEmail" class="input-dark"></div>
+            <div><label class="text-xs text-slate-400">Doğum Tarihi</label><input type="date" id="formPatientBirth" class="input-dark"></div>
+            <button type="submit" class="btn-primary w-full">Hastayı Kaydet</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="productModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 class="text-xl font-bold text-white">Ürün Katalog Kartı</h2>
+            <button class="close-btn" onclick="closeModal('productModal')">✕</button>
+        </div>
+        <form id="productForm" onsubmit="saveProduct(event)" class="space-y-4">
+            <input type="hidden" id="productId">
+            <div><label class="text-xs text-slate-400">Ürün Referans Kodu</label><input type="text" id="formProductCode" class="input-dark" required></div>
+            <div><label class="text-xs text-slate-400">Ürün Adı</label><input type="text" id="formProductName" class="input-dark" required></div>
+            <div><label class="text-xs text-slate-400">Ölçü Birimi</label><input type="text" id="formProductUnit" class="input-dark" placeholder="Adet, Kutu vb." required></div>
+            <div><label class="text-xs text-slate-400">Kritik Eşik Limiti</label><input type="number" id="formProductMin" class="input-dark" required></div>
+            <button type="submit" class="btn-primary w-full">Ürün Kartını Kaydet</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="stockModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 class="text-xl font-bold text-white">Envanter Hareket Formu</h2>
+            <button class="close-btn" onclick="closeModal('stockModal')">✕</button>
+        </div>
+        <form id="stockForm" onsubmit="saveStock(event)" class="space-y-4">
+            <input type="hidden" id="stockId">
+            <div>
+                <label class="text-xs text-slate-400">Katalog Ürünü</label>
+                <select id="formStockProduct" class="input-dark" required><option value="">Ürün seçiniz...</option></select>
+            </div>
+            <div><label class="text-xs text-slate-400">LOT / Parti Numarası</label><input type="text" id="formStockLot" class="input-dark" placeholder="LOT Barkod No" required></div>
+            <div><label class="text-xs text-slate-400">Depo / Ambar Konumu</label><input type="text" id="formStockWarehouse" class="input-dark" placeholder="Merkez Depo A-Blok" required></div>
+            <div><label class="text-xs text-slate-400">Giriş Yapılacak Adet</label><input type="number" id="formStockQuantity" class="input-dark" required></div>
+            <div><label class="text-xs text-slate-400">Son Kullanma Tarihi (SKT)</label><input type="date" id="formStockExpiration" class="input-dark"></div>
+            <button type="submit" class="btn-primary w-full">Stok Hareketi Yarat</button>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="invoiceModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 class="text-xl font-bold text-white">Finansal Belge Girişi</h2>
+            <button class="close-btn" onclick="closeModal('invoiceModal')">✕</button>
+        </div>
+        <form id="invoiceForm" onsubmit="saveInvoice(event)" class="space-y-4">
+            <input type="hidden" id="invoiceId">
+            <div><label class="text-xs text-slate-400">Fatura Evrak No</label><input type="text" id="formInvoiceNo" class="input-dark" required></div>
+            <div>
+                <label class="text-xs text-slate-400">İlişkili Ameliyat Operasyonu</label>
+                <select id="formInvoiceSurgery" class="input-dark" required><option value="">Ameliyat seçiniz...</option></select>
+            </div>
+            <div><label class="text-xs text-slate-400">Net Fatura Tutarı (₺)</label><input type="number" id="formInvoiceAmount" class="input-dark" required></div>
+            <div>
+                <label class="text-xs text-slate-400">Tahsilat Durumu</label>
+                <select id="formInvoiceStatus" class="input-dark">
+                    <option value="paid">Tahsil Edildi (Ödendi)</option>
+                    <option value="unpaid">Beklemede (Açık Hesap)</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-primary w-full">Faturayı Kaydet</button>
+        </form>
+    </div>
+</div>
+
 <script>
-// ============================================================
-// SUPABASE BAĞLANTI
-// ============================================================
-const SB_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
-const sb = supabase.createClient(SB_URL, SB_KEY);
-
-// ============================================================
-// DOM ELEMENTLERİ
-// ============================================================
-const loginBox = document.getElementById('loginBox');
-const dashboardBox = document.getElementById('dashboardBox');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
-const loginBtn = document.getElementById('loginBtn');
-const logoutBtn = document.getElementById('logoutBtn');
-const errorMsg = document.getElementById('errorMsg');
-
-// ============================================================
-// FONKSİYONLAR
-// ============================================================
-function showError(msg) {
-    errorMsg.textContent = msg;
-    errorMsg.classList.remove('hidden');
-    setTimeout(() => errorMsg.classList.add('hidden'), 4000);
-}
-
-async function doLogin() {
-    const email = emailInput.value.trim();
-    const password = passwordInput.value.trim();
+    // ⚠️ SUPABASE APİ BAĞLANTI AYARLARI
+    // Kendi Supabase URL ve Anon Key verilerinizle değiştiriniz.
+    const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_URL.supabase.co";
+    const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY";
     
-    if (!email || !password) {
-        showError('E-posta ve şifre girin.');
-        return;
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Uygulama Belleği (State Cache)
+    let state = {
+        surgeries: [],
+        patients: [],
+        products: [],
+        stock: [],
+        invoices: [],
+        currentUser: null
+    };
+
+    // --- UYGULAMA BAŞLANGICI ---
+    document.addEventListener("DOMContentLoaded", () => {
+        setupNavigation();
+        checkUserSession();
+    });
+
+    // Oturum Kontrolü
+    async function checkUserSession() {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (session) {
+            handleAuthSuccess(session.user);
+        } else {
+            showLoginLayout();
+        }
     }
-    
-    loginBtn.disabled = true;
-    loginBtn.textContent = 'Giriş yapılıyor...';
-    
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    
-    loginBtn.disabled = false;
-    loginBtn.textContent = 'Giriş Yap';
-    
-    if (error) {
-        showError(error.message);
-        return;
-    }
-    
-    // Giriş başarılı
-    loginBox.classList.add('hidden');
-    dashboardBox.classList.remove('hidden');
-    
-    // Verileri yükle
-    loadStats();
-}
 
-async function loadStats() {
-    try {
-        const { count } = await sb.from('surgeries').select('*', { count: 'exact', head: true });
-        document.getElementById('totalCount').textContent = count || 0;
+    // Giriş İşlemi
+    async function handleLogin(e) {
+        e.preventDefault();
+        const email = document.getElementById("loginEmail").value;
+        const password = document.getElementById("loginPassword").value;
+
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+            showToast("Giriş Başarısız: " + error.message, "danger");
+        } else {
+            showToast("Başarıyla giriş yapıldı.", "success");
+            handleAuthSuccess(data.user);
+        }
+    }
+
+    // Çıkış İşlemi
+    async function handleLogout() {
+        await supabase.auth.signOut();
+        showLoginLayout();
+        showToast("Oturum kapatıldı.", "info");
+    }
+
+    function handleAuthSuccess(user) {
+        state.currentUser = user;
+        document.getElementById("loginPage").classList.add("hidden");
+        document.getElementById("appLayout").classList.remove("hidden");
+        document.getElementById("userDisplay").innerText = user.email;
+        document.getElementById("profileEmail").innerText = user.email;
+        fetchAllData();
+    }
+
+    function showLoginLayout() {
+        document.getElementById("loginPage").classList.remove("hidden");
+        document.getElementById("appLayout").classList.add("hidden");
+    }
+
+    // --- VERİ ÇEKMECELERİ (FETCH PIPELINES) ---
+    async function fetchAllData() {
+        try {
+            const [surgeries, patients, products, stock, invoices] = await Promise.all([
+                supabase.from('surgeries').select('*').order('date', { ascending: false }),
+                supabase.from('patients').select('*').order('name'),
+                supabase.from('products').select('*').order('name'),
+                supabase.from('stock').select('*'),
+                supabase.from('invoices').select('*')
+            ]);
+
+            state.surgeries = surgeries.data || [];
+            state.patients = patients.data || [];
+            state.products = products.data || [];
+            state.stock = stock.data || [];
+            state.invoices = invoices.data || [];
+
+            // Selectbox listelerini ve tabloları doldur
+            populateDropdowns();
+            refreshAllTables();
+            loadDashboardData();
+        } catch (err) {
+            showToast("Veriler senkronize edilirken hata oluştu.", "danger");
+        }
+    }
+
+    function populateDropdowns() {
+        // Ameliyat formundaki hasta seçimi
+        const patientSelect = document.getElementById("formSurgeryPatient");
+        patientSelect.innerHTML = '<option value="">Hasta seçiniz...</option>';
+        state.patients.forEach(p => {
+            patientSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+        });
+
+        // Stok formundaki ürün seçimi
+        const productSelect = document.getElementById("formStockProduct");
+        productSelect.innerHTML = '<option value="">Ürün seçiniz...</option>';
+        state.products.forEach(p => {
+            productSelect.innerHTML += `<option value="${p.id}">${p.name} (${p.code})</option>`;
+        });
+
+        // Fatura formundaki ameliyat seçimi
+        const surgerySelect = document.getElementById("formInvoiceSurgery");
+        surgerySelect.innerHTML = '<option value="">Ameliyat seçiniz...</option>';
+        state.surgeries.forEach(s => {
+            surgerySelect.innerHTML += `<option value="${s.id}">${s.date} - ${s.doctor} (${s.type})</option>`;
+        });
+    }
+
+    function refreshAllTables() {
+        renderSurgeriesTable();
+        renderPatientsTable();
+        renderProductsTable();
+        renderStockTable();
+        renderInvoicesTable();
+        renderWeeklySchedule();
+    }
+
+    // --- DASHBOARD ANALİTİKLERİ ---
+    function loadDashboardData() {
+        document.getElementById("statSurgeries").innerText = state.surgeries.length;
+        document.getElementById("statPatients").innerText = state.patients.length;
         
-        const today = new Date().toISOString().split('T')[0];
-        const { count: todayCount } = await sb.from('surgeries')
-            .select('*', { count: 'exact', head: true })
-            .eq('date', today);
-        document.getElementById('todayCount').textContent = todayCount || 0;
-    } catch(e) {
-        console.error('Veri yükleme hatası:', e);
+        // Kritik Stok Hesaplama
+        let criticalCount = 0;
+        let stockSummaryHTML = "";
+        state.products.forEach(p => {
+            const totalStock = state.stock.filter(s => s.product_id === p.id).reduce((sum, current) => sum + current.quantity, 0);
+            if (totalStock <= p.min_stock) {
+                criticalCount++;
+                stockSummaryHTML += `<tr><td>${p.name}</td><td class="text-red font-bold">${totalStock}</td><td>${p.min_stock}</td></tr>`;
+            }
+        });
+        document.getElementById("statCriticalProducts").innerText = criticalCount;
+        document.getElementById("dashboardStockTable").innerHTML = stockSummaryHTML || '<tr><td colspan="3" class="text-slate-500 text-center">Kritik limit altında ürün yok.</td></tr>';
+
+        // Finans Hacmi Hesaplama
+        const totalRevenue = state.invoices.reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0);
+        document.getElementById("statRevenue").innerText = "₺" + totalRevenue.toLocaleString('tr-TR');
+
+        // Son 5 Ameliyat Tablosu
+        let recentSurgeriesHTML = "";
+        state.surgeries.slice(0, 5).forEach(s => {
+            const patientName = state.patients.find(p => p.id === s.patient_id)?.name || "Bilinmeyen Hasta";
+            recentSurgeriesHTML += `<tr><td>${s.date}</td><td>${s.doctor}</td><td>${patientName}</td><td><span class="badge ${s.status === 'done' ? 'badge-green' : 'badge-blue'}">${s.status}</span></td></tr>`;
+        });
+        document.getElementById("dashboardSurgeriesTable").innerHTML = recentSurgeriesHTML || '<tr><td colspan="4" class="text-center">Kayıt yok.</td></tr>';
     }
-}
 
-async function doLogout() {
-    await sb.auth.signOut();
-    dashboardBox.classList.add('hidden');
-    loginBox.classList.remove('hidden');
-    emailInput.value = '';
-    passwordInput.value = '';
-}
+    // --- RELEVAN TABLO ÇİZİMLERİ (RENDERERS) ---
+    function renderSurgeriesTable() {
+        const query = document.getElementById("surgerySearch").value.toLowerCase();
+        const tbody = document.getElementById("surgeriesTable");
+        tbody.innerHTML = "";
 
-// ============================================================
-// OLAY DİNLEYİCİLER
-// ============================================================
-loginBtn.addEventListener('click', doLogin);
-logoutBtn.addEventListener('click', doLogout);
-
-passwordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doLogin();
-});
-
-emailInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doLogin();
-});
-
-// ============================================================
-// SAYFA AÇILINCA OTOMATİK KONTROL
-// ============================================================
-(async function init() {
-    const { data } = await sb.auth.getSession();
-    if (data.session) {
-        loginBox.classList.add('hidden');
-        dashboardBox.classList.remove('hidden');
-        loadStats();
+        state.surgeries.filter(s => s.doctor.toLowerCase().includes(query) || s.hospital.toLowerCase().includes(query) || s.type.toLowerCase().includes(query)).forEach(s => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${s.date}</td><td>${s.time}</td><td>${s.type}</td><td>${s.hospital}</td><td>${s.doctor}</td><td>${s.patient_id}</td>
+                    <td><span class="badge ${s.status === 'done' ? 'badge-green' : s.status === 'cancelled' ? 'badge-red' : 'badge-yellow'}">${s.status}</span></td>
+                    <td class="text-right flex justify-end gap-2">
+                        <button onclick="editSurgery('${s.id}')" class="text-brand">✏️</button>
+                        <button onclick="deleteRecord('surgeries', '${s.id}')" class="text-red">🗑️</button>
+                    </td>
+                </tr>`;
+        });
     }
-})();
+
+    function renderPatientsTable() {
+        const query = document.getElementById("patientSearch").value.toLowerCase();
+        const tbody = document.getElementById("patientsTable");
+        tbody.innerHTML = "";
+        state.patients.filter(p => p.name.toLowerCase().includes(query)).forEach(p => {
+            tbody.innerHTML += `<tr><td>${p.name}</td><td>${p.phone}</td><td>${p.email || '-'}</td><td>${p.birth_date || '-'}</td><td class="text-right"><button onclick="editPatient('${p.id}')" class="text-brand mr-2">✏️</button><button onclick="deleteRecord('patients', '${p.id}')" class="text-red">🗑️</button></td></tr>`;
+        });
+    }
+
+    function renderProductsTable() {
+        const tbody = document.getElementById("productsTable");
+        tbody.innerHTML = "";
+        state.products.forEach(p => {
+            tbody.innerHTML += `<tr><td>${p.code}</td><td>${p.name}</td><td>${p.unit}</td><td>${p.min_stock}</td><td class="text-right"><button onclick="editProduct('${p.id}')" class="text-brand mr-2">✏️</button><button onclick="deleteRecord('products', '${p.id}')" class="text-red">🗑️</button></td></tr>`;
+        });
+    }
+
+    function renderStockTable() {
+        const tbody = document.getElementById("stockTable");
+        tbody.innerHTML = "";
+        state.stock.forEach(s => {
+            tbody.innerHTML += `<tr><td>${s.product_id}</td><td>${s.lot_number}</td><td>${s.warehouse}</td><td>${s.quantity}</td><td>${s.expiration_date || '-'}</td><td class="text-right"><button onclick="deleteRecord('stock', '${s.id}')" class="text-red">🗑️</button></td></tr>`;
+        });
+    }
+
+    function renderInvoicesTable() {
+        const tbody = document.getElementById("invoicesTable");
+        tbody.innerHTML = "";
+        state.invoices.forEach(i => {
+            tbody.innerHTML += `<tr><td>${i.invoice_number}</td><td>${i.surgery_id}</td><td>₺${parseFloat(i.amount).toLocaleString('tr-TR')}</td><td><span class="badge ${i.status === 'paid' ? 'badge-green' : 'badge-yellow'}">${i.status}</span></td><td>${new Date(i.created_at).toLocaleDateString('tr-TR')}</td><td class="text-right"><button onclick="deleteRecord('invoices', '${i.id}')" class="text-red">🗑️</button></td></tr>`;
+        });
+    }
+
+    // Haftalık Ajanda Çizimi
+    function renderWeeklySchedule() {
+        const grid = document.getElementById("weeklyScheduleGrid");
+        grid.innerHTML = "";
+        const days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"];
+        
+        days.forEach((day, index) => {
+            let daySurgeriesHTML = "";
+            // Örnek basit eşleştirme mantığı: haftalık görünüm için ilgili gün adına denk gelen kayıtlar süzülebilir.
+            const filtered = state.surgeries.slice(0, 3); // Tasarımsal simülasyon amacıyla ilk kayıtlar dağıtılır
+            
+            filtered.forEach(s => {
+                daySurgeriesHTML += `<div class="bg-[#0f1a35] p-2 rounded text-xs border border-blue-900 mb-1"><strong>${s.time}</strong> - ${s.doctor}<br><span class="text-slate-400">${s.type}</span></div>`;
+            });
+
+            grid.innerHTML += `
+                <div class="card p-4">
+                    <h4 class="font-bold text-brand mb-2 border-b border-slate-800 pb-1">${day}</h4>
+                    <div class="space-y-1">${daySurgeriesHTML || '<p class="text-xs text-slate-600">Plan yok</p>'}</div>
+                </div>`;
+        });
+    }
+
+    // --- CRUD AKSİYONLARI VE KAYIT İŞLEMLERİ ---
+    async function saveSurgery(e) {
+        e.preventDefault();
+        const id = document.getElementById("surgeryId").value;
+        const payload = {
+            date: document.getElementById("formSurgeryDate").value,
+            time: document.getElementById("formSurgeryTime").value,
+            type: document.getElementById("formSurgeryType").value,
+            hospital: document.getElementById("formSurgeryHospital").value,
+            doctor: document.getElementById("formSurgeryDoctor").value,
+            patient_id: document.getElementById("formSurgeryPatient").value || null,
+            status: document.getElementById("formSurgeryStatus").value
+        };
+
+        let res;
+        if (id) { res = await supabase.from('surgeries').update(payload).eq('id', id); }
+        else { res = await supabase.from('surgeries').insert([payload]); }
+
+        if (res.error) showToast("Hata: " + res.error.message, "danger");
+        else { showToast("Ameliyat kaydedildi.", "success"); closeModal('surgeryModal'); fetchAllData(); }
+    }
+
+    async function savePatient(e) {
+        e.preventDefault();
+        const id = document.getElementById("patientId").value;
+        const payload = {
+            name: document.getElementById("formPatientName").value,
+            phone: document.getElementById("formPatientPhone").value,
+            email: document.getElementById("formPatientEmail").value,
+            birth_date: document.getElementById("formPatientBirth").value || null
+        };
+
+        let res;
+        if (id) { res = await supabase.from('patients').update(payload).eq('id', id); }
+        else { res = await supabase.from('patients').insert([payload]); }
+
+        if (res.error) showToast("Hata: " + res.error.message, "danger");
+        else { showToast("Hasta kaydedildi.", "success"); closeModal('patientModal'); fetchAllData(); }
+    }
+
+    async function saveProduct(e) {
+        e.preventDefault();
+        const id = document.getElementById("productId").value;
+        const payload = {
+            code: document.getElementById("formProductCode").value,
+            name: document.getElementById("formProductName").value,
+            unit: document.getElementById("formProductUnit").value,
+            min_stock: parseInt(document.getElementById("formProductMin").value)
+        };
+
+        let res;
+        if (id) { res = await supabase.from('products').update(payload).eq('id', id); }
+        else { res = await supabase.from('products').insert([payload]); }
+
+        if (res.error) showToast("Hata: " + res.error.message, "danger");
+        else { showToast("Ürün katalog tanımı güncellendi.", "success"); closeModal('productModal'); fetchAllData(); }
+    }
+
+    async function saveStock(e) {
+        e.preventDefault();
+        const payload = {
+            product_id: document.getElementById("formStockProduct").value,
+            lot_number: document.getElementById("formStockLot").value,
+            warehouse: document.getElementById("formStockWarehouse").value,
+            quantity: parseInt(document.getElementById("formStockQuantity").value),
+            expiration_date: document.getElementById("formStockExpiration").value || null
+        };
+
+        const { error } = await supabase.from('stock').insert([payload]);
+        if (error) showToast("Hata: " + error.message, "danger");
+        else { showToast("Stok girdisi başarılı.", "success"); closeModal('stockModal'); fetchAllData(); }
+    }
+
+    async function saveInvoice(e) {
+        e.preventDefault();
+        const payload = {
+            invoice_number: document.getElementById("formInvoiceNo").value,
+            surgery_id: document.getElementById("formInvoiceSurgery").value,
+            amount: parseFloat(document.getElementById("formInvoiceAmount").value),
+            status: document.getElementById("formInvoiceStatus").value
+        };
+
+        const { error } = await supabase.from('invoices').insert([payload]);
+        if (error) showToast("Hata: " + error.message, "danger");
+        else { showToast("Fatura kaydı mali deftere işlendi.", "success"); closeModal('invoiceModal'); fetchAllData(); }
+    }
+
+    // Kayıt Silme Fonksiyonu
+    async function deleteRecord(table, id) {
+        if (!confirm("Bu kaydı kalıcı olarak silmek istediğinize emin misiniz?")) return;
+        const { error } = await supabase.from(table).delete().eq('id', id);
+        if (error) showToast("Silme hatası: " + error.message, "danger");
+        else { showToast("Kayıt sistemden kaldırıldı.", "success"); fetchAllData(); }
+    }
+
+    // Düzenleme Form Tetikleyicileri (Edit Modları)
+    function editSurgery(id) {
+        const item = state.surgeries.find(x => x.id === id);
+        if (!item) return;
+        document.getElementById("surgeryId").value = item.id;
+        document.getElementById("formSurgeryDate").value = item.date;
+        document.getElementById("formSurgeryTime").value = item.time;
+        document.getElementById("formSurgeryType").value = item.type;
+        document.getElementById("formSurgeryHospital").value = item.hospital;
+        document.getElementById("formSurgeryDoctor").value = item.doctor;
+        document.getElementById("formSurgeryPatient").value = item.patient_id || "";
+        document.getElementById("formSurgeryStatus").value = item.status;
+        openModal('surgeryModal');
+    }
+
+    function editPatient(id) {
+        const item = state.patients.find(x => x.id === id);
+        if (!item) return;
+        document.getElementById("patientId").value = item.id;
+        document.getElementById("formPatientName").value = item.name;
+        document.getElementById("formPatientPhone").value = item.phone;
+        document.getElementById("formPatientEmail").value = item.email;
+        document.getElementById("formPatientBirth").value = item.birth_date;
+        openModal('patientModal');
+    }
+
+    function editProduct(id) {
+        const item = state.products.find(x => x.id === id);
+        if (!item) return;
+        document.getElementById("productId").value = item.id;
+        document.getElementById("formProductCode").value = item.code;
+        document.getElementById("formProductName").value = item.name;
+        document.getElementById("formProductUnit").value = item.unit;
+        document.getElementById("formProductMin").value = item.min_stock;
+        openModal('productModal');
+    }
+
+    // --- DIŞA AKTARMA MOTORLARI (EXPORT EXCEL & PDF) ---
+    function exportExcel(key) {
+        const worksheet = XLSX.utils.json_to_sheet(state[key]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, key.toUpperCase());
+        XLSX.writeFile(workbook, `ARTROPLUS_${key}_Raporu.xlsx`);
+        showToast("Excel dökümü başarıyla üretildi.", "success");
+    }
+
+    function exportPDF(key, columns) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text(`ARTROPLUS ERP - ${key.toUpperCase()} RAPORU`, 14, 15);
+        
+        const rows = state[key].map(item => columns.map(col => item[col.toLowerCase()] || ''));
+        
+        doc.autoTable({
+            head: [columns],
+            body: rows,
+            startY: 22,
+            theme: 'grid'
+        });
+        doc.save(`ARTROPLUS_${key}_Listesi.pdf`);
+        showToast("PDF Belgesi indirildi.", "success");
+    }
+
+    // --- MODAL & NAVİGASYON YÖNETİMİ ---
+    function openSurgeryModal() { document.getElementById("surgeryForm").reset(); document.getElementById("surgeryId").value = ""; openModal('surgeryModal'); }
+    function openPatientModal() { document.getElementById("patientForm").reset(); document.getElementById("patientId").value = ""; openModal('patientModal'); }
+    function openProductModal() { document.getElementById("productForm").reset(); document.getElementById("productId").value = ""; openModal('productModal'); }
+    function openStockModal() { document.getElementById("stockForm").reset(); document.getElementById("stockId").value = ""; openModal('stockModal'); }
+    function openInvoiceModal() { document.getElementById("invoiceForm").reset(); document.getElementById("invoiceId").value = ""; openModal('invoiceModal'); }
+
+    function openModal(id) { document.getElementById(id).classList.add("active"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+
+    function setupNavigation() {
+        const items = document.querySelectorAll(".sidebar-item[data-page]");
+        items.forEach(item => {
+            item.addEventListener("click", () => {
+                items.forEach(i => i.classList.remove("active"));
+                item.classList.add("active");
+                
+                const targetPage = item.getAttribute("data-page");
+                document.getElementById("pageTitle").innerText = item.innerText.replace(/[^a-zA-ZçğıöşüÇĞİÖŞÜ ]/g, '').trim();
+                
+                document.querySelectorAll(".page-section").forEach(p => p.add("hidden"));
+                const activeSection = document.getElementById(`page-${targetPage}`);
+                if (activeSection) activeSection.classList.remove("hidden");
+                
+                document.getElementById('sidebar').classList.remove('open');
+            });
+        });
+    }
+
+    // --- BİLDİRİM (TOAST) SİSTEMİ ---
+    function showToast(message, type = "info") {
+        const container = document.getElementById("toast-container");
+        const toast = document.createElement("div");
+        toast.className = `toast ${type === 'success' ? 'bg-emerald-600' : type === 'danger' ? 'bg-rose-600' : 'bg-blue-600'}`;
+        toast.innerText = message;
+        container.appendChild(toast);
+        setTimeout(() => { toast.remove(); }, 3500);
+    }
 </script>
-
 </body>
 </html>
