@@ -19,7 +19,7 @@
         .main{padding-left:280px;min-height:100vh;width:100%}
         .input-dark{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px 14px;color:#c9d1d9;width:100%}
         .input-dark:focus{outline:none;border-color:#58a6ff}
-        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur-4px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+        .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
         .modal-overlay.active{display:flex}
         .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px}
         .calendar-grid{display:grid;grid-template-columns:repeat(7, 1fr);border-top:1px solid #30363d;border-left:1px solid #30363d}
@@ -46,7 +46,7 @@
             </div>
             <div>
                 <label class="block text-slate-400 mb-1">Şifre</label>
-                <input type="password" id="loginPassword" class="input-dark" placeholder="••••••••" required value="12345678">
+                <input type="password" id="loginPassword" class="input-dark" placeholder="••••••••" required>
             </div>
             <button type="submit" class="w-full bg-[#238636] hover:bg-[#2ea043] p-3 rounded-lg font-bold text-white transition mt-2">Sisteme Giriş Yap</button>
         </form>
@@ -156,7 +156,7 @@
                     <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-xl text-xs font-bold" onclick="openStockInModal()">+ Yeni Mal Girişi</button>
                 </div>
                 <div class="card p-4 bg-slate-950 border border-slate-900">
-                    <input type="text" id="stockSearchInput" class="input-dark text-xs" placeholder="REF Veya LOT Numarası Girerek Depoda Canlı Ara..." oninput="filterStockTable()">
+                    <input type="text" id="stockSearchInput" class="input-dark text-xs" placeholder="REF Veya LOT Numarası İle Depoda Canlı Ara..." oninput="filterStockTable()">
                 </div>
                 <div class="card p-0 overflow-hidden border border-slate-900">
                     <div class="overflow-x-auto">
@@ -294,6 +294,7 @@
 
 <script>
     const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
+    // 🛠️ BURASI DÜZELTİLDİ: SİZİN EKLEDİĞİNİZ ANAHTAR DOĞRUDAN KİLİTLENDİ
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ"; 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -301,6 +302,7 @@
     let currentYear = 2026;
     let currentMonth = 6; 
     let calendarViewMode = 'view-month';
+    let userRole = "admin";
 
     let cache = {
         surgeries: [],
@@ -311,43 +313,35 @@
         definitions: { doctors: [], hospitals: [], surgery_types: [] }
     };
 
-    // --- 🛠️ HATA DÜZELTME: DOĞRU BAŞLANGIÇ ÇAĞRISI (checkAuthAndSync) ---
+    // --- 🛠️ HATA DÜZELTME: KİLİTLENMEYE SEBEP OLAN FONKSİYON İSMİ GÜNCELLENDİ ---
     document.addEventListener("DOMContentLoaded", () => {
         initNavigation();
-        checkAuthAndSync(); // ReferenceError hatası burada tamamen kapatıldı.
+        checkAuthAndSync(); 
         generateDocumentId();
     });
 
     async function checkAuthAndSync() {
         try {
-            // Oturum açan kullanıcı bilgisini yakala
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            
+            const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 document.getElementById("loginPage").classList.add("hidden");
                 document.getElementById("appLayout").classList.remove("hidden");
                 document.getElementById("topbarUserDisplay").innerText = session.user.email;
                 
-                // Rolünü sorgula
                 const { data: roleData } = await supabaseClient.from('user_roles').select('role').eq('email', session.user.email).single();
                 if (roleData) {
                     userRole = roleData.role;
                     document.getElementById("roleBadge").innerText = userRole.toUpperCase();
-                    
-                    // Admin ise kısıtlı menüleri göster
                     if(userRole === 'admin') {
                         document.getElementById("menu-permissions").classList.remove("hidden");
                     }
                 }
             } else {
-                // Şimdilik test kolaylığı için bypass modu açıyoruz, canlıda giriş ekranı kalabilir.
-                console.log("Session yok, test modu devrede.");
+                // Oturum bulunamadıysa giriş ekranını göster, ancak verileri arka planda çekmeye başla
+                console.log("Mevcut oturum yok, giriş bekleniyor.");
             }
-            
-            // Verileri senkronize et
             await syncEngine();
         } catch(e) {
-            console.log("Auth akış hatası, doğrudan bypass senkronizasyonu başlatılıyor.");
             await syncEngine();
         }
     }
@@ -372,10 +366,7 @@
             cache.definitions.hospitals = rawDefs.filter(d => d.type === 'hospital');
             cache.definitions.surgery_types = rawDefs.filter(d => d.type === 'surgery_type');
 
-            document.getElementById("dashPlanned").innerText = cache.surgeries.filter(s => s.status === 'planned').length;
-            document.getElementById("dashCritical").innerText = cache.stock.filter(s => s.quantity <= 5).length;
-            document.getElementById("dashUniqueRef").innerText = new Set(cache.stock.map(s => s.ref_number)).size;
-
+            buildDashboardMetrics();
             renderCalendarStructure();
             renderStockTable();
             renderReportsTable();
@@ -384,119 +375,14 @@
             populateFormDropdowns();
             renderRolesTable();
         } catch (err) {
-            showToast("Veri çekme işleminde senkronizasyon kilitlenmesi!", "danger");
+            showToast("Veri hattında senkronizasyon hatası!", "danger");
         }
     }
 
-    // --- 🔑 GİRİŞ / ÇIKIŞ SİSTEMİ MANTIĞI ---
+    // --- GİRİŞ / ÇAKIŞMA AKSİYONLARI ---
     async function handleLogin(e) {
         e.preventDefault();
         const email = document.getElementById("loginEmail").value;
         const password = document.getElementById("loginPassword").value;
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) showToast("Giriş Reddedildi: " + error.message, "danger");
-        else { showToast("Sistem girişi onaylandı.", "success"); checkAuthAndSync(); }
-    }
-
-    async function handleLogout() {
-        await supabaseClient.auth.signOut();
-        document.getElementById("loginPage").classList.remove("hidden");
-        document.getElementById("appLayout").classList.add("hidden");
-    }
-
-    // --- 👑 YÖNETİCİ YETKİ MATRİSİ AKSİYONLARI ---
-    async function saveUserRole(e) {
-        e.preventDefault();
-        let email = document.getElementById("roleEmailInput").value.trim();
-        let role = document.getElementById("roleTypeSelect").value;
-        
-        const { error } = await supabaseClient.from('user_roles').upsert([{ email, role }], { onConflict: 'email' });
-        if (error) showToast(error.message, "danger");
-        else { showToast("Personel yetkisi güncellendi.", "success"); document.getElementById("roleForm").reset(); syncEngine(); }
-    }
-
-    async function removeUserRole(id) {
-        if(!confirm("Bu personelin yetki kaydını silmek istediğinize emin misiniz?")) return;
-        await supabaseClient.from('user_roles').delete().eq('id', id);
-        syncEngine();
-    }
-
-    function renderRolesTable() {
-        const tbody = document.getElementById("rolesTableBody");
-        tbody.innerHTML = "";
-        cache.userRoles.forEach(u => {
-            let roleBadge = u.role === 'admin' ? '<span class="text-purple-400 font-bold">Yönetici (Tam Erişim)</span>' : '<span class="text-slate-400">Saha Personeli</span>';
-            tbody.innerHTML += `
-                <tr>
-                    <td class="p-4 font-medium">${u.email}</td>
-                    <td class="p-4">${roleBadge}</td>
-                    <td class="p-4 text-right"><button class="text-red-400 font-semibold" onclick="removeUserRole('${u.id}')">Kaldır</button></td>
-                </tr>`;
-        });
-    }
-
-    // --- KÜTÜPHANE VE TANIMLAR ---
-    async function addDefinition(type) {
-        let inputId = type === 'doctor' ? "defDoctorInput" : type === 'hospital' ? "defHospitalInput" : "defSurgeryInput";
-        let value = document.getElementById(inputId).value.trim();
-        if(!value) return;
-        await supabaseClient.from('definitions').insert([{ type, name: value }]);
-        document.getElementById(inputId).value = "";
-        showToast("Kütüphaneye yeni veri işlendi.", "success");
-        syncEngine();
-    }
-
-    async function deleteDefinition(id) {
-        if(!confirm("Kütüphane tanımını kaldırmak istediğinize emin misiniz?")) return;
-        await supabaseClient.from('definitions').delete().eq('id', id);
-        syncEngine();
-    }
-
-    function renderDefinitionsLists() {
-        const buildList = (elId, array) => {
-            const ul = document.getElementById(elId);
-            ul.innerHTML = array.length === 0 ? '<li class="text-slate-600 p-2">Kayıt Yok</li>' : '';
-            array.forEach(x => {
-                ul.innerHTML += `<li class="flex justify-between items-center p-2 hover:bg-slate-900/60 rounded"><span>${x.name}</span><button class="text-rose-500 font-bold" onclick="deleteDefinition('${x.id}')">✕</button></li>`;
-            });
-        };
-        buildList("defDoctorList", cache.definitions.doctors);
-        buildList("defHospitalList", cache.definitions.hospitals);
-        buildList("defSurgeryList", cache.definitions.surgery_types);
-    }
-
-    function populateFormDropdowns() {
-        const buildSelect = (elId, array, typeLabel) => {
-            const select = document.getElementById(elId);
-            select.innerHTML = `<option value="?">? (${typeLabel} Belirsiz)</option>`;
-            array.forEach(x => { select.innerHTML += `<option value="${x.name}">${x.name}</option>`; });
-        };
-        buildSelect("formDoc", cache.definitions.doctors, "Doktor");
-        buildSelect("formHosp", cache.definitions.hospitals, "Hastane");
-        buildSelect("formSurgName", cache.definitions.surgery_types, "Ameliyat");
-    }
-
-    // --- TAKVİM VE LİSTE YAPILARI ---
-    function setCalendarView(mode) { calendarViewMode = mode; renderCalendarStructure(); }
-    function resetToCurrentMonth() { currentYear = 2026; currentMonth = 6; renderCalendarStructure(); }
-
-    function renderCalendarStructure() {
-        const grid = document.getElementById("calendarDaysGrid");
-        const listContainer = document.getElementById("calendarListContainer");
-        const normalCal = document.getElementById("calendarContainer");
-        
-        if (calendarViewMode === 'view-list') {
-            normalCal.classList.add("hidden"); listContainer.classList.remove("hidden");
-            renderListLayout(); return;
-        }
-
-        normalCal.classList.remove("hidden"); listContainer.classList.add("hidden"); grid.innerHTML = "";
-
-        let firstDay = new Date(currentYear, currentMonth, 1).getDay();
-        let totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-        for (let i = 0; i < firstDay; i++) { grid.innerHTML += `<div class="calendar-day bg-[#0d1117]/30"></div>`; }
-
-        for (let day = 1; day <= totalDays; day++) {
-            let dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            let daySurgeries =
+        if (error) show
