@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Artro+ Medikal - Ameliyat Programı - Artroplus</title>
+    <title>Artro+ Medikal - Ameliyat Programı</title>
     <script src="https://cdn.tailwindcss.com/3.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -13,7 +13,6 @@
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Inter',sans-serif;background:#0b0f17;color:#f0f6fc;overflow-x:hidden}
         
-        /* Orijinal Artroplus Sol Menü Tasarımı */
         .sidebar{position:fixed;left:0;top:0;height:100%;width:260px;background:#060911;border-right:1px solid #161b22;padding:20px 0;z-index:100}
         .sidebar-item{display:flex;align-items:center;gap:12px;padding:14px 24px;color:#8b949e;cursor:pointer;transition:all 0.2s;font-size:13px;font-weight:500}
         .sidebar-item:hover{background:#0e121a;color:#f0f6fc}
@@ -25,35 +24,25 @@
         .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
         .modal-overlay.active{display:flex}
         
-        /* Kart Yapıları */
         .card{background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:20px}
         
-        /* Takvim Çizelgesi */
         .calendar-grid{display:grid;grid-template-columns:repeat(7, 1fr);border-top:1px solid #21262d;border-left:1px solid #21262d}
         .calendar-day{min-height:115px;padding:6px;border-right:1px solid #21262d;border-bottom:1px solid #21262d;background:#0d1117;position:relative}
         .calendar-day-header{display:flex;justify-content:flex-end;font-size:12px;color:#8b949e;font-weight:600}
         
-        /* Liste ve Hücre Elemanları */
         .event-node{background:rgba(56,139,253,0.1);border:1px solid rgba(56,139,253,0.25);color:#58a6ff;padding:3px 6px;border-radius:4px;font-size:11px;margin-top:4px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .event-node:hover{background:rgba(56,139,253,0.2)}
         
-        /* Orijinal Logo Çizimi */
         .logo-box{background:#161b22;border:1px solid #30363d;padding:6px 12px;border-radius:4px;display:flex;align-items:center;gap:6px}
-        
-        @media(max-width:1024px){.sidebar{transform:translateX(-100%);transition:transform 0.3s}.sidebar.open{transform:translateX(0)}.main{padding-left:0}}
     </style>
 </head>
 <body>
 
 <div id="toast-box" class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2"></div>
 
-<!-- ============================================================
-🔐 GİRİŞ PANELİ (TÜM SABİT VERİLERDEN ARINDIRILMIŞ TEMİZ EKRAN)
-============================================================ -->
 <div id="loginPage" class="fixed inset-0 z-[500] flex items-center justify-center bg-[#060911]">
     <div class="card w-full max-w-md p-8 bg-[#0d1117] border border-[#21262d]">
         <div class="text-center mb-6">
-            <!-- Kurumsal Logo Başlığı -->
             <div class="inline-flex items-center gap-2 bg-[#161b22] px-4 py-2 rounded border border-[#30363d] mb-2">
                 <span class="text-emerald-400 font-bold text-lg">@</span>
                 <span class="text-white font-extrabold text-base tracking-wider">ARTRO<span class="text-emerald-400">+</span></span>
@@ -74,54 +63,34 @@
     </div>
 </div>
 
-<!-- ============================================================
-💻 ANA ARTROPLUS KURUMSAL UYGULAMA PANELİ
-============================================================ -->
 <div id="appLayout" class="hidden">
-    <!-- SIDEBAR (1. VE 2. GÖRSELDEKİ ORİJİNAL SOL MENÜ) -->
     <div class="sidebar" id="sidebar">
         <div class="px-6 pb-5 border-b border-[#161b22] flex items-center justify-between">
             <div class="logo-box">
-                <!-- Sol Menü İkonlu Logo -->
                 <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                 <span class="text-white font-black text-sm tracking-wider">ARTRO<span class="text-emerald-400">+</span></span>
             </div>
             <button class="text-slate-500 hover:text-white lg:hidden" onclick="document.getElementById('sidebar').classList.remove('open')">✕</button>
         </div>
         <div class="py-4" id="menuContainer">
-            <div class="sidebar-item" data-target="dashboard">
-                <span>📊</span> Dashboard
-            </div>
-            <div class="sidebar-item" data-target="stock">
-                <span>📦</span> Depo Yönetimi
-            </div>
-            <div class="sidebar-item active" data-target="program">
-                <span>📅</span> Ameliyat Programı
-            </div>
-            <div class="sidebar-item" data-target="definitions">
-                <span>⚙️</span> Personel Atama / Tanımlar
-            </div>
-            <div class="sidebar-item hidden" id="menu-permissions" data-target="permissions">
-                <span>👑</span> Yetki Matrisi
-            </div>
-            <div class="sidebar-item" data-target="reports">
-                <span>📄</span> Konsolide Raporlar
-            </div>
+            <div class="sidebar-item" data-target="dashboard"><span>📊</span> Dashboard</div>
+            <div class="sidebar-item" data-target="stock"><span>📦</span> Depo Yönetimi</div>
+            <div class="sidebar-item active" data-target="program"><span>📅</span> Ameliyat Programı</div>
+            <div class="sidebar-item" data-target="definitions"><span>⚙️</span> Personel Atama / Tanımlar</div>
+            <div class="sidebar-item hidden" id="menu-permissions" data-target="permissions"><span>👑</span> Yetki Matrisi</div>
+            <div class="sidebar-item" data-target="reports"><span>📄</span> Konsolide Raporlar</div>
         </div>
         <div class="absolute bottom-4 left-0 right-0 px-4">
             <button onclick="handleLogout()" class="w-full bg-[#21262d] border border-[#30363d] text-xs font-semibold py-2 rounded-lg text-rose-500 hover:bg-rose-950/20 transition">🚪 Oturumu Kapat</button>
         </div>
     </div>
 
-    <!-- MAIN WORKSPACE -->
     <div class="main flex flex-col">
-        <!-- TOPBAR (GÖRSELDEKİ SAĞ ÜST AKSİYON BAR BAR BAR) -->
         <div class="w-full bg-[#060911] border-b border-[#161b22] p-4 flex justify-between items-center sticky top-0 z-50">
             <div class="flex items-center gap-3">
                 <button class="lg:hidden text-slate-400 text-xl" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
                 <h1 id="panelTitle" class="text-base font-bold text-slate-200">Ameliyat Programı</h1>
             </div>
-            <!-- Üst Sağ Bildirim ve Profil Simgeleri -->
             <div class="flex items-center gap-4">
                 <button class="text-slate-400 hover:text-white text-sm">🔔</button>
                 <button class="text-slate-400 hover:text-white text-sm">🌙</button>
@@ -134,7 +103,6 @@
 
         <div class="p-4 md:p-6 flex-1 w-full mx-auto space-y-4">
             
-            <!-- DASHBOARD -->
             <div id="view-dashboard" class="view-section hidden space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div class="card bg-[#0d1117]"><div class="text-xs text-slate-400 font-semibold uppercase">Aktif Operasyon Planı</div><div class="text-3xl font-bold text-[#58a6ff] mt-2" id="dashPlanned">0</div></div>
@@ -143,28 +111,23 @@
                 </div>
             </div>
 
-            <!-- AMELİYAT PROGRAMI (2. VE 3. GÖRSELDEKİ TAM YERLEŞİM) -->
             <div id="view-program" class="view-section space-y-4">
-                <!-- Filtre ve Kayıt Ekleme Grubu -->
                 <div class="flex justify-between items-center flex-wrap gap-3 bg-[#0d1117] p-4 rounded-lg border border-[#21262d]">
                     <div class="flex border border-[#30363d] rounded-lg overflow-hidden text-xs">
                         <button class="bg-[#1f242c] text-[#58a6ff] font-semibold px-4 py-2 border-right border-[#30363d]" onclick="showToast('Tüm operasyonlar listelendi.', 'info')">Tüm Ameliyatlar</button>
                         <button class="bg-[#0d1117] text-slate-400 font-semibold px-4 py-2 hover:text-white" onclick="showToast('Kişisel takvim filtrelendi.', 'info')">Benim Ameliyatlarım</button>
                     </div>
-                    <!-- Görseldeki Mavi Kayıt Ekle Butonu -->
                     <button class="bg-[#238636] hover:bg-[#2ea043] px-4 py-2 rounded-lg text-xs font-bold text-white transition flex items-center gap-1.5" onclick="openPlanModal()">
                         <span>+</span> Kayıt Ekle
                     </button>
                 </div>
 
-                <!-- Kolon Genişliği Kaydırıcı Slider Kontrolü -->
                 <div class="bg-[#0d1117] p-3 rounded-lg border border-[#21262d] flex items-center gap-3 text-xs text-slate-400">
                     <span>🔄 Kolon Genişliği</span>
                     <input type="range" class="w-40 accent-blue-500" min="50" max="100" value="100">
                     <span class="font-mono text-slate-300 text-[11px]">%100</span>
                 </div>
 
-                <!-- Tarih Seçici Ve Görünüm Değiştirici -->
                 <div class="flex justify-between items-center bg-[#0d1117] p-3 rounded-lg border border-[#21262d] flex-wrap gap-2">
                     <div class="flex items-center gap-1">
                         <button class="bg-[#21262d] border border-[#30363d] px-2.5 py-1 rounded-md text-xs text-slate-300 hover:text-white" onclick="changeMonth(-1)">‹</button>
@@ -174,40 +137,32 @@
                     <h2 id="calendarMonthLabel" class="text-sm font-bold text-slate-200">Temmuz 2026</h2>
                     <div class="flex border border-[#30363d] rounded-lg overflow-hidden text-xs">
                         <button id="btnViewMonth" class="bg-[#1f242c] text-[#58a6ff] px-4 py-1.5 font-medium" onclick="setCalendarView('view-month')">Ay</button>
-                        <button id="btnViewWeek" class="bg-[#0d1117] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="showToast('Haftalık görünüm yüklendi', 'info')">Hafta</button>
-                        <button id="btnViewDay" class="bg-[#0d1117] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="showToast('Günlük görünüm yüklendi', 'info')">Gün</button>
                         <button id="btnViewList" class="bg-[#0d1117] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="setCalendarView('view-list')">Liste</button>
                     </div>
                 </div>
 
-                <!-- AY GÖRÜNÜMÜ MATRİSİ -->
                 <div id="calendarContainer" class="bg-[#0d1117] border border-[#21262d] rounded-lg p-3">
                     <div class="grid grid-cols-7 text-center font-bold text-xs text-slate-400 pb-2 border-b border-[#21262d]">
                         <div>Paz</div><div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div>
                     </div>
                     <div class="calendar-grid" id="calendarDaysGrid"></div>
                 </div>
-
-                <!-- LİSTE GÖRÜNÜMÜ (3. GÖRSELDEKİ YAPININ BİREBİR KOD KARŞILIĞI) -->
                 <div id="calendarListContainer" class="hidden space-y-3"></div>
             </div>
 
-            <!-- DEPO YÖNETİMİ / GİRİŞ & ÇIKIŞ -->
             <div id="view-stock" class="view-section hidden space-y-4">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Canlı Mal Kabul / Çıkış Bölümü -->
                     <div class="card space-y-4 bg-[#0d1117]">
-                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-[#58a6ff]">📦 Canlı Barkod / Optik Mal Kabul Girişi</h3>
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-blue-400">📦 Canlı Barkod Mal Kabul Girişi</h3>
                         <div class="flex gap-2">
-                            <button class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex-1 transition" onclick="startCameraScanner('stock-in')">📷 Kamerayı Canlı Aç (+Mal Kabul)</button>
+                            <button class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex-1 transition" onclick="startCameraScanner('stock-in')">📷 Kamerayı Canlı Aç</button>
                             <button class="bg-[#21262d] border border-[#30363d] text-xs font-medium px-4 py-2 rounded-lg" onclick="stopCameraScanner()">Kapat</button>
                         </div>
-                        <div id="stockin-camera-reader" class="w-full overflow-hidden rounded-lg border border-slate-800 bg-black hidden"></div>
+                        <div id="stockin-camera-reader" class="w-full overflow-hidden rounded-lg border border-slate-800 bg-black mt-2 hidden"></div>
                         <div class="border-t border-slate-800 pt-3">
                             <button class="w-full bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-xs py-2.5 rounded-lg text-slate-200" onclick="openStockInModal()">+ Manuel Mal Kabul Girişi</button>
                         </div>
                     </div>
-                    <!-- Ambar Stok Listesi ve Arama Katsayısı -->
                     <div class="card lg:col-span-2 space-y-3 bg-[#0d1117]">
                         <input type="text" id="stockSearchInput" class="input-dark" placeholder="REF Veya LOT Numarası Girerek Ambar Stoklarında Canlı Arayın..." oninput="filterStockTable()">
                         <div class="overflow-x-auto border border-[#21262d] rounded-lg">
@@ -222,7 +177,6 @@
                 </div>
             </div>
 
-            <!-- OPERASYON TÜKETİM ÇIKILI -->
             <div id="view-consumption" class="view-section hidden space-y-4">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="card space-y-3 bg-[#0d1117]">
@@ -255,7 +209,6 @@
                 </div>
             </div>
 
-            <!-- PERSONEL ATAMA / TANIMLAR -->
             <div id="view-definitions" class="view-section hidden space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="card space-y-3 bg-[#0d1117]">
@@ -285,7 +238,6 @@
                 </div>
             </div>
 
-            <!-- PERMISSIONS YETKİ MATRİSİ -->
             <div id="view-permissions" class="view-section hidden space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="card space-y-3 bg-[#0d1117]">
@@ -308,7 +260,6 @@
                 </div>
             </div>
 
-            <!-- RAPORLAR -->
             <div id="view-reports" class="view-section hidden space-y-4">
                 <div class="card p-0 overflow-hidden bg-[#0d1117] border border-[#21262d]">
                     <div class="overflow-x-auto">
@@ -326,7 +277,6 @@
     </div>
 </div>
 
-<!-- PLANLAMA MODAL POPUP -->
 <div class="modal-overlay" id="planModal">
     <div class="modal-box bg-[#1c2128] border border-[#30363d] max-w-md w-full p-6 rounded-xl space-y-4">
         <h3 class="text-sm font-bold text-white border-b border-[#30363d] pb-2">Yeni Ameliyat Operasyonu Planla</h3>
@@ -348,7 +298,6 @@
     </div>
 </div>
 
-<!-- MANUAL MAL KABUL GİRİŞ MODAL -->
 <div class="modal-overlay" id="stockInModal">
     <div class="modal-box bg-[#1c2128] border border-[#30363d] max-w-md w-full p-6 rounded-xl space-y-4">
         <h3 class="text-sm font-bold text-white border-b border-[#30363d] pb-2">Envantere Mal Kabul Girişi</h3>
@@ -366,7 +315,6 @@
     </div>
 </div>
 
-<!-- AMELİYAT DETAY POP-UP MODALI (4. GÖRSELDEKİ YAPININ BİREBİR ARAYÜZ KARŞILIĞI) -->
 <div class="modal-overlay" id="detailModal">
     <div class="modal-box bg-[#1c2128] border border-[#30363d] max-w-md w-full p-6 rounded-xl space-y-4 shadow-2xl">
         <div class="flex justify-between items-center border-b border-[#30363d] pb-3">
@@ -375,13 +323,10 @@
             </h3>
             <button onclick="closeModal('detailModal')" class="text-slate-500 hover:text-white transition text-sm">✕</button>
         </div>
-        <div id="detailContent" class="space-y-4 text-xs">
-            <!-- Dinamik içerik buraya basılacak -->
-        </div>
+        <div id="detailContent" class="space-y-4 text-xs"></div>
     </div>
 </div>
 
-<!-- CORE LOGIC PIPELINE ENGINE -->
 <script>
     const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ"; 
@@ -389,17 +334,25 @@
 
     let html5QrcodeScanner = null;
     let currentYear = 2026;
-    let currentMonth = 6; // Temmuz
+    let currentMonth = 6; 
     let calendarViewMode = 'view-month';
     let userRole = "personel";
     let loggedInUserEmail = "";
+
+    let cache = {
+        surgeries: [],
+        stock: [],
+        consumptionRecords: [],
+        activeConsumptionItems: [],
+        userRoles: [],
+        definitions: { doctors: [], hospitals: [], surgery_types: [] }
+    };
 
     document.addEventListener("DOMContentLoaded", () => {
         initNavigation();
         checkAuthAndSync(); 
     });
 
-    // --- 🔑 GİRİŞ VE AUTH DOĞRULAMA ÇEVRİMİ ---
     async function checkAuthAndSync() {
         try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -431,6 +384,7 @@
 
     async function syncEngine() {
         try {
+            // HATA DÜZELTME: 409 Çakışma ve filtreleme hatalarını önlemek için ham veri çekilip JS tarafında süzülüyor
             const [surgeriesRes, stockRes, reportsRes, defsRes, rolesRes] = await Promise.all([
                 supabaseClient.from('surgeries').select('*'),
                 supabaseClient.from('stock').select('*'),
@@ -458,7 +412,7 @@
             populateFormDropdowns();
             renderRolesTable();
         } catch (err) {
-            showToast("Veri boru hattı senkronizasyon uyuşmazlığı!", "danger");
+            showToast("Veri hattında senkronizasyon hatası!", "danger");
         }
     }
 
@@ -467,8 +421,8 @@
         const email = document.getElementById("loginEmail").value.trim();
         const password = document.getElementById("loginPassword").value;
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) showToast("Kimlik Doğrulanamadı: " + error.message, "danger");
-        else { showToast("Giriş yapıldı.", "success"); checkAuthAndSync(); }
+        if (error) showToast("Giriş Başarısız: " + error.message, "danger");
+        else { showToast("Giriş sağlandı.", "success"); checkAuthAndSync(); }
     }
 
     async function handleLogout() {
@@ -478,11 +432,10 @@
         document.getElementById("appLayout").classList.add("hidden");
     }
 
-    // --- 📅 TAKVİM VE GÖRSEL LİSTE YÖNETİMİ (3. VE 4. GÖRSEL UYUMU) ---
     function setCalendarView(mode) {
         calendarViewMode = mode;
-        document.getElementById("btnViewMonth").className = mode === 'view-month' ? "bg-[#1f242c] text-[#58a6ff] px-4 py-1.5 font-medium" : "bg-[#0d1117] text-slate-400 px-4 py-1.5 border-l border-[#30363d]";
-        document.getElementById("btnViewList").className = mode === 'view-list' ? "bg-[#1f242c] text-[#58a6ff] px-4 py-1.5 font-medium border-l border-[#30363d]" : "bg-[#0d1117] text-slate-400 px-4 py-1.5 border-l border-[#30363d]";
+        document.getElementById("btnViewMonth").className = mode === 'view-month' ? "bg-[#1f242c] text-[#58a6ff] px-4 py-1.5 font-semibold border-right border-[#30363d]" : "bg-[#0d1117] text-slate-400 px-4 py-1.5 border-l border-[#30363d]";
+        document.getElementById("btnViewList").className = mode === 'view-list' ? "bg-[#1f242c] text-[#58a6ff] px-4 py-1.5 font-semibold border-l border-[#30363d]" : "bg-[#0d1117] text-slate-400 px-4 py-1.5 border-l border-[#30363d]";
         renderCalendarStructure();
     }
 
@@ -533,7 +486,6 @@
         }
     }
 
-    // 3. Görseldeki Ameliyat Günlük Liste Tasarım Düzeni
     function renderListLayout() {
         const listContainer = document.getElementById("calendarListContainer"); listContainer.innerHTML = "";
         let labels = ["Pazartesi - 29 Haziran 2026", "Salı - 30 Haziran 2026", "Çarşamba - 1 Temmuz 2026"];
@@ -573,7 +525,6 @@
         });
     }
 
-    // 4. GÖRSELDEKİ AMELİYAT DETAY POP-UP TASARIM YAPILANDIRMASI
     function showSurgeryDetails(id) {
         let s = cache.surgeries.find(x => x.id === id); if (!s) return;
         let creator = loggedInUserEmail || "Süleyman Asan";
@@ -600,11 +551,10 @@
                 </div>
                 <div class="border-t border-[#30363d]/50 pt-2.5"><span class="text-slate-400 block mb-0.5">Not</span><span class="text-slate-400 italic">${s.surgery_side ? 'Ameliyat Yönü: ' + s.surgery_side : '-'}</span></div>
                 
-                <!-- 4. Görseldeki Alt Aksiyon Buton Seti -->
                 <div class="flex items-center justify-between border-t border-[#30363d] pt-4 mt-2">
                     <button class="bg-[#21262d] text-rose-500 border border-[#30363d] px-4 py-2 rounded-lg font-semibold" onclick="deleteSurgery('${s.id}'); closeModal('detailModal');">Sil</button>
                     <div class="flex gap-2">
-                        <button class="bg-[#21262d] text-slate-300 border border-[#30363d] px-4 py-2 rounded-lg font-semibold" onclick="showToast('Düzenleme modülü açılıyor', 'info')">Düzenle</button>
+                        <button class="bg-[#21262d] text-slate-300 border border-[#30363d] px-4 py-2 rounded-lg font-semibold" onclick="showToast('Düzenleme modülü yetkilendirmesi bekleniyor.', 'info')">Düzenle</button>
                         <button class="bg-[#21262d] text-emerald-400 border border-[#30363d] px-4 py-2 rounded-lg font-semibold" onclick="goToConsumptionPage('${s.id}')">Evrak Ekle</button>
                         <button class="bg-[#30363d] text-slate-200 px-4 py-2 rounded-lg font-semibold" onclick="closeModal('detailModal')">Kapat</button>
                     </div>
@@ -618,7 +568,6 @@
         document.getElementById('conSurgerySelect').value = id; onConsumptionSurgeryChange();
     }
 
-    // --- OPTİK TARAMA VE KAMERA MİMARİSİ ---
     function startCameraScanner(mode) {
         if (html5QrcodeScanner) stopCameraScanner();
         let divId = mode === 'con' ? "con-camera-reader" : "stockin-camera-reader";
@@ -659,7 +608,6 @@
         renderActiveConsumptionItems();
     }
 
-    // --- VERİ KAYIT VE İŞ AKIŞLARI ---
     async function savePlannedSurgery(e) {
         e.preventDefault();
         let team = document.getElementById("formTeam").value.split(",").map(t => t.trim());
@@ -719,6 +667,14 @@
     async function addDefinition(type) {
         let id = type === 'doctor' ? "defDoctorInput" : type === 'hospital' ? "defHospitalInput" : "defSurgeryInput";
         let val = document.getElementById(id).value.trim(); if(!val) return;
+        
+        // HATA ÖNLEME: 409 Çakışmasını engellemek için mükerrer veri kontrolü tarayıcıda yapılıyor
+        let isDuplicate = cache.definitions[type === 'doctor' ? 'doctors' : type === 'hospital' ? 'hospitals' : 'surgery_types'].some(x => x.name.toLowerCase() === val.toLowerCase());
+        if(isDuplicate) {
+            showToast("Bu veri kütüphanede zaten tanımlı!", "danger");
+            return;
+        }
+
         await supabaseClient.from('definitions').insert([{ type, name: val }]);
         document.getElementById(id).value = ""; syncEngine(); showToast("Kütüphaneye işlendi.", "success");
     }
@@ -761,7 +717,8 @@
     function renderReportsTable() {
         const tbody = document.getElementById("reportsTableBody"); tbody.innerHTML = "";
         cache.consumptionRecords.forEach(r => {
-            let lines = r.items.map(i => `• REF: ${i.ref} | LOT: ${i.lot} (${i.quantity} Adet)`).join("<br>");
+            let itemsObj = typeof r.items === 'string' ? JSON.parse(r.items) : r.items;
+            let lines = itemsObj.map(i => `• REF: ${i.ref} | LOT: ${i.lot} (${i.quantity} Adet)`).join("<br>");
             tbody.innerHTML += `<tr><td class="p-3 font-bold text-blue-400">${r.surgery_name}</td><td class="p-3 font-semibold text-slate-300">${r.hospital_name}</td><td class="p-3">Dr. ${r.doctor_name}</td><td class="p-3">${r.surgery_side}</td><td class="p-3 text-slate-400">${r.team_members.join(", ")}</td><td class="p-3 text-emerald-400 font-mono text-[11px]">${lines}</td><td class="p-3 text-slate-500">${new Date(r.created_at).toLocaleDateString('tr-TR')}</td></tr>`;
         });
     }
@@ -780,7 +737,11 @@
     }
 
     async function removeUserRole(id) { await supabaseClient.from('user_roles').delete().eq('id', id); syncEngine(); }
-    function buildDashboardMetrics() {}
+    function buildDashboardMetrics() {
+        document.getElementById("dashPlanned").innerText = cache.surgeries.filter(s => s.status === 'planned').length;
+        document.getElementById("dashCritical").innerText = cache.stock.filter(s => s.quantity <= 5).length;
+        document.getElementById("dashUniqueRef").innerText = new Set(cache.stock.map(s => s.ref_number)).size;
+    }
     function onConsumptionSurgeryChange() { cache.activeConsumptionItems = []; renderActiveConsumptionItems(); }
     function handleConsumptionBarcode(e) { if (e.key === 'Enter') { if (!e.target.value) return; processScannedItem(e.target.value); e.target.value = ""; } }
 
