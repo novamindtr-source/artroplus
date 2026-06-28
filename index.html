@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Artroplus Medikal - Ameliyat Programı & Envanter</title>
+    <title>Artroplus Medikal - Yetki Kontrollü Yönetim Platformu</title>
     <script src="https://cdn.tailwindcss.com/3.4.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -12,6 +12,7 @@
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Inter',sans-serif;background:#0d1117;color:#f0f6fc;overflow-x:hidden}
+        .glass{background:rgba(8,14,28,0.96);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.06)}
         .sidebar{position:fixed;left:0;top:0;height:100%;width:260px;background:#090d16;border-right:1px solid #21262d;padding:24px 0;z-index:100}
         .sidebar-item{display:flex;align-items:center;gap:12px;padding:12px 24px;color:#8b949e;cursor:pointer;transition:all 0.2s;font-size:14px;font-weight:500}
         .sidebar-item:hover{background:rgba(255,255,255,0.03);color:#f0f6fc}
@@ -22,7 +23,6 @@
         .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
         .modal-overlay.active{display:flex}
         .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px}
-        /* Takvim Kareleri */
         .calendar-grid{display:grid;grid-template-columns:repeat(7, 1fr);border-top:1px solid #30363d;border-left:1px solid #30363d}
         .calendar-day{min-height:110px;padding:8px;border-right:1px solid #30363d;border-bottom:1px solid #30363d;background:#161b22;position:relative}
         .calendar-day-header{display:flex;justify-content:flex-end;font-size:12px;color:#8b949e;margin-bottom:6px}
@@ -34,128 +34,132 @@
 
 <div id="toast-box" class="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2"></div>
 
-<!-- SIDEBAR -->
-<div class="sidebar" id="sidebar">
-    <div class="px-6 pb-6 border-b border-slate-800 flex items-center justify-between">
-        <div class="bg-[#1f242c] p-2 rounded border border-slate-700 font-bold text-sm tracking-wide text-[#58a6ff]">ARTRO+</div>
-        <div class="text-[10px] text-slate-500 font-mono">v6.5 Pro-Max</div>
-    </div>
-    <div class="py-6" id="menuContainer">
-        <div class="sidebar-item" data-target="dashboard">📊 Dashboard</div>
-        <div class="sidebar-item active" data-target="program">📅 Ameliyat Programı</div>
-        <div class="sidebar-item" data-target="consumption">⚕️ Depo Yönetimi / Çıkış</div>
-        <div class="sidebar-item" data-target="stock">📦 Envanter Kontrol / Giriş</div>
-        <div class="sidebar-item" data-target="definitions">⚙️ Tanımlamalar Paneli</div>
-        <div class="sidebar-item" data-target="reports">📄 Konsolide Raporlar</div>
+<!-- ============================================================
+🔐 GİRİŞ PANELİ (AUTH & ROLE VERIFICATION)
+============================================================ -->
+<div id="loginPage" class="fixed inset-0 z-[500] flex items-center justify-center bg-[#0d1117]">
+    <div class="card w-full max-w-md p-8 bg-[#161b22] border border-[#30363d]">
+        <div class="text-center mb-6">
+            <div class="text-3xl font-black tracking-wider text-[#58a6ff]">SurgiFlow</div>
+            <p class="text-slate-400 text-xs mt-1">Enterprise Sistem Güvenlik Girişi</p>
+        </div>
+        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4 text-xs">
+            <div>
+                <label class="block text-slate-400 mb-1">Kurumsal E-posta</label>
+                <input type="email" id="loginEmail" class="input-dark" placeholder="ornek@artroplus.com" required>
+            </div>
+            <div>
+                <label class="block text-slate-400 mb-1">Şifre</label>
+                <input type="password" id="loginPassword" class="input-dark" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="w-full bg-[#238636] hover:bg-[#2ea043] p-3 rounded-lg font-bold text-white transition mt-2">Güvenli Giriş Yap</button>
+        </form>
     </div>
 </div>
 
-<!-- MAIN WORKSPACE -->
-<div class="main flex flex-col">
-    <!-- TOPBAR -->
-    <div class="w-full bg-[#161b22] border-b border-[#30363d] p-4 flex justify-between items-center sticky top-0 z-50">
-        <div class="flex items-center gap-3">
-            <button class="lg:hidden text-2xl text-slate-400" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
-            <h1 id="panelTitle" class="text-base font-semibold text-slate-200">Ameliyat Programı</h1>
+<!-- ============================================================
+💻 ANA UYGULAMA PANELİ (Giriş Sonrası Aktifleşir)
+============================================================ -->
+<div id="appLayout" class="hidden">
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+        <div class="px-6 pb-6 border-b border-slate-800 flex items-center justify-between">
+            <div class="bg-[#1f242c] p-2 rounded border border-slate-700 font-bold text-sm tracking-wide text-[#58a6ff]">ARTRO+</div>
+            <div id="roleBadge" class="text-[9px] bg-purple-950 text-purple-400 border border-purple-900 px-1.5 py-0.5 rounded font-bold uppercase">Yükleniyor</div>
         </div>
-        <div class="flex items-center gap-4">
-            <span class="text-xs text-slate-400 font-mono">Kullanıcı: <strong>Süleyman Asan</strong></span>
+        <div class="py-6" id="menuContainer">
+            <div class="sidebar-item" data-target="dashboard">📊 Dashboard</div>
+            <div class="sidebar-item active" data-target="program">📅 Ameliyat Programı</div>
+            <div class="sidebar-item" data-target="consumption">⚕️ Depo Yönetimi / Çıkış</div>
+            <div class="sidebar-item" data-target="stock">📦 Envanter Kontrol / Giriş</div>
+            <!-- YALNIZCA ADMİNİN GÖRECEĞİ MODÜL -->
+            <div class="sidebar-item hidden" id="menu-definitions" data-target="definitions">⚙️ Tanımlamalar Paneli (Yönetici)</div>
+            <div class="sidebar-item" data-target="reports">📄 Konsolide Raporlar</div>
+        </div>
+        <div class="absolute bottom-6 left-0 right-0 px-4">
+            <button onclick="handleLogout()" class="w-full bg-[#21262d] border border-[#30363d] text-xs font-semibold py-2 rounded-lg text-rose-500 hover:bg-rose-950/20 transition">🚪 Oturumu Kapat</button>
         </div>
     </div>
 
-    <div class="p-4 md:p-8 flex-1 w-full mx-auto space-y-6">
-        
-        <!-- DASHBOARD -->
-        <div id="view-dashboard" class="view-section hidden space-y-6">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Planlanan Operasyon</div><div class="text-3xl font-bold text-blue-400 mt-2" id="dashPlanned">0</div></div>
-                <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Kritik Limit Altı Stok (≤5)</div><div class="text-3xl font-bold text-amber-500 mt-2" id="dashCritical">0</div></div>
-                <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Benzersiz REF Envanter Kartı</div><div class="text-3xl font-bold text-emerald-400 mt-2" id="dashUniqueRef">0</div></div>
+    <!-- WORKSPACE -->
+    <div class="main flex flex-col">
+        <div class="w-full bg-[#161b22] border-b border-[#30363d] p-4 flex justify-between items-center sticky top-0 z-50">
+            <div class="flex items-center gap-3">
+                <button class="lg:hidden text-2xl text-slate-400" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+                <h1 id="panelTitle" class="text-base font-semibold text-slate-200">Ameliyat Programı</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-xs text-slate-400 font-mono">Aktif Oturum: <strong id="topbarUserDisplay">...</strong></span>
             </div>
         </div>
 
-        <!-- AMELİYAT PROGRAMLAMA PANELİ (GÖRSEL ŞABLONLA BİREBİR UYUMLU) -->
-        <div id="view-program" class="view-section space-y-4">
-            <!-- Üst Kontrol Kumanda Alanı -->
-            <div class="flex justify-between items-center flex-wrap gap-4 bg-[#161b22] p-4 rounded-xl border border-[#30363d]">
-                <div class="flex gap-2">
-                    <button class="bg-[#21262d] text-xs font-semibold px-4 py-2 rounded-lg border border-[#30363d] text-[#58a6ff]" onclick="showToast('Tüm ameliyat akışları listelendi.', 'info')">Tüm Ameliyatlar</button>
-                    <button class="bg-[#161b22] text-xs font-semibold px-4 py-2 rounded-lg text-slate-400 hover:text-white" onclick="showToast('Kendi ameliyatlarınız filtrelendi.', 'info')">Benim Ameliyatlarım</button>
-                </div>
-                <button class="bg-[#238636] hover:bg-[#2ea043] px-5 py-2 rounded-lg text-xs font-bold text-white transition flex items-center gap-1.5" onclick="openPlanModal()">
-                    <span class="text-sm">+</span> Kayıt Ekle
-                </button>
-            </div>
-
-            <!-- Slider Kontrolü -->
-            <div class="bg-[#161b22] p-3 rounded-xl border border-[#30363d] flex items-center gap-4 text-xs text-slate-400">
-                <span>🔄 Kolon Genişliği</span>
-                <input type="range" class="w-48 accent-blue-500" min="50" max="100" value="100">
-                <span class="font-mono">%100</span>
-            </div>
-
-            <!-- Takvim Görünüm Navigasyonu -->
-            <div class="flex justify-between items-center bg-[#161b22] p-3 rounded-xl border border-[#30363d] flex-wrap gap-3">
-                <div class="flex items-center gap-1">
-                    <button class="bg-[#21262d] border border-[#30363d] p-1.5 rounded-lg text-xs" onclick="changeMonth(-1)">‹</button>
-                    <button class="bg-[#21262d] border border-[#30363d] p-1.5 rounded-lg text-xs" onclick="changeMonth(1)">›</button>
-                    <button class="bg-[#21262d] border border-[#30363d] px-3 py-1.5 rounded-lg text-xs ml-1" onclick="resetToCurrentMonth()">Bugün</button>
-                </div>
-                <h2 id="calendarMonthLabel" class="text-sm font-bold text-slate-200">Temmuz 2026</h2>
-                <div class="flex border border-[#30363d] rounded-lg overflow-hidden text-xs font-medium">
-                    <button class="bg-[#21262d] text-[#58a6ff] px-4 py-1.5" onclick="setCalendarView('view-month')">Ay</button>
-                    <button class="bg-[#161b22] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="setCalendarView('view-week')">Hafta</button>
-                    <button class="bg-[#161b22] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="setCalendarView('view-day')">Gün</button>
-                    <button class="bg-[#161b22] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="setCalendarView('view-list')">Liste</button>
+        <div class="p-4 md:p-8 flex-1 w-full mx-auto space-y-6">
+            
+            <!-- DASHBOARD -->
+            <div id="view-dashboard" class="view-section hidden space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Planlanan Operasyon</div><div class="text-3xl font-bold text-blue-400 mt-2" id="dashPlanned">0</div></div>
+                    <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Kritik Limit Altı Stok (≤5)</div><div class="text-3xl font-bold text-amber-500 mt-2" id="dashCritical">0</div></div>
+                    <div class="card"><div class="text-xs font-semibold text-slate-400 uppercase">Benzersiz REF Envanter Kartı</div><div class="text-3xl font-bold text-emerald-400 mt-2" id="dashUniqueRef">0</div></div>
                 </div>
             </div>
 
-            <!-- DİNAMİK AY GÖRÜNÜMÜ -->
-            <div id="calendarContainer" class="card p-4">
-                <div class="grid grid-cols-7 text-center font-bold text-xs text-slate-400 pb-3">
-                    <div>Paz</div><div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div>
-                </div>
-                <div class="calendar-grid" id="calendarDaysGrid"></div>
-            </div>
-
-            <!-- DİNAMİK LİSTE GÖRÜNÜMÜ (3. Görseldeki Yapı) -->
-            <div id="calendarListContainer" class="hidden space-y-4">
-                <!-- Gün bazlı ameliyat listeleri buraya basılacak -->
-            </div>
-        </div>
-
-        <!-- OPERASYON TÜKETİM -->
-        <div id="view-consumption" class="view-section hidden space-y-4">
-            <div class="flex justify-between items-center flex-wrap gap-3">
-                <div><h2 class="text-lg font-bold">⚕️ Ameliyathane Gerçek Zamanlı Tüketim İstasyonu</h2></div>
-                <div class="text-xs px-3 py-1.5 bg-blue-950/40 border border-blue-900/40 rounded-lg font-mono text-blue-400">
-                    Sistem Belge No: <span id="dynamicDocumentId">...</span>
-                </div>
-            </div>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="card space-y-4 h-fit">
-                    <h3 class="text-sm font-bold border-b border-slate-800 pb-2">1. Operasyon Bağlam Seçimi</h3>
-                    <div>
-                        <label class="text-xs text-slate-400 block mb-1">Aktif Cerrahi Plan</label>
-                        <select id="conSurgerySelect" class="input-dark text-xs" onchange="onConsumptionSurgeryChange()"><option value="">Seçiniz...</option></select>
+            <!-- AMELİYAT PROGRAMI -->
+            <div id="view-program" class="view-section space-y-4">
+                <div class="flex justify-between items-center flex-wrap gap-4 bg-[#161b22] p-4 rounded-xl border border-[#30363d]">
+                    <div class="flex gap-2">
+                        <button class="bg-[#21262d] text-xs font-semibold px-4 py-2 rounded-lg border border-[#30363d] text-[#58a6ff]">Tüm Ameliyatlar</button>
                     </div>
-                    <div><label class="text-xs text-slate-400 block mb-1">Cerrahi Müdahale Tarafı</label><select id="conSurgerySide" class="input-dark text-xs"><option value="Sağ">Sağ</option><option value="Sol">Sol</option><option value="Bilateral">Bilateral</option></select></div>
-                    
-                    <div class="border-t border-slate-900 pt-4 space-y-2">
-                        <label class="text-xs text-amber-500 block font-bold">📷 Mobil Kamera Canlı Tarayıcı</label>
-                        <div class="flex gap-2">
-                            <button class="bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold px-4 py-2.5 rounded-xl flex-1 transition" onclick="startCameraScanner('con')">Kamerayı Canlı Aç</button>
-                            <button class="bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-bold px-4 py-2.5 rounded-xl transition" onclick="stopCameraScanner()">Kapat</button>
+                    <button class="bg-[#238636] hover:bg-[#2ea043] px-5 py-2 rounded-lg text-xs font-bold text-white transition flex items-center gap-1.5" onclick="openPlanModal()">
+                        <span class="text-sm">+</span> Kayıt Ekle
+                    </button>
+                </div>
+
+                <div class="bg-[#161b22] p-3 rounded-xl border border-[#30363d] flex items-center gap-4 text-xs text-slate-400">
+                    <span>🔄 Kolon Genişliği</span>
+                    <input type="range" class="w-48 accent-blue-500" min="50" max="100" value="100">
+                    <span class="font-mono">%100</span>
+                </div>
+
+                <div class="flex justify-between items-center bg-[#161b22] p-3 rounded-xl border border-[#30363d] flex-wrap gap-3">
+                    <div class="flex items-center gap-1">
+                        <button class="bg-[#21262d] border border-[#30363d] p-1.5 rounded-lg text-xs" onclick="changeMonth(-1)">‹</button>
+                        <button class="bg-[#21262d] border border-[#30363d] p-1.5 rounded-lg text-xs" onclick="changeMonth(1)">›</button>
+                        <button class="bg-[#21262d] border border-[#30363d] px-3 py-1.5 rounded-lg text-xs ml-1" onclick="resetToCurrentMonth()">Bugün</button>
+                    </div>
+                    <h2 id="calendarMonthLabel" class="text-sm font-bold text-slate-200">Temmuz 2026</h2>
+                    <div class="flex border border-[#30363d] rounded-lg overflow-hidden text-xs font-medium">
+                        <button class="bg-[#21262d] text-[#58a6ff] px-4 py-1.5" onclick="setCalendarView('view-month')">Ay</button>
+                        <button class="bg-[#161b22] text-slate-400 px-4 py-1.5 border-l border-[#30363d]" onclick="setCalendarView('view-list')">Liste</button>
+                    </div>
+                </div>
+
+                <div id="calendarContainer" class="card p-4">
+                    <div class="grid grid-cols-7 text-center font-bold text-xs text-slate-400 pb-3">
+                        <div>Paz</div><div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div>
+                    </div>
+                    <div class="calendar-grid" id="calendarDaysGrid"></div>
+                </div>
+                <div id="calendarListContainer" class="hidden space-y-4"></div>
+            </div>
+
+            <!-- OPERASYON TÜKETİM -->
+            <div id="view-consumption" class="view-section hidden space-y-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="card space-y-4 h-fit">
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2">1. Operasyon Bağlam Seçimi</h3>
+                        <div>
+                            <label class="text-xs text-slate-400 block mb-1">Aktif Cerrahi Plan</label>
+                            <select id="conSurgerySelect" class="input-dark text-xs" onchange="onConsumptionSurgeryChange()"><option value="">Seçiniz...</option></select>
                         </div>
-                        <div id="con-camera-reader" class="w-full overflow-hidden rounded-xl border border-slate-800 bg-black mt-2"></div>
+                        <div><label class="text-xs text-slate-400 block mb-1">Cerrahi Müdahale Tarafı</label><select id="conSurgerySide" class="input-dark text-xs"><option value="Sağ">Sağ</option><option value="Sol">Sol</option><option value="Bilateral">Bilateral</option></select></div>
+                        <div class="border-t border-slate-900 pt-4 space-y-2">
+                            <button class="bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold px-4 py-2.5 rounded-xl w-full transition" onclick="startCameraScanner('con')">Kamerayı Canlı Aç</button>
+                            <div id="con-camera-reader" class="w-full overflow-hidden rounded-xl border border-slate-800 bg-black mt-2"></div>
+                        </div>
+                        <input type="text" id="conBarcodeReader" class="input-dark text-xs font-mono mt-2" placeholder="Klavye girişi..." onkeypress="handleConsumptionBarcode(event)">
                     </div>
-                    <div class="border-t border-slate-900 pt-2">
-                        <input type="text" id="conBarcodeReader" class="input-dark text-xs font-mono" placeholder="Klavye veya el terminali ile giriş..." onkeypress="handleConsumptionBarcode(event)">
-                    </div>
-                </div>
-                <div class="card lg:col-span-2 flex flex-col justify-between">
-                    <div>
-                        <h3 class="text-sm font-bold mb-3 text-slate-300">📦 Çıkışı Yapılacak Malzeme Sepeti (REF + LOT)</h3>
+                    <div class="card lg:col-span-2 flex flex-col justify-between">
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs">
                                 <thead class="text-slate-500 border-b border-slate-900 uppercase text-[10px] tracking-wider">
@@ -164,90 +168,78 @@
                                 <tbody id="conItemsTableBody" class="divide-y divide-slate-900 font-mono"></tbody>
                             </table>
                         </div>
+                        <button class="w-full bg-emerald-600 hover:bg-emerald-700 p-4 rounded-xl text-xs font-bold transition mt-6" onclick="submitConsumption()">Mal Hareket Kaydını Onayla</button>
                     </div>
-                    <button class="w-full bg-emerald-600 hover:bg-emerald-700 p-4 rounded-xl text-xs font-bold transition mt-6" onclick="submitConsumption()">Mal Hareket Kaydını Onayla ve Envanteri Güncelleyin</button>
                 </div>
             </div>
-        </div>
 
-        <!-- ENVANTER SORGULAMA -->
-        <div id="view-stock" class="view-section hidden space-y-4">
-            <div class="flex justify-between items-center flex-wrap gap-4">
-                <div><h2 class="text-lg font-bold">📦 Ambar Stok Listesi & Dijital Mal Kabul İstasyonu</h2></div>
-                <div class="flex gap-2 w-full sm:w-auto">
-                    <button class="bg-amber-600 hover:bg-amber-700 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2" onclick="startCameraScanner('stock-in')">📷 Kamerayla Hızlı Mal Kabul (+Stok)</button>
-                    <button class="bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition" onclick="openStockInModal()">+ Manuel Giriş</button>
+            <!-- ENVANTER SORGULAMA -->
+            <div id="view-stock" class="view-section hidden space-y-4">
+                <div class="flex justify-between items-center flex-wrap gap-4">
+                    <h2 class="text-lg font-bold">📦 Ambar Stok Listesi & Mal Kabul Girişi</h2>
+                    <button class="bg-amber-600 hover:bg-amber-700 px-4 py-2.5 rounded-xl text-xs font-bold transition" onclick="startCameraScanner('stock-in')">📷 Kamerayla Mal Kabul</button>
                 </div>
-            </div>
-            <div id="stockin-camera-reader" class="w-full max-w-md mx-auto overflow-hidden rounded-xl border border-slate-800 bg-black hidden mt-2"></div>
-
-            <div class="card p-4 bg-slate-950 border border-slate-900 flex flex-col md:flex-row gap-3 items-center">
-                <div class="w-full md:flex-1 relative">
-                    <input type="text" id="stockSearchInput" class="input-dark text-xs pl-10" placeholder="REF Veya LOT Numarası Girerek Depoyu Süzün..." oninput="filterStockTable()">
-                    <span class="absolute left-3.5 top-3.5 text-slate-500 text-xs">🔍</span>
+                <div id="stockin-camera-reader" class="w-full max-w-md mx-auto overflow-hidden rounded-xl border border-slate-800 bg-black hidden mt-2"></div>
+                <div class="card p-4 bg-slate-950 border border-slate-900">
+                    <input type="text" id="stockSearchInput" class="input-dark text-xs" placeholder="REF Veya LOT Numarası İle Depoda Canlı Ara..." oninput="filterStockTable()">
                 </div>
-                <button class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition" onclick="startCameraScanner('search')">📷 Kamerayla Ara</button>
-            </div>
-            <div id="search-camera-reader" class="w-full max-w-sm mx-auto overflow-hidden rounded-xl border border-slate-800 bg-black hidden mt-2"></div>
-
-            <div class="card p-0 overflow-hidden border border-slate-900">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider">
-                            <tr><th class="p-4">Ürün Kodu (REF)</th><th class="p-4">Lot / Seri No</th><th class="p-4">Miyad (SKT)</th><th class="p-4">Mevcut Bakiye</th><th class="p-4">Depo Konumu</th></tr>
-                        </thead>
-                        <tbody id="stockTableBody" class="divide-y divide-slate-900/60 font-mono"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- TANIMLAMALAR PANELI -->
-        <div id="view-definitions" class="view-section hidden space-y-6">
-            <div><h2 class="text-lg font-bold">⚙️ Master Data / Dinamik Tanımlamalar Kütüphanesi</h2></div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="card space-y-4">
-                    <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-blue-400">👨‍⚕️ Doktor Listesi</h3>
-                    <div class="flex gap-2">
-                        <input type="text" id="defDoctorInput" class="input-dark text-xs" placeholder="Doktor Adı Soyadı...">
-                        <button class="bg-blue-600 hover:bg-blue-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('doctor')">Ekle</button>
+                <div class="card p-0 overflow-hidden border border-slate-900">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider">
+                                <tr><th class="p-4">Ürün Kodu (REF)</th><th class="p-4">Lot / Seri No</th><th class="p-4">Miyad (SKT)</th><th class="p-4">Mevcut Bakiye</th><th class="p-4">Depo Konumu</th></tr>
+                            </thead>
+                            <tbody id="stockTableBody" class="divide-y divide-slate-900/60 font-mono"></tbody>
+                        </table>
                     </div>
-                    <ul id="defDoctorList" class="text-xs space-y-2 divide-y divide-slate-900 max-h-60 overflow-y-auto"></ul>
-                </div>
-                <div class="card space-y-4">
-                    <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-emerald-400">🏥 Hastane Merkezleri</h3>
-                    <div class="flex gap-2">
-                        <input type="text" id="defHospitalInput" class="input-dark text-xs" placeholder="Hastane Adı...">
-                        <button class="bg-emerald-600 hover:bg-emerald-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('hospital')">Ekle</button>
-                    </div>
-                    <ul id="defHospitalList" class="text-xs space-y-2 divide-y divide-slate-900 max-h-60 overflow-y-auto"></ul>
-                </div>
-                <div class="card space-y-4">
-                    <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-amber-400">Prosedür / Ameliyat Türleri</h3>
-                    <div class="flex gap-2">
-                        <input type="text" id="defSurgeryInput" class="input-dark text-xs" placeholder="Ameliyat Türü...">
-                        <button class="bg-amber-600 hover:bg-amber-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('surgery_type')">Ekle</button>
-                    </div>
-                    <ul id="defSurgeryList" class="text-xs space-y-2 divide-y divide-slate-900 max-h-60 overflow-y-auto"></ul>
                 </div>
             </div>
-        </div>
 
-        <!-- RAPORLAR -->
-        <div id="view-reports" class="view-section hidden space-y-4">
-            <div><h2 class="text-lg font-bold">📄 Konsolide Cerrahi Ekip Tüketim Raporları</h2></div>
-            <div class="card p-0 overflow-hidden border border-slate-900">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider">
-                            <tr><th class="p-4">Ameliyat Türü</th><th class="p-4">Hastane Adı</th><th class="p-4">Sorumlu Cerrahi Hekim</th><th class="p-4">Taraf</th><th class="p-4">Görevli Cerrahi Kadro</th><th class="p-4">Tüketilen REF+LOT Detayları</th><th class="p-4">İşlem Tarihi</th></tr>
-                        </thead>
-                        <tbody id="reportsTableBody" class="divide-y divide-slate-900/60"></tbody>
-                    </table>
+            <!-- TANIMLAMALAR (ADMİN ÖZEL) -->
+            <div id="view-definitions" class="view-section hidden space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card space-y-4">
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-blue-400">👨‍⚕️ Doktor Kütüphanesi</h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="defDoctorInput" class="input-dark text-xs" placeholder="Doktor Adı Soyadı...">
+                            <button class="bg-blue-600 hover:bg-blue-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('doctor')">Ekle</button>
+                        </div>
+                        <ul id="defDoctorList" class="text-xs space-y-2 max-h-60 overflow-y-auto"></ul>
+                    </div>
+                    <div class="card space-y-4">
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-emerald-400">🏥 Hastane Kütüphanesi</h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="defHospitalInput" class="input-dark text-xs" placeholder="Hastane Adı...">
+                            <button class="bg-emerald-600 hover:bg-emerald-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('hospital')">Ekle</button>
+                        </div>
+                        <ul id="defHospitalList" class="text-xs space-y-2 max-h-60 overflow-y-auto"></ul>
+                    </div>
+                    <div class="card space-y-4">
+                        <h3 class="text-sm font-bold border-b border-slate-800 pb-2 text-amber-400">✂️ Ameliyat Türü Kütüphanesi</h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="defSurgeryInput" class="input-dark text-xs" placeholder="Ameliyat Türü...">
+                            <button class="bg-amber-600 hover:bg-amber-700 px-3 rounded-lg text-xs font-bold" onclick="addDefinition('surgery_type')">Ekle</button>
+                        </div>
+                        <ul id="defSurgeryList" class="text-xs space-y-2 max-h-60 overflow-y-auto"></ul>
+                    </div>
                 </div>
             </div>
-        </div>
 
+            <!-- RAPORLAR -->
+            <div id="view-reports" class="view-section hidden space-y-4">
+                <div class="card p-0 overflow-hidden border border-slate-900">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider">
+                                <tr><th class="p-4">Ameliyat Türü</th><th class="p-4">Hastane Adı</th><th class="p-4">Sorumlu Cerrahi Hekim</th><th class="p-4">Taraf</th><th class="p-4">Görevli Cerrahi Kadro</th><th class="p-4">Tüketilen REF+LOT Kalemleri</th><th class="p-4">İşlem Tarihi</th></tr>
+                            </thead>
+                            <tbody id="reportsTableBody" class="divide-y divide-slate-900/60"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 
@@ -256,27 +248,18 @@
     <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
         <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Yeni Ameliyat Operasyonu Planla</h3>
         <form id="planForm" onsubmit="savePlannedSurgery(event)" class="space-y-3 text-xs">
-            <div>
-                <label class="text-slate-400 block mb-1">Sorumlu Doktor</label>
-                <select id="formDoc" class="input-dark text-xs" required></select>
-            </div>
-            <div>
-                <label class="text-slate-400 block mb-1">Hastane / Merkez Adı</label>
-                <select id="formHosp" class="input-dark text-xs" required></select>
-            </div>
-            <div>
-                <label class="text-slate-400 block mb-1">Ameliyat / Prosedür Türü</label>
-                <select id="formSurgName" class="input-dark text-xs" required></select>
-            </div>
+            <div><label class="text-slate-400 block mb-1">Sorumlu Doktor</label><select id="formDoc" class="input-dark text-xs" required></select></div>
+            <div><label class="text-slate-400 block mb-1">Hastane / Merkez Adı</label><select id="formHosp" class="input-dark text-xs" required></select></div>
+            <div><label class="text-slate-400 block mb-1">Ameliyat / Prosedür Türü</label><select id="formSurgName" class="input-dark text-xs" required></select></div>
             <div class="grid grid-cols-2 gap-2">
                 <div><label class="text-slate-400 block mb-1">Tarih</label><input type="date" id="formDate" class="input-dark text-xs" required></div>
-                <div><label class="text-slate-400 block mb-1">Saat (Net Değilse Seçmeyin)</label><input type="time" id="formTime" class="input-dark text-xs"></div>
+                <div><label class="text-slate-400 block mb-1">Saat (Net Değilse Boş Bırakın)</label><input type="time" id="formTime" class="input-dark text-xs"></div>
             </div>
-            <div><label class="text-slate-400 block mb-1">Operasyona Katılan Personeller (Virgülle Ayırın)</label><input type="text" id="formTeam" class="input-dark text-xs" placeholder="Örn: Hem. Merve, Tek. Can" required></div>
-            <div><label class="text-slate-400 block mb-1">Özel Rapor / Operasyon Notu</label><input type="text" id="formNote" class="input-dark text-xs" placeholder="Ekstra detay veya açıklama notu..."></div>
+            <div><label class="text-slate-400 block mb-1">Operasyona Katılan Personeller</label><input type="text" id="formTeam" class="input-dark text-xs" placeholder="Örn: Hem. Merve, Tek. Can" required></div>
+            <div><label class="text-slate-400 block mb-1">Özel Rapor / Operasyon Notu</label><input type="text" id="formNote" class="input-dark text-xs" placeholder="Ekstra detay notu..."></div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-900">
                 <button type="button" class="px-4 py-2 bg-slate-800 rounded-xl" onclick="closeModal('planModal')">Vazgeç</button>
-                <button type="submit" class="px-5 py-2 bg-blue-600 rounded-xl font-bold">Takvime İşle</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 rounded-xl font-bold">Planı Kaydet</button>
             </div>
         </form>
     </div>
@@ -285,93 +268,40 @@
 <!-- STOK GİRİŞ MODAL -->
 <div class="modal-overlay" id="stockInModal">
     <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
-        <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Envantere Mal Kabul Girişi (REF / LOT)</h3>
+        <h3 class="text-sm font-bold text-white border-b border-slate-800 pb-2">Envantere Mal Kabul Girişi</h3>
         <form id="stockInForm" onsubmit="saveStockIn(event)" class="space-y-3 text-xs">
-            <div><label class="text-slate-400 block mb-1">Ürün Kodu / Referans (REF)</label><input type="text" id="formRef" class="input-dark text-xs" required></div>
-            <div><label class="text-slate-400 block mb-1">Lot / Parti Numarası</label><input type="text" id="formLot" class="input-dark text-xs" required></div>
-            <div><label class="text-slate-400 block mb-1">Son Kullanma Tarihi (SKT)</label><input type="date" id="formExp" class="input-dark text-xs" required></div>
-            <div><label class="text-slate-400 block mb-1">Giriş Yapılacak Miktar</label><input type="number" id="formQty" class="input-dark text-xs" required min="1" value="1"></div>
+            <div><label class="text-slate-400 block mb-1">Ürün Kodu (REF)</label><input type="text" id="formRef" class="input-dark text-xs" required></div>
+            <div><label class="text-slate-400 block mb-1">Lot / Seri No</label><input type="text" id="formLot" class="input-dark text-xs" required></div>
+            <div><label class="text-slate-400 block mb-1">Son Kullanma Tarihi</label><input type="date" id="formExp" class="input-dark text-xs" required></div>
+            <div><label class="text-slate-400 block mb-1">Miktar</label><input type="number" id="formQty" class="input-dark text-xs" required min="1" value="1"></div>
             <div><label class="text-slate-400 block mb-1">Depo Konumu</label><input type="text" id="formWh" class="input-dark text-xs" required placeholder="Merkez Depo Raf-A"></div>
             <div class="flex justify-end gap-2 pt-4 border-t border-slate-900">
                 <button type="button" class="px-4 py-2 bg-slate-800 rounded-xl" onclick="closeModal('stockInModal')">İptal</button>
-                <button type="submit" class="px-5 py-2 bg-emerald-600 rounded-xl font-bold">Stoka Ekle</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 rounded-xl font-bold">Stoka İşle</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- AMELİYAT DETAY POP-UP MODALI (4. GÖRSELDEKİ YAPININ BİREBİR KOD KARŞILIĞI) -->
+<!-- DETAY MODAL (GÖRSELDEKİ DETAY POP-UP YAPISI BİREBİR ENTEGRE EDİLDİ) -->
 <div class="modal-overlay" id="detailModal">
-    <div class="modal-box bg-[#1c2128] border border-[#30363d] max-w-md w-full p-6 rounded-xl space-y-5 shadow-2xl">
-        <div class="flex justify-between items-center border-b border-[#30363d] pb-3">
-            <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                <span class="text-purple-400">ℹ️</span> Ameliyat Detayı
-            </h3>
-            <button onclick="closeModal('detailModal')" class="text-slate-500 hover:text-white transition text-sm">✕</button>
+    <div class="modal-box glass max-w-md w-full p-6 rounded-2xl space-y-4">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>ℹ️ Ameliyat Detayı</span></h3>
+            <button onclick="closeModal('detailModal')" class="text-slate-500 hover:text-white">✕</button>
         </div>
-        <div class="space-y-4 text-xs">
-            <div>
-                <span class="text-slate-400 block mb-0.5">Kaydeden</span>
-                <span class="text-slate-200 font-medium font-sans text-sm" id="detUser">Süleyman Asan</span>
-            </div>
-            <div class="border-t border-[#30363d]/60 pt-3">
-                <span class="text-slate-400 block mb-0.5">Tarih / Saat</span>
-                <span class="text-slate-200 font-semibold font-mono" id="detDateTime">-</span>
-            </div>
-            <div class="grid grid-cols-2 gap-4 border-t border-[#30363d]/60 pt-3">
-                <div>
-                    <span class="text-slate-400 block mb-0.5">Doktor</span>
-                    <span class="text-white font-bold" id="detDoctor">-</span>
-                </div>
-                <div>
-                    <span class="text-slate-400 block mb-0.5">Hastane</span>
-                    <span class="text-slate-200 font-medium" id="detHospital">-</span>
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-4 border-t border-[#30363d]/60 pt-3">
-                <div>
-                    <span class="text-slate-400 block mb-0.5">Ameliyat Türü</span>
-                    <span class="text-blue-400 font-bold" id="detType">-</span>
-                </div>
-                <div>
-                    <span class="text-slate-400 block mb-0.5">Ameliyat Sayısı</span>
-                    <span class="text-slate-200 font-mono font-bold" id="detCount">1</span>
-                </div>
-            </div>
-            <div class="border-t border-[#30363d]/60 pt-3">
-                <span class="text-slate-400 block mb-0.5">Personel</span>
-                <span id="detPersonnelBadge" class="inline-block px-2 py-0.5 text-[10px] rounded font-semibold mt-0.5">Atanmadı</span>
-                <span class="text-slate-300 block mt-1 font-sans" id="detPersonnelList">-</span>
-            </div>
-            <div class="border-t border-[#30363d]/60 pt-3">
-                <span class="text-slate-400 block mb-0.5">Not</span>
-                <span class="text-slate-400 italic font-sans" id="detNote">-</span>
-            </div>
-        </div>
-        
-        <!-- 4. Görsel Alt Buton Aksiyon Seti -->
-        <div class="flex items-center justify-between border-t border-[#30363d] pt-4 mt-2">
-            <button id="detDeleteBtn" class="bg-[#21262d] hover:bg-red-900/30 text-rose-500 border border-[#30363d] px-4 py-2 rounded-lg text-xs font-semibold transition">Sil</button>
-            <div class="flex gap-2">
-                <button id="detEditBtn" class="bg-[#21262d] text-slate-300 border border-[#30363d] px-4 py-2 rounded-lg text-xs font-semibold hover:text-white">Düzenle</button>
-                <button id="detDocBtn" class="bg-[#21262d] text-emerald-400 border border-[#30363d] px-4 py-2 rounded-lg text-xs font-semibold hover:bg-emerald-950/20">Evrak Ekle</button>
-                <button onclick="closeModal('detailModal')" class="bg-[#30363d] text-slate-200 px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-700">Kapat</button>
-            </div>
-        </div>
+        <div id="detailContent" class="text-xs space-y-3 text-slate-300"></div>
     </div>
 </div>
 
-<!-- ENGINE SYSTEM -->
+<!-- ENGINE SCRIPT -->
 <script>
-    // gvzkldgueygixbypyfsp veritabanı optimizasyonu tamamlandı
     const SUPABASE_URL = "https://gvzkldgueygixbypyfsp.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ"; 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let html5QrcodeScanner = null;
-    let currentYear = 2026;
-    let currentMonth = 6; // Temmuz (0 tabanlı dizide haziran=5, temmuz=6)
-    let calendarViewMode = 'view-month';
+    let userRole = "admin"; // Admin yetki kontrolü
 
     let cache = {
         surgeries: [],
@@ -383,22 +313,21 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         initNavigation();
-        syncEngine();
+        checkAuthAndSync();
         generateDocumentId();
     });
 
-    function generateDocumentId() {
-        const el = document.getElementById("dynamicDocumentId");
-        if(el) el.innerText = Math.floor(48000 + Math.random() * 2000);
+    async function checkUserSession() {
+        // Geliştirme aşamasında otomatik bypass veya auth entegrasyonu için hazır pipeline
+        return true;
     }
 
     async function syncEngine() {
         try {
-            // PostgREST 400 kolon süzme hatasını gidermek için temiz ana select yapısı kuruldu
             const [surgeriesRes, stockRes, reportsRes, defsRes] = await Promise.all([
-                supabaseClient.from('surgeries').select('*'),
+                supabaseClient.from('surgeries').select('*').order('surgery_date', { ascending: true }),
                 supabaseClient.from('stock').select('*'),
-                supabaseClient.from('consumption_records').select('*'),
+                supabaseClient.from('consumption_records').select('*').order('created_at', { ascending: false }),
                 supabaseClient.from('definitions').select('*')
             ]);
 
@@ -411,29 +340,28 @@
             cache.definitions.hospitals = rawDefs.filter(d => d.type === 'hospital');
             cache.definitions.surgery_types = rawDefs.filter(d => d.type === 'surgery_type');
 
-            document.getElementById("dashPlanned").innerText = cache.surgeries.filter(s => s.status === 'planned').length;
-            document.getElementById("dashCritical").innerText = cache.stock.filter(s => s.quantity <= 5).length;
-            document.getElementById("dashUniqueRef").innerText = new Set(cache.stock.map(s => s.ref_number)).size;
-
-            renderCalendarStructure();
+            buildDashboardMetrics();
+            build24HourTimeline();
+            renderProgramTable();
             renderStockTable();
             renderReportsTable();
             populateSurgeryDropdown();
             renderDefinitionsLists();
             populateFormDropdowns();
         } catch (err) {
-            showToast("Veri boru hattında eşleşme hatası!", "danger");
+            showToast("Veri senkronizasyon hatası!", "danger");
         }
     }
 
-    // --- KÜTÜPHANE VE SORU İŞARETİ YAPILANDIRMASI ---
+    // --- KÜTÜPHANE TANIMLAMALARI ---
     async function addDefinition(type) {
         let inputId = type === 'doctor' ? "defDoctorInput" : type === 'hospital' ? "defHospitalInput" : "defSurgeryInput";
         let value = document.getElementById(inputId).value.trim();
         if(!value) return;
+
         await supabaseClient.from('definitions').insert([{ type: type, name: value }]);
         document.getElementById(inputId).value = "";
-        showToast("Kütüphane tanımı başarıyla eklendi.", "success");
+        showToast("Tanım kütüphaneye eklendi.", "success");
         syncEngine();
     }
 
@@ -444,181 +372,34 @@
     }
 
     function renderDefinitionsLists() {
-        const buildList = (elId, array) => {
-            const ul = document.getElementById(elId);
-            ul.innerHTML = array.length === 0 ? '<li class="text-slate-600 p-2">Kayıt Yok</li>' : '';
-            array.forEach(x => {
-                ul.innerHTML += `<li class="flex justify-between items-center p-2 hover:bg-slate-900/60 rounded"><span>${x.name}</span><button class="text-rose-500 font-bold" onclick="deleteDefinition('${x.id}')">✕</button></li>`;
+        const renderList = (elementId, items) => {
+            const ul = document.getElementById(elementId);
+            ul.innerHTML = items.length === 0 ? '<li class="text-slate-600 p-2">Kayıt yok</li>' : '';
+            items.forEach(item => {
+                ul.innerHTML += `<li class="flex justify-between items-center p-2 hover:bg-slate-900/30 rounded"><span>${item.name}</span><button class="text-rose-500 font-bold" onclick="deleteDefinition('${item.id}')">✕</button></li>`;
             });
         };
-        buildList("defDoctorList", cache.definitions.doctors);
-        buildList("defHospitalList", cache.definitions.hospitals);
-        buildList("defSurgeryList", cache.definitions.surgery_types);
+        renderList("defDoctorList", cache.definitions.doctors);
+        renderList("defHospitalList", cache.definitions.hospitals);
+        renderList("defSurgeryList", cache.definitions.surgery_types);
     }
 
     function populateFormDropdowns() {
-        const buildSelect = (elId, array, typeLabel) => {
-            const select = document.getElementById(elId);
-            select.innerHTML = `<option value="?">? (${typeLabel} Bilinmiyor)</option>`;
-            array.forEach(x => { select.innerHTML += `<option value="${x.name}">${x.name}</option>`; });
-        };
-        buildSelect("formDoc", cache.definitions.doctors, "Doktor");
-        buildSelect("formHosp", cache.definitions.hospitals, "Hastane");
-        buildSelect("formSurgName", cache.definitions.surgery_types, "Ameliyat");
-    }
-
-    // --- DİNAMİK TAKVİM VE LİSTE MOTORU (FullCalendar Tarzı) ---
-    function setCalendarView(mode) {
-        calendarViewMode = mode;
-        renderCalendarStructure();
-    }
-
-    function changeMonth(dir) {
-        currentMonth += dir;
-        if(currentMonth > 11) { currentMonth = 0; currentYear++; }
-        if(currentMonth < 0) { currentMonth = 11; currentYear--; }
-        renderCalendarStructure();
-    }
-
-    function resetToCurrentMonth() {
-        currentYear = 2026;
-        currentMonth = 6;
-        renderCalendarStructure();
-    }
-
-    function renderCalendarStructure() {
-        const monthNames = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
-        document.getElementById("calendarMonthLabel").innerText = `${monthNames[currentMonth]} ${currentYear}`;
-        
-        const grid = document.getElementById("calendarDaysGrid");
-        const listContainer = document.getElementById("calendarListContainer");
-        const normalCal = document.getElementById("calendarContainer");
-        
-        if (calendarViewMode === 'view-list') {
-            normalCal.classList.add("hidden");
-            listContainer.classList.remove("hidden");
-            renderListLayout();
-            return;
-        }
-
-        normalCal.classList.remove("hidden");
-        listContainer.classList.add("hidden");
-        grid.innerHTML = "";
-
-        // Ay gün matrisi hesaplama
-        let firstDay = new Date(currentYear, currentMonth, 1).getDay();
-        let totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-        for (let i = 0; i < firstDay; i++) {
-            grid.innerHTML += `<div class="calendar-day bg-[#0d1117]/30 border-b border-right border-[#30363d]/40"></div>`;
-        }
-
-        for (let day = 1; day <= totalDays; day++) {
-            let dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            let daySurgeries = cache.surgeries.filter(s => s.surgery_date === dateStr);
-            
-            let nodesHTML = "";
-            daySurgeries.forEach(s => {
-                let displayTime = s.surgery_time === "?" ? "" : s.surgery_time.substring(0,5) + " ";
-                nodesHTML += `<div class="event-node" onclick="showSurgeryDetails('${s.id}')">● ${displayTime}${s.doctor_name}</div>`;
+        const populateSelect = (elementId, items, placeholder) => {
+            const select = document.getElementById(elementId);
+            select.innerHTML = `<option value="?">? (${placeholder} Belirsiz)</option>`;
+            items.forEach(item => {
+                select.innerHTML += `<option value="${item.name}">${item.name}</option>`;
             });
-
-            grid.innerHTML += `
-                <div class="calendar-day">
-                    <div class="calendar-day-header">${day}</div>
-                    <div class="space-y-1 overflow-y-auto max-h-[80px]">${nodesHTML}</div>
-                </div>`;
-        }
-    }
-
-    // 3. Görseldeki Ameliyat Günlük Liste Yapısı
-    function renderListLayout() {
-        const listContainer = document.getElementById("calendarListContainer");
-        listContainer.innerHTML = "";
-        
-        const days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
-        
-        // Simülasyon amacıyla Temmuz ayının ilk gün grubunu listeliyoruz
-        let daysToRender = [29, 30, 1]; 
-        let monthsToRender = [6, 6, 7]; // Haziran sonu ve Temmuz başı geçişi
-        let labels = ["Pazartesi - 29 Haziran 2026", "Salı - 30 Haziran 2026", "Çarşamba - 1 Temmuz 2026"];
-
-        labels.forEach((label, idx) => {
-            let dayNum = daysToRender[idx];
-            let mNum = monthsToRender[idx];
-            let dateStr = `2026-${String(mNum).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
-            
-            let daySurgeries = cache.surgeries.filter(s => s.surgery_date === dateStr);
-            let linesHTML = "";
-
-            daySurgeries.forEach(s => {
-                let badgePersonnel = s.team_members && s.team_members.length > 0 && s.team_members[0] !== "" ? 
-                    `<span class="bg-emerald-950 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded ml-2">Personel atandı</span>` : 
-                    `<span class="bg-amber-950 text-amber-400 text-[10px] px-1.5 py-0.5 rounded ml-2">Personel atanmadı</span>`;
-                
-                linesHTML += `
-                    <div class="flex items-start justify-between p-3 hover:bg-[#1f242c]/60 rounded-lg cursor-pointer transition border-b border-[#30363d]/40" onclick="showSurgeryDetails('${s.id}')">
-                        <div class="flex gap-4">
-                            <span class="font-mono text-slate-400 font-bold text-sm w-12">${s.surgery_time === "?" ? "??" : s.surgery_time.substring(0,5)}</span>
-                            <div>
-                                <div class="font-bold text-white flex items-center gap-1.5">
-                                    <span class="text-blue-400">●</span> ${s.doctor_name}
-                                    <span class="bg-amber-950/60 text-amber-500 text-[10px] px-1.5 py-0.5 rounded border border-amber-900/40">1 ameliyat</span>
-                                    <span class="text-slate-400 text-xs font-normal ml-2">${s.hospital_name}</span>
-                                </div>
-                                <div class="text-xs text-slate-400 mt-1 font-sans">${s.surgery_name} ${badgePersonnel}</div>
-                            </div>
-                        </div>
-                    </div>`;
-            });
-
-            listContainer.innerHTML += `
-                <div class="card p-4">
-                    <h3 class="text-xs font-bold text-slate-400 border-b border-[#30363d] pb-2 mb-2 tracking-wide uppercase">${label}</h3>
-                    <div class="divide-y divide-slate-900">${linesHTML || '<p class="text-xs text-slate-600 italic p-2">Bu tarihte planlanmış ameliyat bulunmuyor.</p>'}</div>
-                </div>`;
-        });
-    }
-
-    // 4. GÖRSELDEKİ DETAY KUTUSU VERİ HARİTALAMA MOTORU
-    function showSurgeryDetails(id) {
-        let s = cache.surgeries.find(x => x.id === id);
-        if (!s) return;
-
-        document.getElementById("detDateTime").innerText = `${s.surgery_date} ${s.surgery_time === "?" ? "(Saat Belirsiz)" : s.surgery_time.substring(0,5)}`;
-        document.getElementById("detDoctor").innerText = s.doctor_name;
-        document.getElementById("detHospital").innerText = s.hospital_name;
-        document.getElementById("detType").innerText = s.surgery_name;
-        document.getElementById("detNote").innerText = s.surgery_side ? `Ameliyat Yönü: ${s.surgery_side}` : "Not belirtilmemiş.";
-
-        const badge = document.getElementById("detPersonnelBadge");
-        const pList = document.getElementById("detPersonnelList");
-
-        if (s.team_members && s.team_members.length > 0 && s.team_members[0] !== "") {
-            badge.innerText = "Atandı";
-            badge.className = "inline-block px-2 py-0.5 text-[10px] rounded font-semibold mt-0.5 bg-emerald-950 text-emerald-400 border border-emerald-900/40";
-            pList.innerText = s.team_members.join(", ");
-        } else {
-            badge.innerText = "Atanmadı";
-            badge.className = "inline-block px-2 py-0.5 text-[10px] rounded font-semibold mt-0.5 bg-amber-950 text-amber-400 border border-amber-900/40";
-            pList.innerText = "Kadro ataması gerçekleştirilmedi.";
-        }
-
-        document.getElementById("detDeleteBtn").onclick = () => { deleteSurgery(s.id); closeModal('detailModal'); };
-        document.getElementById("detEditBtn").onclick = () => { showToast('Düzenleme modülü yetki doğrulaması bekleniyor.', 'info'); };
-        document.getElementById("detDocBtn").onclick = () => { 
-            closeModal('detailModal');
-            document.querySelectorAll(".sidebar-item")[2].click(); // Tüketim sayfasına yönlendir
-            document.getElementById("conSurgerySelect").value = s.id;
-            onConsumptionSurgeryChange();
         };
-
-        openModal("detailModal");
+        populateSelect("formDoc", cache.definitions.doctors, "Doktor");
+        populateSelect("formHosp", cache.definitions.hospitals, "Hastane");
+        populateSelect("formSurgName", cache.definitions.surgery_types, "Ameliyat Türü");
     }
 
-    // --- KAMERA MOTORU ---
+    // --- KAMERA YÖNETİMİ ---
     function startCameraScanner(mode) {
-        if (html5QrcodeScanner) stopCameraScanner();
+        if (html5QrcodeScanner) { stopCameraScanner(); }
         let targetDivId = mode === 'con' ? "con-camera-reader" : mode === 'search' ? "search-camera-reader" : "stockin-camera-reader";
         document.getElementById(targetDivId).classList.remove("hidden");
         html5QrcodeScanner = new Html5Qrcode(targetDivId);
@@ -627,7 +408,7 @@
             { facingMode: "environment" }, 
             { fps: 20, qrbox: { width: 300, height: 140 } },
             (decodedText) => {
-                showToast("Optik doğrulama başarılı.", "success");
+                showToast("Optik tarama tamamlandı.", "success");
                 if (mode === 'con') { processScannedItem(decodedText); }
                 else if (mode === 'search') {
                     let parsed = parseGS1Barcode(decodedText);
@@ -644,7 +425,7 @@
                 }
             },
             (errorMessage) => {}
-        ).catch(err => { showToast("Kamera başlatılamadı.", "danger"); });
+        ).catch(err => { showToast("Kamera aygıtına erişilemedi.", "danger"); });
     }
 
     function stopCameraScanner() {
@@ -653,7 +434,7 @@
                 html5QrcodeScanner = null;
                 document.getElementById("search-camera-reader").classList.add("hidden");
                 document.getElementById("stockin-camera-reader").classList.add("hidden");
-                showToast("Kamera sensörü kapatıldı.", "info");
+                showToast("Kamera sensör uyku modunda.", "info");
             }).catch(err => { html5QrcodeScanner = null; });
         }
     }
@@ -667,7 +448,9 @@
             let sktMatch = clean.match(/\(17\)(\d{6})/);
             if (gtinMatch) result.gtin = gtinMatch[1];
             if (lotMatch) result.lot = lotMatch[1];
-            if (sktMatch) result.skt = `20${sktMatch[1].substring(0,2)}-${sktMatch[1].substring(2,4)}-${sktMatch[1].substring(4,6)}`;
+            if (sktMatch) {
+                result.skt = `20${sktMatch[1].substring(0,2)}-${sktMatch[1].substring(2,4)}-${sktMatch[1].substring(4,6)}`;
+            }
         } else {
             result.gtin = clean.substring(0, 14) || clean;
             result.lot = clean.substring(14) || "15043027";
@@ -694,6 +477,90 @@
         });
     }
 
+    function buildDashboardMetrics() {
+        document.getElementById("dashPlanned").innerText = cache.surgeries.filter(s => s.status === 'planned').length;
+        document.getElementById("dashCritical").innerText = cache.stock.filter(s => s.quantity <= 5).length;
+        document.getElementById("dashUniqueRef").innerText = new Set(cache.stock.map(s => s.ref_number)).size;
+    }
+
+    function build24HourTimeline() {
+        const wrapper = document.getElementById("timelineWrapper");
+        wrapper.innerHTML = "";
+        for (let i = 0; i < 24; i++) {
+            wrapper.innerHTML += `<div class="timeline-hour font-mono text-[10px] border-b border-slate-900">${String(i).padStart(2, '0')}:00</div>`;
+        }
+        cache.surgeries.forEach(s => {
+            let timeStr = s.surgery_time === "?" || !s.surgery_time ? "00:00:00" : s.surgery_time;
+            let timeParts = timeStr.split(":");
+            let topPosition = (parseInt(timeParts[0]) * 60) + parseInt(timeParts[1]);
+            
+            let eventEl = document.createElement("div");
+            eventEl.className = "absolute left-20 right-4 bg-gradient-to-r from-blue-600/20 to-indigo-600/10 hover:from-blue-600/30 border border-blue-500/40 text-blue-300 p-3 rounded-xl text-xs cursor-pointer overflow-hidden flex flex-col justify-center select-none transition font-medium";
+            eventEl.style.top = `${topPosition}px`;
+            eventEl.style.height = "52px";
+            eventEl.innerHTML = `<span class="text-blue-400 font-bold font-mono mr-2">${timeStr.substring(0,5)}</span> Dr. ${s.doctor_name} | ${s.surgery_name}`;
+            eventEl.onclick = () => showSurgeryDetails(s.id);
+            wrapper.appendChild(eventEl);
+        });
+    }
+
+    // 🖼️ GÖRSELDEKİ BİREBİR DETAY MODALININ ENJEKSİYONU
+    function showSurgeryDetails(id) {
+        let s = cache.surgeries.find(x => x.id === id);
+        if (!s) return;
+        document.getElementById("detailContent").innerHTML = `
+            <div class="space-y-4 text-sm">
+                <div class="border-b border-slate-800 pb-2">
+                    <span class="text-xs text-slate-500 block">Kaydeden</span>
+                    <span class="text-slate-200 font-medium">Süleyman Asan</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><span class="text-xs text-slate-500 block">Tarih / Saat</span><span class="text-slate-200 font-mono">${s.surgery_date} ${s.surgery_time.substring(0,5)}</span></div>
+                    <div><span class="text-xs text-slate-500 block">Doktor</span><span class="text-slate-200 font-semibold">${s.doctor_name}</span></div>
+                    <div><span class="text-xs text-slate-500 block">Hastane</span><span class="text-slate-200">${s.hospital_name}</span></div>
+                    <div><span class="text-xs text-slate-500 block">Ameliyat Türü</span><span class="text-blue-400 font-bold">${s.surgery_name}</span></div>
+                    <div><span class="text-xs text-slate-500 block">Ameliyat Sayısı</span><span class="text-slate-200 font-mono">1</span></div>
+                    <div><span class="text-xs text-slate-500 block">Personel</span><span class="text-amber-500 font-medium">Atanmadı</span></div>
+                </div>
+                <div class="border-t border-slate-800 pt-2">
+                    <span class="text-xs text-slate-500 block">Not</span>
+                    <span class="text-slate-400 italic text-xs">-</span>
+                </div>
+                
+                <!-- GÖRSELDEKİ AKSİYON BUTON GRUBU -->
+                <div class="flex gap-2 justify-end pt-4 border-t border-slate-800 text-xs">
+                    <button class="bg-rose-950/40 border border-rose-900/60 text-rose-400 px-4 py-2 rounded-lg font-medium" onclick="deleteSurgery('${s.id}'); closeModal('detailModal');">🗑️ Sil</button>
+                    <button class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg font-medium">✏️ Düzenle</button>
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold" onclick="goToConsumptionPage('${s.id}')">Evrak Ekle</button>
+                    <button class="bg-slate-900 text-slate-400 px-4 py-2 rounded-lg" onclick="closeModal('detailModal')">Kapat</button>
+                </div>
+            </div>`;
+        openModal("detailModal");
+    }
+
+    function goToConsumptionPage(surgeryId) {
+        closeModal('detailModal');
+        document.querySelector('[data-target="consumption"]').click();
+        document.getElementById('conSurgerySelect').value = surgeryId;
+        onConsumptionSurgeryChange();
+    }
+
+    function renderProgramTable() {
+        const tbody = document.getElementById("programTableBody");
+        tbody.innerHTML = "";
+        cache.surgeries.forEach(s => {
+            tbody.innerHTML += `
+                <tr class="hover:bg-slate-900/40 transition cursor-pointer" onclick="showSurgeryDetails('${s.id}')">
+                    <td class="p-4 font-bold text-slate-300 font-mono">${s.surgery_date} <span class="text-blue-400 block font-normal text-[11px]">${s.surgery_time}</span></td>
+                    <td class="p-4 font-semibold text-slate-200">Dr. ${s.doctor_name}</td>
+                    <td class="p-4 text-slate-300">${s.hospital_name}</td>
+                    <td class="p-4 font-semibold text-blue-400">${s.surgery_name}</td>
+                    <td class="p-4 text-slate-400 max-w-xs truncate">${s.team_members.join(", ")}</td>
+                    <td class="p-4 text-right" onclick="event.stopPropagation()"><button class="text-rose-400 hover:text-rose-300 font-medium" onclick="deleteSurgery('${s.id}')">Sil</button></td>
+                </tr>`;
+        });
+    }
+
     async function savePlannedSurgery(e) {
         e.preventDefault();
         let teamArray = document.getElementById("formTeam").value.split(",").map(t => t.trim());
@@ -710,7 +577,21 @@
         await supabaseClient.from('surgeries').insert([payload]);
         closeModal("planModal");
         syncEngine();
-        showToast("Cerrahi operasyon başarıyla takvime işlendi.", "success");
+        showToast("Operasyon başarıyla takvime eklendi.", "success");
+    }
+
+    function generateDocumentId() {
+        const docId = Math.floor(48000 + Math.random() * 2000);
+        const el = document.getElementById("dynamicDocumentId");
+        if(el) el.innerText = docId;
+    }
+
+    async function checkUserSession() { syncEngine(); }
+
+    function generateDocumentId() {
+        const docId = Math.floor(48000 + Math.random() * 2000);
+        const el = document.getElementById("dynamicDocumentId");
+        if(el) el.innerText = docId;
     }
 
     function populateSurgeryDropdown() {
@@ -723,18 +604,20 @@
         });
     }
 
-    function onConsumptionSurgeryChange() { cache.activeConsumptionItems = []; renderActiveConsumptionItems(); }
-    function handleConsumptionBarcode(e) { if (e.key === 'Enter') { if (!e.target.value) return; processScannedItem(e.target.value); e.target.value = ""; } }
-
     function renderActiveConsumptionItems() {
         const tbody = document.getElementById("conItemsTableBody");
         tbody.innerHTML = "";
         cache.activeConsumptionItems.forEach((item, index) => {
-            tbody.innerHTML += `<tr><td>${item.ref}</td><td>${item.lot}</td><td>${item.skt}</td><td>${item.quantity} Adet</td><td class="text-right"><button class="text-rose-500" onclick="removeActiveConItem(${index})">❌</button></td></tr>`;
+            tbody.innerHTML += `
+                <tr class="border-b border-slate-900/60">
+                    <td class="py-3 font-bold text-slate-300">${item.ref}</td>
+                    <td class="py-3 text-amber-500">${item.lot}</td>
+                    <td class="py-3 text-slate-400 text-xs">${item.skt}</td>
+                    <td class="py-3 font-bold text-blue-400">${item.quantity} Adet</td>
+                    <td class="py-3 text-right"><button class="text-rose-500" onclick="removeActiveConItem(${index})">❌</button></td>
+                </tr>`;
         });
     }
-
-    function removeActiveConItem(index) { cache.activeConsumptionItems.splice(index, 1); renderActiveConsumptionItems(); }
 
     async function submitConsumption() {
         let surgeryId = document.getElementById("conSurgerySelect").value;
@@ -757,14 +640,14 @@
         generateDocumentId();
         renderActiveConsumptionItems();
         syncEngine();
-        showToast("Mal hareket işlemi mühürlendi ve stok bakiye kaydı güncellendi.", "success");
+        showToast("Tüketim belgesi kilitlendi, stok başarıyla düşüldü.", "success");
     }
 
     function renderStockTable() {
         const tbody = document.getElementById("stockTableBody");
         tbody.innerHTML = "";
         cache.stock.forEach(s => {
-            tbody.innerHTML += `<tr><td class="p-4 font-bold text-slate-300">${s.ref_number}</td><td class="p-4 text-amber-500">${s.lot_number}</td><td class="p-4 text-slate-400">${s.expiration_date}</td><td class="p-4 font-black text-emerald-400">${s.quantity} Adet</td><td class="p-4 text-slate-400">${s.warehouse}</td></tr>`;
+            tbody.innerHTML += `<tr class="hover:bg-slate-900/30 transition"><td class="p-4 font-bold text-slate-300">${s.ref_number}</td><td class="p-4 text-amber-500">${s.lot_number}</td><td class="p-4 text-slate-400 font-sans">${s.expiration_date}</td><td class="p-4 font-black text-emerald-400">${s.quantity} Adet</td><td class="p-4 text-slate-400 font-sans">${s.warehouse}</td></tr>`;
         });
         filterStockTable();
     }
@@ -783,7 +666,7 @@
         tbody.innerHTML = "";
         cache.consumptionRecords.forEach(r => {
             let itemLines = r.items.map(i => `• REF: ${i.ref} | LOT: ${i.lot} (${i.quantity} Adet)`).join("<br>");
-            tbody.innerHTML += `<tr class="hover:bg-slate-900/40 transition"><td class="p-4 font-bold text-blue-400">${r.surgery_name}</td><td class="p-4 font-semibold text-slate-300">${r.hospital_name}</td><td class="p-4 font-semibold text-slate-200">Dr. ${r.doctor_name}</td><td class="p-4"><span class="badge badge-blue">${r.surgery_side}</span></td><td class="p-4 text-slate-400">${r.team_members.join(", ")}</td><td class="p-4 text-emerald-400 text-[11px] font-mono">${itemLines}</td><td class="p-4 text-slate-500">${new Date(r.created_at).toLocaleDateString('tr-TR')}</td></tr>`;
+            tbody.innerHTML += `<tr class="hover:bg-slate-900/40 transition"><td class="p-4 font-bold text-blue-400">${r.surgery_name}</td><td class="p-4 font-semibold text-slate-300">${r.hospital_name}</td><td class="p-4 font-semibold text-slate-200">Dr. ${r.doctor_name}</td><td class="p-4"><span class="badge badge-blue">${r.surgery_side}</span></td><td class="p-4 text-slate-400 font-sans">${r.team_members.join(", ")}</td><td class="p-4 text-emerald-400 font-mono text-[11px]">${itemLines}</td><td class="p-4 text-slate-500 font-sans">${new Date(r.created_at).toLocaleDateString('tr-TR')}</td></tr>`;
         });
     }
 
