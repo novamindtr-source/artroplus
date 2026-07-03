@@ -435,8 +435,8 @@ const sendTelegram=async(msg)=>{
     });
   }catch(e){}
 };
-const SUPABASE_URL="https://etrmnfjaomrgbbpydvgq.supabase.co";
-const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0cm1uZmphb21yZ2JicHlkdmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODgwNDAsImV4cCI6MjA5NDI2NDA0MH0.jWYGZYtfahRTzAAtIp5kdffNmVDCeEQM9YHEKMUiIX0";
+const SUPABASE_URL="https://gvzkldgueygixbypyfsp.supabase.co";
+const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
 const SB=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const autoDoc=n=>{const t=n.trim();return t&&!DR_PREFIXES.some(p=>t.startsWith(p))?"Dr. "+t:t;};
 const parseLocalDate=value=>{
@@ -921,18 +921,32 @@ function AuthScreen({onLogin}){
   const [forgot,setForgot]=useState(false);
   const [fEmail,setFEmail]=useState("");
   const [loading,setLoading]=useState(false);
+  const isFileOrigin=window.location.protocol==="file:";
+  const authNetworkMessage="Supabase sunucusuna ulaşılamadı. İnternet/DNS bağlantısını ve proje adresini kontrol edin.";
 
   const login=async()=>{
     if(!email||!pass){toast("E-posta ve şifre gerekli","warning");return;}
     setLoading(true);
-    const{error}=await SB.auth.signInWithPassword({email,password:pass});
-    setLoading(false);
-    if(error)toast(error.message,"error"); else onLogin();
+    try{
+      const{error}=await SB.auth.signInWithPassword({email,password:pass});
+      if(error)toast(error.message==="Failed to fetch"?authNetworkMessage:error.message,"error"); else onLogin();
+    }catch(error){
+      console.error("ARTROPLUS auth network error:",error);
+      toast(authNetworkMessage,"error");
+    }finally{
+      setLoading(false);
+    }
   };
   const sendReset=async()=>{
     if(!fEmail){toast("E-posta gerekli","warning");return;}
-    const{error}=await SB.auth.resetPasswordForEmail(fEmail,{redirectTo:window.location.origin});
-    if(error)toast(error.message,"error"); else{toast("Sıfırlama maili gönderildi","success");setForgot(false);}
+    try{
+      const resetOptions=isFileOrigin?{}:{redirectTo:window.location.origin};
+      const{error}=await SB.auth.resetPasswordForEmail(fEmail,resetOptions);
+      if(error)toast(error.message==="Failed to fetch"?authNetworkMessage:error.message,"error"); else{toast("Sıfırlama maili gönderildi","success");setForgot(false);}
+    }catch(error){
+      console.error("ARTROPLUS reset network error:",error);
+      toast(authNetworkMessage,"error");
+    }
   };
 
   return(
@@ -949,6 +963,7 @@ function AuthScreen({onLogin}){
           <img src={LOGO_LIGHT_SRC} className="h-12 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(37,99,235,.5)]" alt="ARTROPLUS"/>
           <p className="text-slate-400 text-sm mt-1">Kurumsal Medikal Operasyon Platformu</p>
         </div>
+        {isFileOrigin&&<div className="mb-4 rounded-xl border border-amber2/25 bg-amber2/10 px-4 py-3 text-xs text-amber-200 leading-5">Uygulama file:// ile açılmış. Giriş ve şifre sıfırlama için dosyayı yerel sunucudan, örn. http://localhost:8000 üzerinden açmanız önerilir.</div>}
         <div className="card rounded-2xl p-7 shadow-2xl">
           <h1 className="text-xl font-bold text-white mb-6">Güvenli Giriş</h1>
           <div className="space-y-4">
@@ -6036,6 +6051,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+
 
 
 
