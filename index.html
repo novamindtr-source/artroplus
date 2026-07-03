@@ -293,6 +293,70 @@
       .sidebar-item{min-height:40px;}
       th{font-size:10px!important;}
     }
+
+    /* ══════════════════════════════════════════════════════════
+       CORPORATE LIGHT THEME (Aşama 1) — sidebar, topbar, dashboard
+       Scoped under .lc-* classnames so existing dark-theme pages
+       (Ameliyat/Depo/Fatura vb.) are completely unaffected.
+       ══════════════════════════════════════════════════════════ */
+    :root{
+      --lc-bg:#f3f5f9;
+      --lc-sidebar:#11151f;
+      --lc-sidebar-hover:rgba(255,255,255,.06);
+      --lc-sidebar-text:#8b93a7;
+      --lc-sidebar-text-active:#ffffff;
+      --lc-card:#ffffff;
+      --lc-border:#e6e9f0;
+      --lc-text:#0f172a;
+      --lc-muted:#6b7280;
+      --lc-blue:#2563eb;
+      --lc-blue-soft:#eef3ff;
+      --lc-green:#10b981;
+      --lc-green-soft:#e9fbf3;
+      --lc-amber:#f59e0b;
+      --lc-amber-soft:#fef6e7;
+      --lc-rose:#f43f5e;
+      --lc-rose-soft:#fdedf0;
+      --lc-shadow:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+    }
+    .lc-shell{background:var(--lc-bg);min-height:100vh;color:var(--lc-text);}
+    .lc-sidebar{background:var(--lc-sidebar)!important;border-right:none!important;}
+    .lc-sidebar .lc-logo-kicker{color:#5b6478;letter-spacing:.09em;text-transform:uppercase;font-size:10px;font-weight:800;}
+    .lc-sidebar .lc-logo-sub{color:#4a5468;font-size:11px;}
+    .lc-nav-section{color:#525b70;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;padding:8px 14px 6px;}
+    .lc-nav-item{color:var(--lc-sidebar-text)!important;transition:all .15s ease;border:1px solid transparent;}
+    .lc-nav-item:hover{background:var(--lc-sidebar-hover)!important;color:#e5e9f2!important;}
+    .lc-nav-item.active{background:rgba(37,99,235,.16)!important;color:var(--lc-sidebar-text-active)!important;box-shadow:inset 3px 0 0 var(--lc-blue);}
+    .lc-sidebar-foot{border-top:1px solid rgba(255,255,255,.06);}
+    .lc-user-chip{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);}
+    .lc-topbar{background:#ffffff!important;border-bottom:1px solid var(--lc-border)!important;box-shadow:none!important;backdrop-filter:none!important;}
+    .lc-topbar .lc-topbar-title{color:var(--lc-text);}
+    .lc-topbar .lc-topbar-kicker{color:#94a3b8;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;}
+    .lc-icon-btn{color:#64748b;}
+    .lc-icon-btn:hover{background:#f1f5f9!important;color:var(--lc-text)!important;}
+    .lc-badge{background:#f8fafc;border:1px solid var(--lc-border);color:#475569;}
+    .lc-card{background:var(--lc-card);border:1px solid var(--lc-border);box-shadow:var(--lc-shadow);border-radius:14px;}
+    .lc-card-hover{transition:box-shadow .18s ease,transform .18s ease;}
+    .lc-card-hover:hover{box-shadow:0 4px 14px rgba(16,24,40,.08);transform:translateY(-1px);}
+    .lc-heading{color:var(--lc-text);}
+    .lc-muted{color:var(--lc-muted);}
+    .lc-faint{color:#94a3b8;}
+    .lc-divider{border-color:var(--lc-border)!important;}
+    .lc-pill{background:#f1f5f9;color:#475569;}
+    .lc-pill-active{background:var(--lc-blue);color:#fff;}
+    .lc-btn-primary{background:var(--lc-blue);color:#fff;transition:all .15s ease;}
+    .lc-btn-primary:hover{background:#1d4ed8;box-shadow:0 4px 12px rgba(37,99,235,.28);}
+    .lc-btn-soft{background:var(--lc-blue-soft);color:var(--lc-blue);}
+    .lc-btn-soft:hover{background:#e0e9ff;}
+    .lc-info-panel{background:var(--lc-blue-soft);border:1px solid #dbe6ff;}
+    .lc-timeline-dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .lc-track{border-left:2px solid var(--lc-border);}
+    .lc-progress-track{background:#eef1f6;}
+    .lc-row:hover{background:#f8fafc;}
+    @media(max-width:1024px){
+      .lc-sidebar{position:fixed;}
+    }
+
     /* Executive refinement v4 */
     .auth-screen{
       background:
@@ -435,8 +499,8 @@ const sendTelegram=async(msg)=>{
     });
   }catch(e){}
 };
-const SUPABASE_URL="https://gvzkldgueygixbypyfsp.supabase.co";
-const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
+const SUPABASE_URL="https://etrmnfjaomrgbbpydvgq.supabase.co";
+const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0cm1uZmphb21yZ2JicHlkdmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODgwNDAsImV4cCI6MjA5NDI2NDA0MH0.jWYGZYtfahRTzAAtIp5kdffNmVDCeEQM9YHEKMUiIX0";
 const SB=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const autoDoc=n=>{const t=n.trim();return t&&!DR_PREFIXES.some(p=>t.startsWith(p))?"Dr. "+t:t;};
 const parseLocalDate=value=>{
@@ -996,18 +1060,19 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
     <>
       {/* Mobile overlay */}
       <div className={`sidebar-overlay ${mobileOpen?"show":""}`} onClick={onMobileClose}/>
-      <div className={`fixed left-0 top-0 h-full w-60 glass border-r border-white/8 z-40 flex flex-col transition-transform ${mobileOpen?"":"sidebar-mobile-hidden"} lg:translate-x-0`}>
-        <div className="p-5 border-b border-white/8 flex items-center justify-between">
+      <div className={`lc-sidebar fixed left-0 top-0 h-full w-60 z-40 flex flex-col transition-transform ${mobileOpen?"":"sidebar-mobile-hidden"} lg:translate-x-0`}>
+        <div className="p-5 flex items-center justify-between" style={{borderBottom:"1px solid rgba(255,255,255,.06)"}}>
           <div className="min-w-0">
             <img src={LOGO_LIGHT_SRC} className="h-7" alt="ARTROPLUS"/>
-            <div className="enterprise-kicker mt-2">Medikal ERP</div><div className="text-[11px] text-slate-500 mt-1">Operasyon Kontrol Merkezi</div>
+            <div className="lc-logo-kicker mt-2">Medikal ERP</div>
+            <div className="lc-logo-sub mt-1">Operasyon Kontrol Merkezi</div>
           </div>
-          <button onClick={onMobileClose} className="lg:hidden w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-white/10">✕</button>
+          <button onClick={onMobileClose} className="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg" style={{color:"#8b93a7"}}>✕</button>
         </div>
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto"><div className="sidebar-section-label">Modüller</div>
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto"><div className="lc-nav-section">Modüller</div>
           {items.map(n=>(
             <button key={n.id} onClick={()=>{setPage(n.id);onMobileClose();}}
-              className={`sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium relative ${page===n.id?"active":"text-slate-400"}`}>
+              className={`lc-nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium relative ${page===n.id?"active":""}`}>
               <span className="text-base w-5 text-center flex-shrink-0">{n.icon}</span>
               <span className="truncate">{n.label}</span>
               {n.id==="notifications"&&unread>0&&(
@@ -1016,17 +1081,17 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
             </button>
           ))}
         </nav>
-        <div className="sidebar-status-card hidden lg:block"><div className="flex items-center justify-between"><span className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Sistem Durumu</span><span className="enterprise-dot"></span></div><div className="text-xs text-slate-300 font-semibold mt-2">Kurumsal erişim aktif</div></div><div className="p-3 border-t border-white/8">
-          <div className="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl border border-white/8 bg-navy-900/40">
+        <div className="lc-sidebar-foot p-3">
+          <div className="lc-user-chip flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl">
             <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
               {(profile?.full_name||"U")[0].toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-semibold text-slate-200 truncate">{profile?.full_name||"Kullanıcı"}</div>
-              <div className="text-[10px] text-slate-500 capitalize">{isManager(profile)?"Yetkili kullanıcı":"Operasyon kullanıcısı"}</div>
+              <div className="text-xs font-semibold truncate" style={{color:"#e5e9f2"}}>{profile?.full_name||"Kullanıcı"}</div>
+              <div className="text-[10px] capitalize" style={{color:"#5b6478"}}>{isManager(profile)?"Yetkili kullanıcı":"Operasyon kullanıcısı"}</div>
             </div>
           </div>
-          <button onClick={onLogout} className="sidebar-item w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-rose2">
+          <button onClick={onLogout} className="lc-nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm">
             <span className="text-base w-5 text-center">⏻</span>
             <span>Çıkış</span>
           </button>
@@ -1144,6 +1209,39 @@ function DonutChart({data,total}){
   );
 }
 
+// Light-theme (corporate) chart variants — used only in the redesigned Dashboard
+function TrendChartLight({data}){
+  if(!RC_OK)return<div className="flex items-end gap-1 h-full w-full">{data.map((d,i)=>{const max=Math.max(...data.map(x=>x.value),1);return(<div key={i} className="flex-1 flex flex-col items-center gap-0.5"><div className="w-full rounded-t-sm" style={{height:`${(d.value/max)*100}%`,background:"#2563eb99",minHeight:d.value>0?"3px":"0"}}></div><span className="text-[9px] lc-faint">{d.label}</span></div>);})}</div>;
+  return(
+    <ResponsiveContainer width="100%" height={112}>
+      <RAreaChart data={data} margin={{top:4,right:4,left:-32,bottom:0}}>
+        <defs><linearGradient id="tgLight" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.22}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef1f6"/>
+        <XAxis dataKey="label" tick={{fontSize:10,fill:"#94a3b8"}} axisLine={false} tickLine={false}/>
+        <RTooltip contentStyle={{background:"#fff",border:"1px solid #e6e9f0",borderRadius:10,fontSize:11,color:"#0f172a"}} itemStyle={{color:"#2563eb"}} labelStyle={{color:"#64748b"}}/>
+        <Area type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={2.5} fill="url(#tgLight)" dot={false} activeDot={{r:4,fill:"#2563eb"}}/>
+      </RAreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+function DonutChartLight({data,total}){
+  if(!total)return<div className="flex items-center justify-center h-full lc-faint text-sm">Veri yok</div>;
+  if(!RC_OK){
+    const r=40,cx=50,cy=50,circ=2*Math.PI*r;let offset=0;
+    return(<svg viewBox="0 0 100 100" className="w-full h-full">{data.map((d,i)=>{const pct=d.value/total;const dash=pct*circ;const el=<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth="14" strokeDasharray={`${dash} ${circ-dash}`} strokeDashoffset={-offset*circ} style={{transform:"rotate(-90deg)",transformOrigin:"50% 50%"}} opacity="0.9"/>;offset+=pct;return el;})}<circle cx={cx} cy={cy} r="33" fill="#fff"/><text x="50" y="48" textAnchor="middle" fontSize="14" fill="#0f172a" fontWeight="bold">{total}</text><text x="50" y="60" textAnchor="middle" fontSize="6" fill="#94a3b8">toplam</text></svg>);
+  }
+  const RAD=Math.PI/180;
+  const lbl=({cx,cy,midAngle,innerRadius,outerRadius,percent})=>{if(percent<0.08)return null;const rad=innerRadius+(outerRadius-innerRadius)*.5;return<text x={cx+rad*Math.cos(-midAngle*RAD)} y={cy+rad*Math.sin(-midAngle*RAD)} textAnchor="middle" fill="#fff" fontSize={9} fontWeight="bold">{`${(percent*100).toFixed(0)}%`}</text>;};
+  return(
+    <RPieChart width={120} height={120}>
+      <Pie data={data} cx={55} cy={55} innerRadius={30} outerRadius={50} paddingAngle={2} dataKey="value" labelLine={false} label={lbl}>
+        {data.map((d,i)=><Cell key={i} fill={d.color} stroke="#fff"/>)}
+      </Pie>
+    </RPieChart>
+  );
+}
+
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({surgeries,types,profile,setPage,doctors}){
@@ -1204,21 +1302,21 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
   return(
     <div className="space-y-5">
       {/* Header */}
-      <div className="corp-section-hero flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">Yönetici Özeti</h1>
-          <p className="text-sm text-slate-400 mt-1">{fmtTR(todayStr)} itibarıyla operasyon, stok ve program görünümü</p>
+          <h1 className="text-2xl font-black lc-heading">Yönetici Özeti</h1>
+          <p className="text-sm lc-muted mt-1">{fmtTR(todayStr)} itibarıyla operasyon, stok ve program görünümü</p>
         </div>
         <div className="sm:ml-auto flex flex-wrap gap-2 items-center">
-          <div className="flex gap-1 p-1 bg-navy-800 rounded-xl border border-white/8">
+          <div className="flex gap-1 p-1 rounded-xl" style={{background:"#eef1f6"}}>
             {["week","month","all"].map(p=>(
-              <button key={p} onClick={()=>setPeriod(p)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${period===p?"bg-brand text-white shadow":"text-slate-400 hover:text-white"}`}>
+              <button key={p} onClick={()=>setPeriod(p)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${period===p?"lc-pill-active":"lc-pill"}`} style={period===p?{}:{background:"transparent"}}>
                 {p==="week"?"Bu Hafta":p==="month"?"Bu Ay":"Tümü"}
               </button>
             ))}
           </div>
           <button onClick={()=>{if(exportSurgeriesPDF(filtered,`Ameliyat Raporu — ${period==="week"?"Bu Hafta":period==="month"?"Bu Ay":"Tümü"}`))toast("PDF oluşturuldu ✓","success");else toast("PDF hatası","error");}}
-            className="px-3 py-2 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-300 text-sm font-semibold border border-brand/25 flex items-center gap-1.5 transition-colors">
+            className="lc-btn-soft px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-colors">
             ↓ PDF
           </button>
         </div>
@@ -1227,17 +1325,17 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          {label:"Toplam",value:totalFiltered,icon:"⚕",color:"#3b82f6",bg:"rgba(59,130,246,.15)"},
-          {label:"Tamamlandı",value:statusCounts.done,icon:"✓",color:"#10b981",bg:"rgba(16,185,129,.15)"},
-          {label:"Planlandı",value:statusCounts.planned,icon:"◷",color:"#f59e0b",bg:"rgba(245,158,11,.15)"},
-          {label:"İptal",value:statusCounts.cancelled,icon:"✕",color:"#f43f5e",bg:"rgba(244,63,94,.15)"},
+          {label:"Toplam",value:totalFiltered,icon:"⚕",color:"#2563eb",bg:"#eef3ff"},
+          {label:"Tamamlandı",value:statusCounts.done,icon:"✓",color:"#10b981",bg:"#e9fbf3"},
+          {label:"Planlandı",value:statusCounts.planned,icon:"◷",color:"#f59e0b",bg:"#fef6e7"},
+          {label:"İptal",value:statusCounts.cancelled,icon:"✕",color:"#f43f5e",bg:"#fdedf0"},
         ].map(s=>(
-          <div key={s.label} className="stat-card rounded-2xl p-4 lg:p-5">
+          <div key={s.label} className="lc-card lc-card-hover p-4 lg:p-5">
             <div className="flex items-start justify-between mb-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{background:s.bg,color:s.color}}>{s.icon}</div>
               <span className="text-3xl font-black" style={{color:s.color}}>{s.value}</span>
             </div>
-            <p className="text-xs text-slate-500 font-medium">{s.label}</p>
+            <p className="text-xs lc-muted font-medium">{s.label}</p>
           </div>
         ))}
       </div>
@@ -1245,16 +1343,16 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
       {/* Smart control row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {[
-          {label:"Yarınki Program",value:tomorrowS.length,sub:"ameliyat",color:"#3b82f6",action:()=>setPage("program")},
+          {label:"Yarınki Program",value:tomorrowS.length,sub:"ameliyat",color:"#2563eb",action:()=>setPage("program")},
           {label:"Geciken Plan",value:overduePlanned.length,sub:"kontrol gerekli",color:overduePlanned.length?"#f43f5e":"#10b981",action:()=>setPage("surgeries")},
           {label:"Eksik Bilgi",value:missingInfo.length,sub:"saat/doktor",color:missingInfo.length?"#f59e0b":"#10b981",action:()=>setPage("program")},
           {label:"Evraklı Tamamlanan",value:docsCompleted.length,sub:"ameliyat",color:"#8b5cf6",action:()=>setPage("surgeries")},
         ].map(item=>(
-          <button key={item.label} onClick={item.action} className="card card-hover rounded-2xl p-4 text-left">
+          <button key={item.label} onClick={item.action} className="lc-card lc-card-hover p-4 text-left">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs text-slate-500 mb-1">{item.label}</div>
-                <div className="text-sm text-slate-400">{item.sub}</div>
+                <div className="text-xs lc-muted mb-1">{item.label}</div>
+                <div className="text-sm lc-faint">{item.sub}</div>
               </div>
               <div className="text-3xl font-black" style={{color:item.color}}>{item.value}</div>
             </div>
@@ -1263,19 +1361,19 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
       </div>
 
       {missingInfo.length>0&&(
-        <div className="card rounded-2xl p-4 border border-amber2/20">
+        <div className="lc-card p-4" style={{borderColor:"#fbe6bf"}}>
           <div className="flex items-center justify-between gap-3 mb-3">
             <div>
-              <h3 className="font-bold text-sm text-white">Tamamlanması Gereken Program Bilgileri</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Saat veya doktor bilgisi eksik planlar</p>
+              <h3 className="font-bold text-sm lc-heading">Tamamlanması Gereken Program Bilgileri</h3>
+              <p className="text-xs lc-muted mt-0.5">Saat veya doktor bilgisi eksik planlar</p>
             </div>
-            <button onClick={()=>setPage("program")} className="px-3 py-1.5 rounded-lg bg-amber2/15 text-amber2 text-xs font-bold border border-amber2/25">Programa Git</button>
+            <button onClick={()=>setPage("program")} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{background:"#fef6e7",color:"#b45309",border:"1px solid #fbe6bf"}}>Programa Git</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {missingInfo.map(s=>(
-              <div key={s.id} className="bg-navy-800/70 rounded-xl px-3 py-2 border border-white/8">
-                <div className="text-sm font-semibold text-white truncate">{s.type}</div>
-                <div className="text-xs text-slate-500 truncate">{fmtTR(s.date)} · {displayTime(s.time)} · {s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}</div>
+              <div key={s.id} className="rounded-xl px-3 py-2" style={{background:"#f8fafc",border:"1px solid var(--lc-border)"}}>
+                <div className="text-sm font-semibold lc-heading truncate">{s.type}</div>
+                <div className="text-xs lc-muted truncate">{fmtTR(s.date)} · {displayTime(s.time)} · {s.doctor==="Bilinmiyor"?"Doktor bilinmiyor":s.doctor}</div>
               </div>
             ))}
           </div>
@@ -1285,34 +1383,34 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Trend — Recharts AreaChart */}
-        <div className="card rounded-2xl p-5 lg:col-span-2">
+        <div className="lc-card p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="font-bold text-sm text-white">Son 7 Gün Trendi</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Günlük ameliyat sayısı</p>
+              <h3 className="font-bold text-sm lc-heading">Son 7 Gün Trendi</h3>
+              <p className="text-xs lc-muted mt-0.5">Günlük ameliyat sayısı</p>
             </div>
-            <div className="text-xs font-bold text-brand-300 bg-brand/10 px-2.5 py-1 rounded-full border border-brand/20">
+            <div className="text-xs font-bold px-2.5 py-1 rounded-full" style={{color:"#2563eb",background:"#eef3ff",border:"1px solid #dbe6ff"}}>
               {trendData.reduce((a,d)=>a+d.value,0)} toplam
             </div>
           </div>
-          <TrendChart data={trendData}/>
+          <TrendChartLight data={trendData}/>
         </div>
         {/* Donut */}
-        <div className="card rounded-2xl p-5 flex flex-col">
-          <h3 className="font-bold text-sm text-white mb-3">Durum Dağılımı</h3>
+        <div className="lc-card p-5 flex flex-col">
+          <h3 className="font-bold text-sm lc-heading mb-3">Durum Dağılımı</h3>
           <div className="flex items-center gap-3 flex-1">
             <div className="w-28 h-28 flex-shrink-0 flex items-center justify-center">
-              <DonutChart data={donutData} total={totalFiltered}/>
+              <DonutChartLight data={donutData} total={totalFiltered}/>
             </div>
             <div className="space-y-2 flex-1 min-w-0">
               {donutData.map(d=>(
                 <div key={d.label} className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{background:d.color}}></span>
-                  <span className="text-xs text-slate-400 flex-1 truncate">{d.label}</span>
-                  <span className="text-xs font-bold text-white">{d.value}</span>
+                  <span className="text-xs lc-muted flex-1 truncate">{d.label}</span>
+                  <span className="text-xs font-bold lc-heading">{d.value}</span>
                 </div>
               ))}
-              {donutData.length===0&&<p className="text-xs text-slate-600">Veri yok</p>}
+              {donutData.length===0&&<p className="text-xs lc-faint">Veri yok</p>}
             </div>
           </div>
         </div>
@@ -1321,19 +1419,19 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
       {/* Type + Doctor breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top Types */}
-        <div className="card rounded-2xl p-5">
-          <h3 className="font-bold text-sm text-white mb-4">Ameliyat Türleri</h3>
+        <div className="lc-card p-5">
+          <h3 className="font-bold text-sm lc-heading mb-4">Ameliyat Türleri</h3>
           <div className="space-y-3">
-            {typeStats.length===0?<p className="text-slate-600 text-sm">Veri yok</p>:typeStats.map(([type,cnt])=>{
+            {typeStats.length===0?<p className="lc-faint text-sm">Veri yok</p>:typeStats.map(([type,cnt])=>{
               const pct=Math.round(cnt/totalFiltered*100);
               return(
                 <div key={type}>
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-slate-300 font-medium truncate pr-2">{type}</span>
-                    <span className="text-slate-400 flex-shrink-0">{cnt} ({pct}%)</span>
+                    <span className="lc-heading font-medium truncate pr-2">{type}</span>
+                    <span className="lc-muted flex-shrink-0">{cnt} ({pct}%)</span>
                   </div>
-                  <div className="h-1.5 bg-navy-800 rounded-full overflow-hidden">
-                    <div className="h-full progress-bar rounded-full transition-all" style={{width:`${pct}%`}}></div>
+                  <div className="h-1.5 lc-progress-track rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{width:`${pct}%`,background:"linear-gradient(90deg,#2563eb,#60a5fa)"}}></div>
                   </div>
                 </div>
               );
@@ -1342,25 +1440,25 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
         </div>
 
         {/* Today + Upcoming */}
-        <div className="card rounded-2xl overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-white/8">
+        <div className="lc-card overflow-hidden flex flex-col">
+          <div className="px-5 py-4" style={{borderBottom:"1px solid var(--lc-border)"}}>
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-white">Bugün</h3>
-              <span className="text-xs font-semibold text-brand-300">{todayS.length} ameliyat</span>
+              <h3 className="font-bold text-sm lc-heading">Bugün</h3>
+              <span className="text-xs font-semibold" style={{color:"#2563eb"}}>{todayS.length} ameliyat</span>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto max-h-48">
             {todayS.length===0?(
-              <div className="px-5 py-6 text-sm text-slate-600 text-center">
+              <div className="px-5 py-6 text-sm lc-faint text-center">
                 <div className="text-2xl mb-1">✓</div>
                 <div>Bugün ameliyat yok</div>
               </div>
             ):todayS.map(s=>(
-              <div key={s.id} className="table-row px-5 py-3 flex items-center gap-3 cursor-pointer" onClick={()=>setPage("program")}>
+              <div key={s.id} className="lc-row px-5 py-3 flex items-center gap-3 cursor-pointer transition-colors" onClick={()=>setPage("program")}>
                 <div className="w-1 h-8 rounded-full flex-shrink-0" style={{background:colorForDoc(docStats.map(d=>d[0]),s.doctor)}}></div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-white truncate">{s.type}</div>
-                  <div className="text-xs text-slate-500">{displayTime(s.time)} · {s.doctor}</div>
+                  <div className="text-sm font-semibold lc-heading truncate">{s.type}</div>
+                  <div className="text-xs lc-muted">{displayTime(s.time)} · {s.doctor}</div>
                 </div>
                 <Badge status={s.status}/>
               </div>
@@ -1368,15 +1466,15 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
           </div>
           {upcoming.length>0&&(
             <>
-              <div className="px-5 py-3 border-t border-b border-white/8 bg-navy-900/50">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Yaklaşan</span>
+              <div className="px-5 py-3" style={{borderTop:"1px solid var(--lc-border)",borderBottom:"1px solid var(--lc-border)",background:"#f8fafc"}}>
+                <span className="text-xs font-semibold lc-faint uppercase tracking-wider">Yaklaşan</span>
               </div>
               {upcoming.map(s=>(
-                <div key={s.id} className="table-row px-5 py-3 flex items-center gap-3 cursor-pointer" onClick={()=>setPage("surgeries")}>
-                  <div className="text-xs text-slate-500 w-16 flex-shrink-0 font-mono">{s.date.slice(5).replace("-",".")}</div>
+                <div key={s.id} className="lc-row px-5 py-3 flex items-center gap-3 cursor-pointer transition-colors" onClick={()=>setPage("surgeries")}>
+                  <div className="text-xs lc-muted w-16 flex-shrink-0 font-mono">{s.date.slice(5).replace("-",".")}</div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium text-slate-200 truncate">{s.type}</div>
-                    <div className="text-xs text-slate-500">{s.hospital}</div>
+                    <div className="text-sm font-medium lc-heading truncate">{s.type}</div>
+                    <div className="text-xs lc-muted">{s.hospital}</div>
                   </div>
                 </div>
               ))}
@@ -1387,17 +1485,17 @@ function Dashboard({surgeries,types,profile,setPage,doctors}){
 
       {/* Doctor stats */}
       {docStats.length>0&&(
-        <div className="card rounded-2xl p-5">
-          <h3 className="font-bold text-sm text-white mb-4">Doktor Performansı ({period==="week"?"Bu Hafta":period==="month"?"Bu Ay":"Tümü"})</h3>
+        <div className="lc-card p-5">
+          <h3 className="font-bold text-sm lc-heading mb-4">Doktor Performansı ({period==="week"?"Bu Hafta":period==="month"?"Bu Ay":"Tümü"})</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {docStats.map(([doc,cnt],i)=>(
-              <div key={doc} className="bg-navy-800 rounded-xl p-3 text-center border border-white/5">
-                <div className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-lg font-bold text-white"
-                  style={{background:DOC_COLORS[i%DOC_COLORS.length]+"30",border:`2px solid ${DOC_COLORS[i%DOC_COLORS.length]}60`}}>
+              <div key={doc} className="rounded-xl p-3 text-center" style={{background:"#f8fafc",border:"1px solid var(--lc-border)"}}>
+                <div className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-lg font-bold"
+                  style={{background:DOC_COLORS[i%DOC_COLORS.length]+"22",border:`2px solid ${DOC_COLORS[i%DOC_COLORS.length]}55`,color:DOC_COLORS[i%DOC_COLORS.length]}}>
                   {doc[0]}
                 </div>
                 <div className="text-xl font-black" style={{color:DOC_COLORS[i%DOC_COLORS.length]}}>{cnt}</div>
-                <div className="text-xs text-slate-500 truncate mt-0.5">{doc.replace("Dr. ","")}</div>
+                <div className="text-xs lc-muted truncate mt-0.5">{doc.replace("Dr. ","")}</div>
               </div>
             ))}
           </div>
@@ -6004,36 +6102,37 @@ function App(){
       <div className="min-h-screen flex">
         <Sidebar page={page} setPage={setPage} profile={profile} unread={unread} onLogout={logout} mobileOpen={mobileOpen} onMobileClose={()=>setMobileOpen(false)}/>
         {/* Main content */}
-        <div className="flex-1 lg:ml-60 min-h-screen">
+        <div className="lc-shell flex-1 lg:ml-60 min-h-screen">
           {/* Top bar */}
-          <div className="sticky top-0 z-30 enterprise-topbar px-4 lg:px-6 py-3 flex items-center justify-between">
+          <div className="lc-topbar sticky top-0 z-30 px-4 lg:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button onClick={()=>setMobileOpen(true)} className="lg:hidden w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+              <button onClick={()=>setMobileOpen(true)} className="lc-icon-btn lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors">
                 <svg width="18" height="14" fill="none"><rect width="18" height="2" rx="1" fill="currentColor"/><rect y="6" width="14" height="2" rx="1" fill="currentColor"/><rect y="12" width="18" height="2" rx="1" fill="currentColor"/></svg>
               </button>
-              <div className="corp-page-icon">
+              <div className="lc-btn-soft w-10 h-10 rounded-xl flex items-center justify-center">
                 <span className="text-base leading-none">{NAV.find(n=>n.id===page)?.icon}</span>
               </div>
               <div>
-                <div className="enterprise-kicker">ARTROPLUS KURUMSAL</div>
-                <div className="text-sm font-bold text-slate-100">{NAV.find(n=>n.id===page)?.label}</div>
+                <div className="lc-topbar-kicker">ARTROPLUS KURUMSAL</div>
+                <div className="lc-topbar-title text-sm font-bold">{NAV.find(n=>n.id===page)?.label}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="hidden md:inline-flex enterprise-badge">
-                <span className="enterprise-dot"></span>
+              <div className="lc-badge hidden md:inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full" style={{background:"#10b981"}}></span>
                 Sistem aktif
               </div>
-              <div className="hidden lg:inline-flex enterprise-badge">{isManager(profile)?"Yönetici erişimi":"Operasyon erişimi"}</div><div className="hidden xl:inline-flex enterprise-badge">{fmtTR(todayStr)}</div>
-              <button onClick={()=>setPage("notifications")} className="relative w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+              <div className="lc-badge hidden lg:inline-flex rounded-full px-3 py-1.5 text-xs font-semibold">{isManager(profile)?"Yönetici erişimi":"Operasyon erişimi"}</div>
+              <div className="lc-badge hidden xl:inline-flex rounded-full px-3 py-1.5 text-xs font-semibold">{fmtTR(todayStr)}</div>
+              <button onClick={()=>setPage("notifications")} className="lc-icon-btn relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors">
                 <span>⌀</span>
                 {unread>0&&<span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose2"></span>}
               </button>
-              <div className="hidden sm:flex corp-user-pill items-center gap-2 px-3 py-1.5 rounded-xl bg-navy-800 border border-white/8">
+              <div className="lc-badge hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl">
                 <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center text-white text-xs font-bold">
                   {(profile?.full_name||"U")[0].toUpperCase()}
                 </div>
-                <span className="text-xs text-slate-300 font-medium max-w-[100px] truncate">{profile?.full_name||"Kullanıcı"}</span>
+                <span className="text-xs font-medium max-w-[100px] truncate" style={{color:"#334155"}}>{profile?.full_name||"Kullanıcı"}</span>
               </div>
             </div>
           </div>
