@@ -8,13 +8,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-title" content="ARTROPLUS"/>
   <meta name="theme-color" content="#0a0f1e"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet"/>
   <script src="https://cdn.tailwindcss.com/3.4.1"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
-          fontFamily: { sans: ['Inter','sans-serif'] },
+          fontFamily: { sans: ['Inter','sans-serif'], serif: ['Fraunces','serif'] },
           colors: {
             brand: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a',DEFAULT:'#2563eb' },
             navy: { 900:'#060b18',800:'#0a1025',700:'#0f1a35',600:'#132040',500:'#162448',400:'#1e3260',DEFAULT:'#0a1025' },
@@ -356,6 +356,29 @@
     @media(max-width:1024px){
       .lc-sidebar{position:fixed;}
     }
+    /* Auth screen — corporate colorful variant */
+    .lc-auth{background:#0b1c33;}
+    .lc-auth-bg{position:absolute;inset:0;overflow:hidden;z-index:0;}
+    .lc-auth-shape{position:absolute;inset:0;}
+    .lc-auth-shape-1{background:linear-gradient(135deg,#0ea5b7,#1a7ea6);clip-path:polygon(0 0,48% 0,0 62%);}
+    .lc-auth-shape-2{background:linear-gradient(120deg,#facc15,#f59e0b 55%,#ea580c);clip-path:polygon(14% 0,100% 0,100% 38%,62% 68%,0 30%);}
+    .lc-auth-shape-3{background:radial-gradient(circle at 85% 85%,rgba(37,99,235,.35),transparent 55%);}
+    .lc-auth-card{background:#ffffff;border-radius:20px;box-shadow:0 30px 90px rgba(2,10,25,.45);overflow:hidden;}
+    .lc-auth-input{background:#f4f7fd;border:1px solid #e6ebf5;color:#0f172a;transition:border-color .15s,box-shadow .15s;}
+    .lc-auth-input::placeholder{color:#94a3b8;}
+    .lc-auth-input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14);}
+
+    /* Corporate signature identity */
+    .lc-wordmark{font-family:'Fraunces',serif;font-weight:600;letter-spacing:.01em;}
+    .lc-wordmark-dark{color:#0f172a;}
+    .lc-wordmark-light{color:#ffffff;}
+    .lc-signature{display:inline-flex;align-items:center;gap:2px;opacity:.9;}
+    .lc-signature span{display:block;width:2px;background:currentColor;border-radius:1px;}
+    .lc-signature span:nth-child(1){height:6px;}
+    .lc-signature span:nth-child(2){height:11px;}
+    .lc-signature span:nth-child(3){height:8px;}
+    .lc-signature span:nth-child(4){height:14px;}
+    .lc-signature span:nth-child(5){height:5px;}
 
     /* Executive refinement v4 */
     .auth-screen{
@@ -499,8 +522,8 @@ const sendTelegram=async(msg)=>{
     });
   }catch(e){}
 };
-const SUPABASE_URL="https://etrmnfjaomrgbbpydvgq.supabase.co";
-const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0cm1uZmphb21yZ2JicHlkdmdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2ODgwNDAsImV4cCI6MjA5NDI2NDA0MH0.jWYGZYtfahRTzAAtIp5kdffNmVDCeEQM9YHEKMUiIX0";
+const SUPABASE_URL="https://gvzkldgueygixbypyfsp.supabase.co";
+const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2emtsZGd1ZXlnaXhieXB5ZnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNjczOTEsImV4cCI6MjA5NDk0MzM5MX0.jqBfY-3mp3-jhsQjENmfv7kntL8dvr4gcPt3-GPK-SQ";
 const SB=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const autoDoc=n=>{const t=n.trim();return t&&!DR_PREFIXES.some(p=>t.startsWith(p))?"Dr. "+t:t;};
 const parseLocalDate=value=>{
@@ -1014,7 +1037,17 @@ function AuthScreen({onLogin}){
   };
 
   return(
-    <div className="auth-screen min-h-screen flex items-center justify-center p-4">
+    <div className="lc-auth min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="lc-auth-bg"><span className="lc-auth-shape lc-auth-shape-1"/><span className="lc-auth-shape lc-auth-shape-2"/><span className="lc-auth-shape lc-auth-shape-3"/></div>
+
+      <div className="hidden lg:flex flex-col justify-center absolute left-16 top-1/2 -translate-y-1/2 z-10 max-w-xs">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="lc-signature text-white"><span/><span/><span/><span/><span/></span>
+          <span className="lc-wordmark lc-wordmark-light text-3xl">Artroplus</span>
+        </div>
+        <p className="text-lg font-medium text-white/85">Kurumsal Yönetim Paneli</p>
+      </div>
+
       {forgot&&(
         <Modal title="Şifre Sıfırla" onClose={()=>setForgot(false)} size="sm"
           footer={<button onClick={sendReset} className="w-full py-3 rounded-xl btn-primary text-white font-semibold">Gönder</button>}>
@@ -1022,33 +1055,42 @@ function AuthScreen({onLogin}){
           <Input type="email" value={fEmail} onChange={e=>setFEmail(e.target.value)} placeholder="ornek@email.com"/>
         </Modal>
       )}
-      <div className="auth-shell w-full max-w-5xl fade-up grid lg:grid-cols-[1.15fr_.85fr] gap-4 items-stretch"><div className="auth-brief hidden lg:flex flex-col justify-between"><div><div className="enterprise-kicker mb-4">ARTROPLUS ENTERPRISE</div><h2 className="text-3xl font-black text-white leading-tight mb-4">Medikal operasyonlar için kurumsal kontrol merkezi</h2><p className="text-sm text-slate-400 leading-6 max-w-lg">Ameliyat programı, stok takibi, tüketim evrakları ve yönetici raporları tek güvenli panelde toplanır.</p></div><div className="corp-mini-grid"><div className="corp-mini-card"><div className="text-2xl font-black text-brand-300">ERP</div><div className="text-xs text-slate-500 mt-1">Operasyon yönetimi</div></div><div className="corp-mini-card"><div className="text-2xl font-black text-emerald2">7/24</div><div className="text-xs text-slate-500 mt-1">Canlı takip</div></div><div className="corp-mini-card"><div className="text-2xl font-black text-amber2">ISO</div><div className="text-xs text-slate-500 mt-1">Kayıt disiplini</div></div></div></div><div className="auth-login-col">
-        <div className="text-center mb-8">
-          <img src={LOGO_LIGHT_SRC} className="h-12 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(37,99,235,.5)]" alt="ARTROPLUS"/>
-          <p className="text-slate-400 text-sm mt-1">Kurumsal Medikal Operasyon Platformu</p>
+
+      <div className="lc-auth-card w-full max-w-md fade-up z-10 relative">
+        <div className="flex items-center gap-6 px-8 pt-8 mb-2" style={{borderBottom:"1px solid var(--lc-border)"}}>
+          <button className="pb-3 text-sm font-semibold flex items-center gap-1.5" style={{color:"#2563eb",borderBottom:"2px solid #2563eb"}}>
+            <span>🔒</span> Şifre ile Giriş
+          </button>
+          <button onClick={()=>toast("Bu giriş yöntemi yakında eklenecek","warning")} className="pb-3 text-sm font-medium flex items-center gap-1.5" style={{color:"#94a3b8"}}>
+            <span>📱</span> Telefon ile Giriş
+          </button>
         </div>
-        {isFileOrigin&&<div className="mb-4 rounded-xl border border-amber2/25 bg-amber2/10 px-4 py-3 text-xs text-amber-200 leading-5">Uygulama file:// ile açılmış. Giriş ve şifre sıfırlama için dosyayı yerel sunucudan, örn. http://localhost:8000 üzerinden açmanız önerilir.</div>}
-        <div className="card rounded-2xl p-7 shadow-2xl">
-          <h1 className="text-xl font-bold text-white mb-6">Güvenli Giriş</h1>
-          <div className="space-y-4">
-            <div>
-              <Label>E-posta</Label>
-              <Input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="ornek@email.com" onKeyDown={e=>e.key==="Enter"&&login()}/>
-            </div>
-            <div>
-              <Label>Şifre</Label>
-              <Input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==="Enter"&&login()}/>
-            </div>
+
+        <div className="px-8 pt-6 text-center">
+          <h1 className="lc-wordmark lc-wordmark-dark text-2xl">Hoş Geldiniz</h1>
+          <p className="text-sm mt-1.5" style={{color:"#94a3b8"}}>Kullanıcı adı ve şifreniz ile giriş yapın</p>
+        </div>
+
+        {isFileOrigin&&<div className="mx-8 mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700 leading-5">Uygulama file:// ile açılmış. Giriş ve şifre sıfırlama için dosyayı yerel sunucudan, örn. http://localhost:8000 üzerinden açmanız önerilir.</div>}
+
+        <div className="px-8 pt-6 pb-8 space-y-3">
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="E-posta adresiniz" onKeyDown={e=>e.key==="Enter"&&login()}
+            className="lc-auth-input w-full px-4 py-3.5 rounded-xl text-sm"/>
+          <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••" onKeyDown={e=>e.key==="Enter"&&login()}
+            className="lc-auth-input w-full px-4 py-3.5 rounded-xl text-sm"/>
+          <div className="text-right">
+            <button onClick={()=>setForgot(true)} className="text-xs font-medium" style={{color:"#2563eb"}}>Şifremi Unuttum?</button>
           </div>
-          <button onClick={login} disabled={loading} className="w-full mt-6 py-3 rounded-xl btn-primary text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-            {loading?<span className="pulse-soft">Giriş doğrulanıyor…</span>:"Sisteme Giriş Yap"}
+          <button onClick={login} disabled={loading} className="lc-btn-primary w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 mt-2">
+            {loading?<span className="pulse-soft">Giriş doğrulanıyor…</span>:"Giriş Yap"}
           </button>
-          <button onClick={()=>setForgot(true)} className="w-full mt-3 text-sm text-slate-500 hover:text-brand-400 transition-colors">
-            Şifremi unuttum
+          <button disabled onClick={()=>toast("Biyometrik giriş yakında eklenecek","warning")} className="w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-not-allowed" style={{background:"#eef3ff",color:"#93b4f5"}}>
+            <span>◍</span> Biyometrik ile Giriş
           </button>
         </div>
-        <p className="text-center text-xs text-slate-600 mt-6">ARTROPLUS Kurumsal ERP</p></div>
       </div>
+
+      <p className="absolute bottom-6 left-1/2 -translate-x-1/2 lg:left-16 lg:translate-x-0 text-xs text-white/60 z-10">2026© Artroplus</p>
     </div>
   );
 }
@@ -6113,8 +6155,11 @@ function App(){
                 <span className="text-base leading-none">{NAV.find(n=>n.id===page)?.icon}</span>
               </div>
               <div>
-                <div className="lc-topbar-kicker">ARTROPLUS KURUMSAL</div>
-                <div className="lc-topbar-title text-sm font-bold">{NAV.find(n=>n.id===page)?.label}</div>
+                <div className="lc-topbar-kicker flex items-center gap-1.5">
+                  <span className="lc-signature" style={{color:"#94a3b8"}}><span/><span/><span/><span/><span/></span>
+                  ARTROPLUS KURUMSAL
+                </div>
+                <div className="lc-topbar-title text-sm font-bold lc-wordmark lc-wordmark-dark">{NAV.find(n=>n.id===page)?.label}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
