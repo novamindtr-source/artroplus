@@ -46,8 +46,8 @@
 </div>
 <div class="modal-bg" id="modal"></div><div class="toast" id="toast"></div>
 <script>
-(()=>{const KEY="artroplus_enterprise_v2";const C=["#1769e0","#0f9f6e","#d98b05","#7256d9","#0794b8","#d94452"];let page="dashboard",query="",mode="all",locFilter="",searchTimer=null,calDate=new Date(),assignDate=today();
-const uid=()=>Math.random().toString(36).slice(2,9);const today=()=>new Date().toISOString().slice(0,10);
+(()=>{const KEY="artroplus_enterprise_v2";const C=["#1769e0","#0f9f6e","#d98b05","#7256d9","#0794b8","#d94452"];let page="dashboard",query="",mode="all",locFilter="",searchTimer=null,calDate=new Date(),assignDate="";
+const uid=()=>Math.random().toString(36).slice(2,9);const today=()=>new Date().toISOString().slice(0,10);assignDate=today();
 const seed=()=>{const p=[["AR-6430","Meniskus Tamir Sistemi","Arthrex",4],["AR-6562","ACL TightRope","Arthrex",3],["72203804","Suture Anchor","Smith+Nephew",5],["KCM-0306CN","Rejoin Implant","Rejoin",2],["00-5950-040-00","Zimmer Drill Guide","Zimmer",2]].map(x=>({id:uid(),ref:x[0],name:x[1],brand:x[2],unit:"adet",min:x[3]}));return{products:p,hospitals:[["ana","Ana Depo","depot",C[0]],["fulya","Acibadem Fulya","hospital",C[1]],["maslak","Acibadem Maslak","hospital",C[2]],["sisli","Memorial Şişli","hospital",C[3]],["atasehir","Acibadem Ataşehir","hospital",C[4]]].map(x=>({id:x[0],name:x[1],type:x[2],color:x[3]})),doctors:["Mahir Mahiroğulları","Umut Akgün"],surgeryTypes:["ACL","Menisküs Tamiri","Rotator Cuff"],personnel:["Tevrat Metin","Ozan Coşar"],stock:[st(p[0].id,"ana","25071016",18,"2028-10-01"),st(p[0].id,"fulya","25071016",3,"2028-10-01"),st(p[0].id,"maslak","25071016",4,"2028-10-01"),st(p[1].id,"ana","508017",9,"2027-08-16"),st(p[2].id,"ana","5092158741",12,"2029-02-20"),st(p[3].id,"ana","2605048",6,"2027-12-05"),st(p[4].id,"sisli","15448556",2,"2028-05-05")],moves:[],users:[{id:uid(),fullName:"Mehmet Yönetici",email:"admin@artroplus.local",role:"Yönetici",status:"Aktif",phone:"",personnel:true}],surgeries:[{id:uid(),date:today(),time:"08:00",doctor:"Mahir Mahiroğulları",hospital:"Memorial Şişli",type:"ACL",personnel:"Tevrat Metin"},{id:uid(),date:today(),time:"10:30",doctor:"Umut Akgün",hospital:"Acibadem Maslak",type:"Menisküs Tamiri",personnel:"Ozan Coşar"}]}};function st(productId,locationId,lot,qty,exp){return{id:uid(),productId,locationId,lot,qty,exp}}let db=JSON.parse(localStorage.getItem(KEY)||"null")||seed();migrate();const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
 function migrate(){db.hospitals=db.hospitals||[{id:"ana",name:"Ana Depo",type:"depot",color:C[0]}];if(!db.hospitals.some(x=>x.id=="ana"))db.hospitals.unshift({id:"ana",name:"Ana Depo",type:"depot",color:C[0]});db.doctors=db.doctors||[...new Set((db.surgeries||[]).map(x=>x.doctor).filter(Boolean))];db.surgeryTypes=db.surgeryTypes||[...new Set((db.surgeries||[]).map(x=>x.type).filter(Boolean))];db.personnel=db.personnel||[...new Set((db.surgeries||[]).map(x=>x.personnel).filter(Boolean))];db.stock=db.stock||[];db.moves=db.moves||[];db.products=db.products||[];db.surgeries=db.surgeries||[];db.users=db.users||[{id:uid(),fullName:"Mehmet Yönetici",email:"admin@artroplus.local",role:"Yönetici",status:"Aktif",phone:"",personnel:true}]}
 const p=id=>db.products.find(x=>x.id===id)||{};const h=id=>db.hospitals.find(x=>x.id===id)||{name:"Lokasyon yok",color:"#64748b"};const txt=v=>String(v||"").toLocaleLowerCase("tr-TR");const toast=m=>{let t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2400)};
@@ -114,6 +114,7 @@ function render(){document.getElementById("title").textContent={dashboard:"Dashb
 </script>
 </body>
 </html>
+
 
 
 
