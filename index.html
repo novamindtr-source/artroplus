@@ -2231,6 +2231,10 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
+                <Label required>Tarih</Label>
+                <Input type="date" value={addModal.date} onChange={e=>{setAddModal(m=>({...m,date:e.target.value}));setSelDate(e.target.value);}}/>
+              </div>
+              <div>
                 <Label required>Saat</Label>
                 <div className="space-y-2">
                   {!addForm.timeUnknown&&<Input type="time" value={addForm.time} onChange={e=>setAddForm(p=>({...p,time:e.target.value}))}/>}
@@ -2362,14 +2366,10 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
       <div className="corp-section-hero flex flex-col sm:flex-row sm:items-center gap-3">
         <h1 className="text-xl font-bold text-white">Ameliyat Programı</h1>
         <div className="sm:ml-auto flex flex-wrap gap-2">
-          {tab==="today"&&(
-            <>
-              <button type="button" onClick={()=>openProgramAdd({date:selDate,time:"09:00"})}
-                className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">
-                + Programa Ekle
-              </button>
-            </>
-          )}
+          <button type="button" onClick={()=>openProgramAdd({date:selDate,time:"09:00"})}
+            className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">
+            + {fmtTR(selDate)} Tarihine Ekle
+          </button>
         </div>
       </div>
 
@@ -2559,10 +2559,14 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                   const ss=daySurgeries(dayNum);
                   const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(dayNum).padStart(2,"0")}`;
                   const isToday=ds===todayStr;
+                  const isSelected=ds===selDate;
                   return(
-                    <div key={di} onClick={()=>{setSelDate(ds);setTab("today");}}
-                      className={`min-h-[72px] p-1.5 border-r border-white/5 last:border-r-0 calendar-day cursor-pointer hover:bg-brand/8 ${isToday?"calendar-day today":""}`}>
-                      <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mb-1 ${isToday?"bg-brand text-white":"text-slate-400"}`}>{dayNum}</div>
+                    <div key={di} onClick={()=>setSelDate(ds)}
+                      className={`min-h-[86px] p-1.5 border-r border-white/5 last:border-r-0 calendar-day cursor-pointer hover:bg-brand/8 ${isToday?"calendar-day today":""} ${isSelected?"ring-2 ring-brand/70 bg-brand/10":""}`}>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <div className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${isSelected?"bg-brand text-white":isToday?"bg-brand/70 text-white":"text-slate-400"}`}>{dayNum}</div>
+                        {isSelected&&<span className="text-[9px] text-brand-300 font-black">SEÇİLİ</span>}
+                      </div>
                       {ss.slice(0,3).map(s=>(
                         <div key={s.id} className="text-[10px] font-medium px-1.5 py-0.5 rounded mb-0.5 truncate leading-tight"
                           style={{background:(docColorMap[s.doctor]||"#3b82f6")+"22",color:docColorMap[s.doctor]||"#3b82f6",borderLeft:`2px solid ${docColorMap[s.doctor]||"#3b82f6"}`}}>
@@ -2570,11 +2574,16 @@ function ProgramView({surgeries,types,doctors,hospitals,personel=[],onRefresh,pr
                         </div>
                       ))}
                       {ss.length>3&&<div className="text-[9px] text-slate-500 pl-1">+{ss.length-3}</div>}
-                      {ss.length===0&&(
-                        <div className="flex items-center justify-center h-8 opacity-0 hover:opacity-100 transition-opacity">
-                          <span className="text-[9px] text-slate-600">+ Ekle</span>
-                        </div>
-                      )}
+                      <div className="mt-1 grid grid-cols-2 gap-1">
+                        <button type="button" onClick={e=>{e.stopPropagation();setSelDate(ds);}}
+                          className="rounded-lg border border-white/10 px-1.5 py-1 text-[10px] font-bold text-slate-400 hover:text-brand-300 hover:border-brand/40 transition-colors">
+                          Seç
+                        </button>
+                        <button type="button" onClick={e=>{e.stopPropagation();setSelDate(ds);openProgramAdd({date:ds,time:"09:00"});}}
+                          className="rounded-lg border border-brand/25 bg-brand/10 px-1.5 py-1 text-[10px] font-bold text-brand-300 hover:bg-brand/20 transition-colors">
+                          + Ekle
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -4250,6 +4259,13 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     hospital:{...(hospitals.find(h=>h.id===s.hospital_id)||{}),name:displayLocationName(hospitals.find(h=>h.id===s.hospital_id)||{name:"?"})||"?"},
   })),[stoklar,urunler,hospitals]);
 
+  const hospitalById=id=>hospitals.find(h=>h.id===id);
+  const isCompanyLocationId=id=>id==="company-shelf-local"||isCompanyShelfName(displayLocationName(hospitalById(id))||hospitalById(id)?.name||id);
+  const companyStockRowsFor=(urunId,lot="")=>stoklar
+    .filter(s=>s.urun_id===urunId&&isCompanyLocationId(s.hospital_id)&&(!lot||normalizeLot(s.lot)===normalizeLot(lot)))
+    .sort((a,b)=>(Number(b.quantity)||0)-(Number(a.quantity)||0));
+  const companyStockFor=(urunId,lot="")=>companyStockRowsFor(urunId,lot)[0]||null;
+  const companyStockQty=(urunId,lot="")=>companyStockRowsFor(urunId,lot).reduce((a,s)=>a+(Number(s.quantity)||0),0);
   const productSummary=useMemo(()=>{
     const m={};
     rows.forEach(r=>{
@@ -4408,12 +4424,13 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       if(!urunId)throw new Error("Ürün kaydedildi fakat ID okunamadı. Sayfayı yenileyip tekrar deneyin.");
       const qty=Math.max(0,Number(f.quantity)||0);
       if(qty>0){
-        const target=f.hospital_id||findCompanyShelf(hospitals)?.id||visibleHospitals[0]?.id||"company-shelf-local";
+        const shelf=await ensureCompanyShelf(hospitals);
+        const target=shelf.id;
         const current=findStockRow(stoklar,urunId,target,f.lot||"");
         if(current)await updateStockQuantity(current,Number(current.quantity||0)+qty);
-        else await insertStockQuantity(urunId,target,qty,f.lot||"",f.skt||null,null,displayLocationName(hospitals.find(h=>h.id===target))||"Ana Depo");
+        else await insertStockQuantity(urunId,target,qty,f.lot||"",f.skt||null,null,COMPANY_SHELF_NAME);
         if(f.lot)rememberLocalStockLot({urun_id:urunId,hospital_id:target,lot:f.lot,skt:f.skt||null,quantity:qty});
-        await insertMovement(movementPayload({urun_id:urunId,hospital_id:target,lot:f.lot||"",type:"in",quantity:qty,notes:`Manuel ürün ekleme${f.notes?` — ${f.notes}`:""}`}));
+        await insertMovement(movementPayload({urun_id:urunId,hospital_id:target,lot:f.lot||"",type:"in",quantity:qty,notes:`Ana depo manuel ürün girişi${f.notes?` — ${f.notes}`:""}`}));
       }
       toast(existing?.id?"Ürün ve stok güncellendi":"Manuel ürün eklendi","success");
       setProductModal(false);setProductForm(emptyManualProduct);loadAll();loadH();
@@ -4432,22 +4449,26 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       const now=new Date().toISOString();
 
     if(op.op==="shelf_to_hospital"){
-      // Raftan hastaneye çıkış
+      // Konsinye / sevk sadece Ana Depo stokundan yapılır.
       if(!op.to_id){setOpLoading(false);return toast("Hedef hastane seçin","warning");}
-      const fromStok=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
-      if(op.from_id&&(!fromStok||fromStok.quantity<qty)){setOpLoading(false);return toast("Kaynak stok yetersiz","warning");}
-      const toStok=findStockRow(stoklar,op.urun_id,op.to_id,op.lot);
-      if(op.from_id){
-        await updateStockQuantity(fromStok,fromStok.quantity-qty);
-        await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.from_id,lot:op.lot,type:"out",quantity:qty,
-          notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${hospitals.find(h=>h.id===op.to_id)?.name||""} ${op.notes||""}`.trim()}));
+      const shelf=await ensureCompanyShelf(hospitals);
+      const fromStok=findStockRow(stoklar,op.urun_id,shelf.id,op.lot)||companyStockFor(op.urun_id,op.lot);
+      const available=Number(fromStok?.quantity)||0;
+      if(!fromStok||available<qty){
+        setOpLoading(false);
+        return toast(`Önce ürünü Ana Depo'ya alın. Ana Depo mevcut: ${available}`,"warning");
       }
-      if(toStok){await updateStockQuantity(toStok,toStok.quantity+qty);}
-      else{await insertStockQuantity(op.urun_id,op.to_id,qty,op.lot,null,null,displayLocationName(hospitals.find(h=>h.id===op.to_id)));}
-      if(op.lot)rememberLocalStockLot({urun_id:op.urun_id,hospital_id:op.to_id,lot:op.lot,quantity:qty});
-      await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.to_id,lot:op.lot,type:"in",quantity:qty,
-        notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} ${op.notes||""}`.trim()}));
-      toast(`${qty} ${urun?.unit||"adet"} hastaneye gönderildi ✓`,"success");
+      const lot=fromStok.lot||op.lot||"";
+      const toStok=findStockRow(stoklar,op.urun_id,op.to_id,lot);
+      await updateStockQuantity(fromStok,available-qty);
+      await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:fromStok.hospital_id,lot,type:"out",quantity:qty,
+        notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} Ana Depo → ${hospitals.find(h=>h.id===op.to_id)?.name||""} ${op.notes||""}`.trim()}));
+      if(toStok){await updateStockQuantity(toStok,Number(toStok.quantity||0)+qty);}
+      else{await insertStockQuantity(op.urun_id,op.to_id,qty,lot,fromStok.skt||null,fromStok.mfg_date||null,displayLocationName(hospitals.find(h=>h.id===op.to_id)));}
+      if(lot)rememberLocalStockLot({urun_id:op.urun_id,hospital_id:op.to_id,lot,quantity:qty,skt:fromStok.skt||null,mfg_date:fromStok.mfg_date||null});
+      await insertMovement(movementPayload({urun_id:op.urun_id,hospital_id:op.to_id,lot,type:"in",quantity:qty,
+        notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} Konsinye sevk ${op.notes||""}`.trim()}));
+      toast(`${qty} ${urun?.unit||"adet"} Ana Depo'dan hastaneye gönderildi ✓`,"success");
     }
 
     else if(op.op==="return"){
@@ -4540,7 +4561,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
 
   // İşlem tipi kartları
   const OPS=[
-    {id:"shelf_to_hospital",icon:"→",label:"Raf → Hastane",desc:"Depo/raftan hastaneye gönder",
+    {id:"shelf_to_hospital",icon:"→",label:"Ana Depo → Hastane",desc:"Ana Depo stokundan konsinye sevk",
      color:"#3b82f6",bg:"rgba(59,130,246,.12)"},
     {id:"return",icon:"↩",label:"Geri Alım",desc:"Hastaneden kalıcı olarak geri al",
      color:"#10b981",bg:"rgba(16,185,129,.12)"},
@@ -4592,7 +4613,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     const parsed=parseGS1(clean);
     const product=matchBarcodeProduct(parsed);
     const stockMatches=stockRowsForScan(product,parsed);
-    const sourceStock=stockMatches[0]||null;
+    const sourceStock=honeywellMode==="shelf_to_hospital"?(stockMatches.find(s=>isCompanyLocationId(s.hospital_id))||null):(stockMatches[0]||null);
     const scan={raw:clean,parsed,product,stockMatches,sourceStock,at:new Date().toISOString()};
     setLastScan(scan);
     setScannerInput("");
@@ -4607,6 +4628,10 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     }
     if(honeywellMode==="receipt"){
       toast("Barkod okundu. Stok giriş kaydı için onay verin","success");
+      return;
+    }
+    if(honeywellMode==="shelf_to_hospital"&&!sourceStock){
+      toast("Sevk yapılamaz: bu REF/LOT Ana Depo'da yok. Önce Mal Kabul ile Ana Depo'ya alın.","warning");
       return;
     }
     const next={...emptyOp,
@@ -4734,7 +4759,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                 <Select value={op.urun_id} onChange={e=>setOp(p=>({...p,urun_id:e.target.value,lot:""}))}>
                   <option value="">REF seçin</option>
                   {urunler.map(u=>{
-                    const tot=stoklar.filter(s=>s.urun_id===u.id).reduce((a,b)=>a+(b.quantity||0),0);
+                    const tot=companyStockQty(u.id);
                     return<option key={u.id} value={u.id}>{u.code||"REF yok"} — {tot} {u.unit}</option>;
                   })}
                 </Select>
@@ -4743,7 +4768,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                 <Label>LOT Numarası</Label>
                 <Select value={op.lot} onChange={e=>setOp(p=>({...p,lot:e.target.value}))}>
                   <option value="">LOT seçin / yok</option>
-                  {stoklar.filter(s=>s.urun_id===op.urun_id&&(!op.from_id||s.hospital_id===op.from_id)).map(s=>(
+                  {(op.op==="shelf_to_hospital"?companyStockRowsFor(op.urun_id):stoklar.filter(s=>s.urun_id===op.urun_id&&(!op.from_id||s.hospital_id===op.from_id))).map(s=>(
                     <option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"} ({s.quantity})</option>
                   ))}
                 </Select>
@@ -4754,13 +4779,9 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                 <>
                   <div className="grid grid-cols-[1fr_32px_1fr] gap-2 items-end">
                     <div>
-                      <Label>Kaynak (Raf/Depo)</Label>
-                      <Select value={op.from_id} onChange={e=>setOp(p=>({...p,from_id:e.target.value}))}>
-                        <option value="">Ana Stoktan</option>
-                        {visibleHospitals.map(h=>{
-                          const total=stoklar.filter(x=>x.urun_id===op.urun_id&&x.hospital_id===h.id&&(!op.lot||normalizeLot(x.lot)===normalizeLot(op.lot))).reduce((a,x)=>a+(Number(x.quantity)||0),0);
-                          return<option key={h.id} value={h.id}>{h.name} ({total})</option>;
-                        })}
+                      <Label>Kaynak</Label>
+                      <Select value="ana-depo" disabled>
+                        <option value="ana-depo">Ana Depo ({companyStockQty(op.urun_id,op.lot)})</option>
                       </Select>
                     </div>
                     <div className="text-center text-slate-400 pb-3 text-lg">→</div>
@@ -4768,13 +4789,13 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                       <Label required>Hedef Hastane</Label>
                       <Select value={op.to_id} onChange={e=>setOp(p=>({...p,to_id:e.target.value}))}>
                         <option value="">Seçin</option>
-                        {visibleHospitals.filter(h=>h.id!==op.from_id).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+                        {visibleHospitals.filter(h=>!isCompanyLocationId(h.id)).map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
                       </Select>
                     </div>
                   </div>
-                  {op.from_id&&op.urun_id&&(()=>{
-                    const s=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
-                    return s?<div className="bg-brand/10 rounded-xl p-3 text-xs text-brand-300 border border-brand/20">Kaynak stok: <b>{s.quantity}</b> {urunler.find(u=>u.id===op.urun_id)?.unit}</div>:null;
+                  {op.urun_id&&(()=>{
+                    const s=companyStockFor(op.urun_id,op.lot);
+                    return s?<div className="bg-brand/10 rounded-xl p-3 text-xs text-brand-300 border border-brand/20">Ana Depo stoku: <b>{s.quantity}</b> {urunler.find(u=>u.id===op.urun_id)?.unit}</div>:null;
                   })()}
                 </>
               )}
@@ -4865,7 +4886,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                       ))}
                     </div>
                   </div>
-                  {op.from_id&&op.urun_id&&(()=>{
+                  {op.urun_id&&(()=>{
                     const s=findStockRow(stoklar,op.urun_id,op.from_id,op.lot);
                     return s?<div className="bg-rose2/10 rounded-xl p-3 text-xs text-rose2 border border-rose2/20">Mevcut stok: <b>{s.quantity}</b> {urunler.find(u=>u.id===op.urun_id)?.unit} — bu miktardan düşülecek</div>:null;
                   })()}
@@ -4902,7 +4923,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
               <div><Label>Adet</Label><Input type="number" min="0" value={productForm.quantity} onChange={e=>setProductForm(p=>({...p,quantity:e.target.value}))}/></div>
               <div><Label>Kritik Stok</Label><Input type="number" min="0" value={productForm.min_stock} onChange={e=>setProductForm(p=>({...p,min_stock:e.target.value}))}/></div>
             </div>
-            <div><Label>Lokasyon / Konsinye</Label><Select value={productForm.hospital_id} onChange={e=>setProductForm(p=>({...p,hospital_id:e.target.value}))}><option value="">Ana depo / lokasyon seçin</option>{hospitals.map(h=><option key={h.id} value={h.id}>{displayLocationName(h)||h.name}</option>)}</Select></div>
+            <div><Label>İlk Stok Lokasyonu</Label><div className="px-3 py-2.5 rounded-xl bg-navy-800 border border-white/8 text-sm text-slate-200 font-bold">Ana Depo <span className="text-xs text-slate-500 font-medium">/ konsinye için sonra sevk yapılır</span></div></div>
             <div><Label>Not</Label><Textarea rows="2" value={productForm.notes} onChange={e=>setProductForm(p=>({...p,notes:e.target.value}))} placeholder="Opsiyonel açıklama"/></div>
           </div>
         </Modal>
@@ -5136,7 +5157,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                   <div><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${st.cls}`}>{st.label}</span></div>
                   <div className="flex flex-wrap gap-1.5">
                     <button type="button" onClick={()=>{setAf({quantity:r.quantity,notes:""});setAdjustModal(r);}} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Düzenle</button>
-                    <button type="button" onClick={()=>{setOp({...emptyOp,op:"shelf_to_hospital",urun_id:r.urun_id,from_id:r.hospital_id,lot:r.lot});setOpModal(true);}} className="px-2.5 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 text-xs font-bold border border-white/8">Hareket</button>
+                    <button type="button" onClick={()=>{setOp({...emptyOp,op:"shelf_to_hospital",urun_id:r.urun_id,lot:r.lot});setOpModal(true);}} className="px-2.5 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 text-xs font-bold border border-white/8">Hareket</button>
                     <button type="button" onClick={()=>removeStock(r)} className="px-2.5 py-1.5 rounded-lg bg-rose2/15 hover:bg-rose2/25 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
                   </div>
                 </div>
@@ -5183,7 +5204,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                 <div><span className="px-2.5 py-1 rounded-full text-xs font-bold border" style={{background:r.color+"18",borderColor:r.color+"35",color:r.color}}>{r.reason}</span></div>
                 <div className="flex flex-wrap gap-1.5">
                   <button type="button" onClick={()=>{setAf({quantity:r.quantity,notes:r.reason});setAdjustModal(r);}} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Düzelt</button>
-                  <button type="button" onClick={()=>{setOp({...emptyOp,op:"shelf_to_hospital",urun_id:r.urun_id,from_id:r.hospital_id,lot:r.lot});setOpModal(true);}} className="px-2.5 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 text-xs font-bold border border-white/8">Hareket</button>
+                  <button type="button" onClick={()=>{setOp({...emptyOp,op:"shelf_to_hospital",urun_id:r.urun_id,lot:r.lot});setOpModal(true);}} className="px-2.5 py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 text-xs font-bold border border-white/8">Hareket</button>
                   <button type="button" onClick={()=>removeStock(r)} className="px-2.5 py-1.5 rounded-lg bg-rose2/15 hover:bg-rose2/25 text-rose2 text-xs font-bold border border-rose2/20">Sil</button>
                 </div>
               </div>
@@ -5349,6 +5370,10 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const [quickRows,setQuickRows]=useState([{urun_id:"",lot:"",quantity:1,notes:""}]);
   const [quickSaving,setQuickSaving]=useState(false);
   const [quickOpen,setQuickOpen]=useState(false);
+  const readTotalOverrides=()=>{try{return JSON.parse(localStorage.getItem("artroplus_movement_total_overrides_v1")||"{}")||{};}catch{return {};}};
+  const [totalOverrides,setTotalOverrides]=useState(readTotalOverrides);
+  const [editingTotals,setEditingTotals]=useState(false);
+  const [totalDraft,setTotalDraft]=useState({in:"",out:""});
 
   useEffect(()=>{load();},[]);
   useEffect(()=>{
@@ -5368,19 +5393,23 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     if(search){const q=search.toLowerCase();return urun?.code?.toLowerCase().includes(q)||h.lot?.toLowerCase().includes(q)||displayLocationName(hosp).toLowerCase().includes(q)||h.notes?.toLowerCase().includes(q);}
     return true;
   });
+  const movementHospitalById=id=>hospitals.find(h=>h.id===id);
+  const isMovementCompanyId=id=>id==="company-shelf-local"||isCompanyShelfName(displayLocationName(movementHospitalById(id))||movementHospitalById(id)?.name||id);
 
   const save=async(formData)=>{
     const d=formData||f;
     if(!d.urun_id||!d.hospital_id)return toast("Ürün ve hastane seçin","warning");
     const qty=Number(d.quantity)||1;
+    if(d.type==="in"&&!isMovementCompanyId(d.hospital_id))return toast("Mal kabul / ürün girişi önce Ana Depo'ya yapılmalı. Konsinye için Depo Yönetimi > Konsinye Sevk kullanın.","warning");
+    const stok=findStockRow(stoklar,d.urun_id,d.hospital_id,d.lot||"");
+    if(d.type==="out"&&(!stok||Number(stok.quantity||0)<qty))return toast("Sevk/çıkış yapılamaz: seçilen lokasyonda yeterli stok yok. Ürün önce Ana Depo'ya alınmalı.","warning");
     const{error}=await insertMovement(movementPayload({urun_id:d.urun_id,hospital_id:d.hospital_id,lot:d.lot||"",type:d.type,quantity:qty,notes:d.notes||"",surgery_id:d.surgery_id||null}));
     if(error)return toast(error.message,"error");
-    const stok=findStockRow(stoklar,d.urun_id,d.hospital_id,d.lot||"");
     if(stok){
-      const newQ=d.type==="in"?stok.quantity+qty:Math.max(0,stok.quantity-qty);
+      const newQ=d.type==="in"?Number(stok.quantity||0)+qty:Math.max(0,Number(stok.quantity||0)-qty);
       await updateStockQuantity(stok,newQ);
     }else if(d.type==="in"){
-      await insertStockQuantity(d.urun_id,d.hospital_id,qty,d.lot||"",null,null,displayLocationName(hospitals.find(h=>h.id===d.hospital_id)));
+      await insertStockQuantity(d.urun_id,d.hospital_id,qty,d.lot||"",null,null,displayLocationName(hospitals.find(h=>h.id===d.hospital_id))||"Ana Depo");
       if(d.lot)rememberLocalStockLot({urun_id:d.urun_id,hospital_id:d.hospital_id,lot:d.lot,quantity:qty});
     }
     toast("Hareket kaydedildi ✓","success");
@@ -5396,9 +5425,18 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     setBarcodeModal(false);
   };
 
-  const totalIn=hareketler.filter(h=>h.type==="in").reduce((a,h)=>a+h.quantity,0);
-  const totalOut=hareketler.filter(h=>h.type==="out").reduce((a,h)=>a+h.quantity,0);
+  const realTotalIn=hareketler.filter(h=>h.type==="in").reduce((a,h)=>a+(Number(h.quantity)||0),0);
+  const realTotalOut=hareketler.filter(h=>h.type==="out").reduce((a,h)=>a+(Number(h.quantity)||0),0);
+  const totalIn=totalOverrides.in!==undefined?Number(totalOverrides.in):realTotalIn;
+  const totalOut=totalOverrides.out!==undefined?Number(totalOverrides.out):realTotalOut;
   const totalNet=totalIn-totalOut;
+  const startEditTotals=()=>{setTotalDraft({in:String(totalIn),out:String(totalOut)});setEditingTotals(true);};
+  const saveTotalOverrides=()=>{
+    const next={in:Math.max(0,Number(totalDraft.in)||0),out:Math.max(0,Number(totalDraft.out)||0)};
+    localStorage.setItem("artroplus_movement_total_overrides_v1",JSON.stringify(next));
+    setTotalOverrides(next);setEditingTotals(false);toast("Toplamlar güncellendi","success");
+  };
+  const resetTotalOverrides=()=>{localStorage.removeItem("artroplus_movement_total_overrides_v1");setTotalOverrides({});setEditingTotals(false);toast("Toplamlar gerçek hareket kayıtlarına döndü","success");};
   const selectedMovementProduct=urunler.find(u=>u.id===f.urun_id);
   const selectedMovementLots=stoklar.filter(s=>s.urun_id===f.urun_id&&(!f.hospital_id||s.hospital_id===f.hospital_id));
   const printMovementList=()=>{
@@ -5431,6 +5469,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const saveQuickMovement=async()=>{
     const ready=quickReadyRows();
     if(!quickHospital)return toast("Önce depo / lokasyon seçin","warning");
+    if(!isMovementCompanyId(quickHospital))return toast("Mal hareket girişi sadece Ana Depo'ya yapılır. Konsinye için Depo Yönetimi > Konsinye Sevk kullanın.","warning");
     if(!ready.length)return toast("En az bir ürün ve adet girin","warning");
     setQuickSaving(true);
     try{
@@ -5613,16 +5652,22 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="card rounded-2xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Toplam Giriş</p>
-          <p className="text-2xl font-black text-emerald2">{totalIn}</p>
+          <div className="flex items-center justify-between gap-2 mb-1"><p className="text-xs text-slate-500">Toplam Giriş</p>{totalOverrides.in!==undefined&&<span className="text-[10px] text-brand-300 font-bold">manuel</span>}</div>
+          {editingTotals?<Input type="number" min="0" value={totalDraft.in} onChange={e=>setTotalDraft(p=>({...p,in:e.target.value}))} className="text-2xl font-black text-emerald2"/>:<p className="text-2xl font-black text-emerald2">{totalIn}</p>}
+          {totalOverrides.in!==undefined&&<p className="text-[10px] text-slate-600 mt-1">Gerçek: {realTotalIn}</p>}
         </div>
         <div className="card rounded-2xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Toplam Çıkış</p>
-          <p className="text-2xl font-black text-rose2">{totalOut}</p>
+          <div className="flex items-center justify-between gap-2 mb-1"><p className="text-xs text-slate-500">Toplam Çıkış</p>{totalOverrides.out!==undefined&&<span className="text-[10px] text-brand-300 font-bold">manuel</span>}</div>
+          {editingTotals?<Input type="number" min="0" value={totalDraft.out} onChange={e=>setTotalDraft(p=>({...p,out:e.target.value}))} className="text-2xl font-black text-rose2"/>:<p className="text-2xl font-black text-rose2">{totalOut}</p>}
+          {totalOverrides.out!==undefined&&<p className="text-[10px] text-slate-600 mt-1">Gerçek: {realTotalOut}</p>}
         </div>
         <div className="card rounded-2xl p-4">
-          <p className="text-xs text-slate-500 mb-1">Kayıt</p>
-          <p className="text-2xl font-black text-white">{filtered.length}</p>
+          <div className="flex items-center justify-between gap-2 mb-2"><p className="text-xs text-slate-500">Kayıt</p><p className="text-2xl font-black text-white">{filtered.length}</p></div>
+          {editingTotals?(
+            <div className="flex gap-2"><button type="button" onClick={saveTotalOverrides} className="flex-1 py-2 rounded-lg btn-primary text-white text-xs font-bold">Kaydet</button><button type="button" onClick={()=>setEditingTotals(false)} className="px-3 py-2 rounded-lg bg-navy-800 text-slate-400 text-xs border border-white/8">İptal</button></div>
+          ):(
+            <div className="flex gap-2"><button type="button" onClick={startEditTotals} className="flex-1 py-2 rounded-lg bg-brand/15 text-brand-300 text-xs font-bold border border-brand/20">Toplamları Düzenle</button><button type="button" onClick={resetTotalOverrides} className="px-3 py-2 rounded-lg bg-navy-800 text-slate-400 text-xs border border-white/8">Sıfırla</button></div>
+          )}
         </div>
       </div>
       <div className="enterprise-panel rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center gap-3">
