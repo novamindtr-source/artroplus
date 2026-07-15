@@ -564,7 +564,23 @@
     .table-row{border-bottom-color:rgba(152,170,194,.09)!important;}.table-row:hover{background:rgba(56,189,248,.045)!important;}
     .quality-chip,.enterprise-badge,.scanner-chip,.lot-key{border-radius:8px!important;background:rgba(7,19,34,.72)!important;border-color:var(--pro-line)!important;}
     .lc-nav-item,.lc-nav-parent,.lc-nav-subtoggle{border-radius:8px!important;}.lc-nav-item.active,.lc-nav-parent.active{background:rgba(47,128,237,.16)!important;border-color:rgba(115,176,255,.28)!important;box-shadow:inset 3px 0 0 #5aa7ff!important;}
-    .grid{min-width:0;} h1,h2,h3{letter-spacing:0!important;}</style>
+    .grid{min-width:0;} h1,h2,h3{letter-spacing:0!important;}
+    /* Professional operations reset */
+    .ops-hero{background:linear-gradient(135deg,rgba(8,19,36,.98),rgba(13,32,57,.96));border:1px solid rgba(120,160,210,.20);box-shadow:0 18px 52px rgba(2,8,23,.26);border-radius:12px;}
+    .ops-rule-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;overflow:hidden;border-radius:10px;border:1px solid rgba(148,163,184,.16);background:rgba(148,163,184,.16);}
+    .ops-rule-strip>div{background:rgba(7,17,32,.86);padding:14px 16px;min-height:74px;}
+    .ops-rule-strip .rule-title{font-size:11px;font-weight:900;color:#dbeafe;text-transform:uppercase;letter-spacing:.06em;}
+    .ops-rule-strip .rule-copy{font-size:11px;color:#8fa2ba;margin-top:5px;line-height:1.45;}
+    .ops-mode-card{background:linear-gradient(180deg,rgba(14,28,50,.92),rgba(8,18,34,.96));border:1px solid rgba(148,163,184,.15);border-radius:10px;min-height:92px;}
+    .ops-mode-card.active{background:linear-gradient(180deg,rgba(37,99,235,.24),rgba(8,18,34,.96));border-color:rgba(96,165,250,.45);box-shadow:inset 0 0 0 1px rgba(96,165,250,.08);}
+    .ops-mode-card .count{font-variant-numeric:tabular-nums;color:#93c5fd;}
+    .ops-toolbar{background:rgba(7,17,32,.84);border:1px solid rgba(148,163,184,.15);border-radius:12px;}
+    .ops-table-shell{border:1px solid rgba(148,163,184,.16);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(13,24,42,.98),rgba(8,17,32,.99));}
+    .ops-table-head{background:rgba(15,31,54,.92);border-bottom:1px solid rgba(148,163,184,.14);}
+    .location-chip{max-width:100%;}
+    .consignment-tag{display:inline-flex;margin-left:6px;padding:2px 6px;border-radius:999px;background:rgba(47,128,237,.13);border:1px solid rgba(96,165,250,.22);color:#bfdbfe;font-size:9px;font-weight:900;letter-spacing:.03em;}
+    @media(max-width:1024px){.ops-rule-strip{grid-template-columns:1fr 1fr;}.ops-rule-strip>div{min-height:64px;}}
+    @media(max-width:640px){.ops-rule-strip{grid-template-columns:1fr;}}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -1226,9 +1242,20 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
   const depotVisible=depotPages.some(canGo);
   const opsVisible=opsPages.some(canGo);
   const adminVisible=adminPages.some(canGo);
-  const [openGroups,setOpenGroups]=useState({depot:depotActive,stock:depotActive,ops:opsActive,admin:adminActive});
-  useEffect(()=>{setOpenGroups(prev=>({...prev,depot:prev.depot||depotActive,stock:prev.stock||depotActive,ops:prev.ops||opsActive,admin:prev.admin||adminActive}));},[depotActive,opsActive,adminActive]);
-  const toggleGroup=id=>setOpenGroups(prev=>({...prev,[id]:!prev[id]}));
+  const [openGroups,setOpenGroups]=useState({depot:depotActive,stock:false,ops:opsActive,admin:adminActive});
+  useEffect(()=>{
+    setOpenGroups(prev=>({
+      ...prev,
+      depot:depotActive?true:prev.depot,
+      ops:opsActive?true:prev.ops,
+      admin:adminActive?true:prev.admin
+    }));
+  },[depotActive,opsActive,adminActive]);
+  const toggleGroup=id=>setOpenGroups(prev=>({
+    ...prev,
+    [id]:!prev[id],
+    ...(id==="depot"&&prev.depot?{stock:false}:{})
+  }));
   const NavButton=({id,label,icon,indent=false,activeIds=[id],badge})=>{
     if(!canGo(id))return null;
     const active=activeIds.includes(page);
@@ -1246,7 +1273,7 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
         </div>
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           <div className="lc-nav-group"><NavButton id="dashboard" icon="⊞" label="Dashboard"/></div>
-          <div className="lc-nav-group">{depotVisible&&<Parent label="Depo Yönetimi" icon="▣" active={depotActive} open={openGroups.depot} onClick={()=>toggleGroup("depot")}/>}<div className={`lc-nav-children ${openGroups.depot?"":"closed"}`}><SubToggle label="Stok Yönetimi" open={openGroups.stock} onClick={()=>toggleGroup("stock")}/><div className={`lc-nav-children ${openGroups.stock?"":"closed"}`}><NavButton id="stock" label="Stok Giriş" indent activeIds={[]}/><NavButton id="invoices" label="Stok Çıkış" indent/><NavButton id="movements" label="Ürün Hareket İşlemleri" indent/><NavButton id="stock" label="Stok Durum" indent/><NavButton id="products" label="Ürün Kartları" indent/></div></div></div>
+          <div className="lc-nav-group">{depotVisible&&<Parent label="Depo Yönetimi" icon="▣" active={depotActive} open={openGroups.depot} onClick={()=>toggleGroup("depot")}/>}<div className={`lc-nav-children ${openGroups.depot?"":"closed"}`}><SubToggle label="Stok Yönetimi" open={openGroups.stock} onClick={()=>toggleGroup("stock")}/><div className={`lc-nav-children ${openGroups.stock?"":"closed"}`}><NavButton id="stock" label="Stok Giriş / Stok Durum" indent/><NavButton id="invoices" label="Stok Çıkış" indent/><NavButton id="movements" label="Ürün Hareket İşlemleri" indent/><NavButton id="products" label="Ürün Kartları" indent/></div></div></div>
           <div className="lc-nav-group">{opsVisible&&<Parent label="Operasyon Planlama" icon="◫" active={opsActive} open={openGroups.ops} onClick={()=>toggleGroup("ops")}/>}<div className={`lc-nav-children ${openGroups.ops?"":"closed"}`}><NavButton id="program" label="Ameliyat Programı" indent/><NavButton id="surgeries" label="Ameliyat Planları" indent/></div></div>
           <div className="lc-nav-group">{adminVisible&&<Parent label="Yönetim" icon="⊙" active={adminActive} open={openGroups.admin} onClick={()=>toggleGroup("admin")}/>}<div className={`lc-nav-children ${openGroups.admin?"":"closed"}`}><NavButton id="notifications" label="Bildirimler" indent badge={unread}/><NavButton id="lists" label="Tanımlar ve Listeler" indent/><NavButton id="users" label="Kullanıcılar" indent/><NavButton id="tests" label="Sistem Testleri" indent/></div></div>
         </nav>
@@ -4932,8 +4959,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       {/* ── Başlık ──────────────────────────────────────────────── */}
       <div className="corp-section-hero flex flex-col sm:flex-row sm:items-center gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Depo Yönetimi</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Stok giriş, stok çıkış, ürün hareketleri ve anlık stok durum kontrolü</p>
+          <h1 className="text-xl font-black text-white">Depo ve Stok Yönetimi</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Ana depo girişleri, konsinye sevk, geri alım ve stok durumu tek operasyon akışıyla yönetilir.</p>
         </div>
         <div className="sm:ml-auto flex flex-wrap gap-2">
           <button type="button" onClick={openManualProduct}
@@ -4942,11 +4969,11 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           </button>
           <button type="button" onClick={()=>setActiveTab("hospital")}
             className="px-4 py-2 rounded-xl bg-emerald2/15 hover:bg-emerald2/25 text-emerald2 text-sm font-bold border border-emerald2/25 transition-colors">
-            Konsinye Paneli
+            Hastane Konsinye Paneli
           </button>
           <button type="button" onClick={()=>{setOp(emptyOp);setOpModal(true);}}
             className="px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-200 text-sm font-bold border border-white/10 transition-colors">
-            Yeni Hareket
+            Konsinye / Geri Alım
           </button>
           <button type="button" onClick={exportStockCSV}
             className="px-3 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-400 text-sm font-bold border border-white/8 transition-colors">
@@ -4959,8 +4986,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="enterprise-kicker mb-1">Barkod Operasyonu</div>
-            <h2 className="text-lg font-black text-white">Honeywell Barkod Paneli</h2>
-            <p className="text-xs text-slate-500 mt-1">Panel kapalıyken depo ekranı sade kalır; okutma gerektiğinde açılır.</p>
+            <h2 className="text-lg font-black text-white">Honeywell Barkod Okutma Paneli</h2>
+            <p className="text-xs text-slate-500 mt-1">Panel kapalıyken ekran sade kalır; barkod okutma gerektiğinde açılır.</p>
           </div>
           <button type="button" onClick={()=>setScannerOpen(v=>!v)} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-black">{scannerOpen?"Barkod Panelini Kapat":"Barkod Panelini Aç"}</button>
         </div>
@@ -5023,14 +5050,14 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           <div className="p-5">
             <div className="enterprise-kicker mb-2">Depo Yönetimi</div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-black text-white">Stok Yönetimi ve Ürün Hareket İşlemleri</h2>
+              <h2 className="text-lg font-black text-white">Ana Depo ve Konsinye Stok Özeti</h2>
               <span className="quality-chip" style={{borderColor:auditColor+"55",color:auditColor}}>
                 <span className="enterprise-dot" style={{background:auditColor,boxShadow:`0 0 0 3px ${auditColor}22`}}></span>
                 {auditStatus}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-2 max-w-2xl">
-              Stok giriş, stok çıkış, lot takibi ve depo durumu tek ekrandan yönetilir. Kritik stoklar ve SKT riski olan ürünler operasyon sırasına göre öne alınır.
+              Ürün ana depoya girmeden hastaneye/konsinyeye sevk edilemez. Kritik stoklar, SKT riski ve hastane bazlı konsinye dağılımı burada izlenir.
             </p>
             <div className="flex flex-wrap gap-2 mt-4">
               <span className="quality-chip">Toplam adet: <b className="text-white">{totalUnits}</b></span>
@@ -5413,6 +5440,24 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     if(!d.urun_id||!d.hospital_id)return toast("Ürün ve hastane seçin","warning");
     const qty=Number(d.quantity)||1;
     if(d.type==="in"&&!isMovementCompanyId(d.hospital_id))return toast("Mal kabul / ürün girişi önce Ana Depo'ya yapılmalı. Konsinye için Depo Yönetimi > Konsinye Sevk kullanın.","warning");
+    const isConsignmentOut=d.type==="out"&&!isMovementCompanyId(d.hospital_id)&&/(konsinye|ana depo)/i.test(String(d.notes||""));
+    if(isConsignmentOut){
+      const depotRows=depotStockRowsFor(d.urun_id,d.lot||"").filter(s=>(Number(s.quantity)||0)>0);
+      const fromStok=depotRows.find(s=>(Number(s.quantity)||0)>=qty)||depotRows[0];
+      const available=Number(fromStok?.quantity)||0;
+      if(!fromStok||available<qty)return toast(`Konsinye sevk yapılamaz: ürün önce Ana Depo'ya alınmalı. Ana Depo mevcut: ${available}`,"warning");
+      const lot=fromStok.lot||d.lot||"";
+      const targetStock=findStockRow(stoklar,d.urun_id,d.hospital_id,lot);
+      const targetHospital=hospitals.find(h=>h.id===d.hospital_id);
+      await updateStockQuantity(fromStok,available-qty);
+      await insertMovement(movementPayload({urun_id:d.urun_id,hospital_id:fromStok.hospital_id,lot,type:"out",quantity:qty,notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} Ana Depo → ${displayLocationName(targetHospital)||"Hastane"} ${d.notes||""}`.trim(),surgery_id:d.surgery_id||null}));
+      if(targetStock)await updateStockQuantity(targetStock,Number(targetStock.quantity||0)+qty);
+      else await insertStockQuantity(d.urun_id,d.hospital_id,qty,lot,fromStok.skt||null,fromStok.mfg_date||null,displayLocationName(targetHospital)||"Hastane");
+      if(lot)rememberLocalStockLot({urun_id:d.urun_id,hospital_id:d.hospital_id,lot,quantity:qty,skt:fromStok.skt||null,mfg_date:fromStok.mfg_date||null});
+      await insertMovement(movementPayload({urun_id:d.urun_id,hospital_id:d.hospital_id,lot,type:"in",quantity:qty,notes:`${MOV_TAGS.SHELF_TO_HOSPITAL} Konsinye sevk ${d.notes||""}`.trim(),surgery_id:d.surgery_id||null}));
+      toast("Ana Depo stokundan konsinye sevk kaydedildi ✓","success");
+      setModal(false);loadAll();load();return;
+    }
     const stok=findStockRow(stoklar,d.urun_id,d.hospital_id,d.lot||"");
     if(d.type==="out"&&(!stok||Number(stok.quantity||0)<qty))return toast("Sevk/çıkış yapılamaz: seçilen lokasyonda yeterli stok yok. Ürün önce Ana Depo'ya alınmalı.","warning");
     const{error}=await insertMovement(movementPayload({urun_id:d.urun_id,hospital_id:d.hospital_id,lot:d.lot||"",type:d.type,quantity:qty,notes:d.notes||"",surgery_id:d.surgery_id||null}));
@@ -5484,8 +5529,8 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const printMovementList=()=>{
     if(!filtered.length)return toast("Yazdırılacak hareket yok","warning");
     printExitDocument({
-      title:"Mal Hareketleri Raporu",
-      subtitle:"REF + LOT bazlı hareket dökümü",
+      title:"Depo Operasyon Raporu",
+      subtitle:"",
       meta:[
         {label:"Kayıt",value:filtered.length},
         {label:"Giriş",value:totalIn},
@@ -5606,10 +5651,11 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
         </Modal>
       )}
 
-      <div className="corp-section-hero flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="ops-hero p-5 flex flex-col sm:flex-row sm:items-center gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Mal Hareketleri</h1>
-          <p className="text-sm text-slate-500 mt-0.5">REF + LOT bazlı giriş, çıkış ve tüketim kayıtları</p>
+          <div className="enterprise-kicker mb-1">Depo Yönetimi</div>
+          <h1 className="text-xl font-black text-white">Depo Operasyon Merkezi</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Ana depo, konsinye sevk, geri alım, ürün hareket giriş/çıkış ve stok listesi tek ekranda yönetilir.</p>
         </div>
         <div className="sm:ml-auto flex flex-wrap gap-2">
           <button type="button" onClick={printMovementList}
@@ -5627,6 +5673,14 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           <button type="button" onClick={()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Manuel Ekle</button>
         </div>
       </div>
+
+      <div className="ops-rule-strip">
+        <div><div className="rule-title">1. Önce Ana Depo</div><div className="rule-copy">Ürün sisteme REF + LOT ile önce ana depoya girer. Ana depoda olmayan ürün sevk edilemez.</div></div>
+        <div><div className="rule-title">2. Konsinye Sevk</div><div className="rule-copy">Fulya, Maslak ve diğer hastaneler ayrı renklerle izlenir; aynı ürün farklı lokasyonlarda karışmaz.</div></div>
+        <div><div className="rule-title">3. Geri Alım</div><div className="rule-copy">Hastaneden dönen ürün ana depoya geri alınır ve hareket geçmişi korunur.</div></div>
+        <div><div className="rule-title">4. Arama Odaklı</div><div className="rule-copy">REF, LOT, hastane, açıklama ve ana depo raf adedi üzerinden hızlı arama yapılır.</div></div>
+      </div>
+
       <div className="enterprise-panel rounded-2xl p-4 space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-center">
           <div>
@@ -5639,9 +5693,9 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
           {movementModes.map(m=>(
             <button type="button" key={m.id} onClick={()=>{setMovementMode(m.id);setFType(m.id==="movement_in"?"in":m.id==="movement_out"?"out":"");}}
-              className={`rounded-xl border px-3 py-3 text-left transition-all ${movementMode===m.id?"bg-brand/20 border-brand/35 text-white":"bg-navy-900/55 border-white/8 text-slate-400 hover:text-white hover:border-brand/25"}`}>
+              className={`ops-mode-card ${movementMode===m.id?"active text-white":"text-slate-400 hover:text-white"} px-3 py-3 text-left transition-all`}>
               <div className="text-xs font-black leading-tight">{m.label}</div>
-              <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[10px] text-slate-500 truncate">{m.hint}</span><b className="text-xs text-brand-300">{m.count}</b></div>
+              <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[10px] text-slate-500 truncate">{m.hint}</span><b className="count text-xs">{m.count}</b></div>
             </button>
           ))}
         </div>
@@ -5650,8 +5704,8 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
         <div className="movement-command-collapsed flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="enterprise-kicker mb-1">Depo Operasyon Girişi</div>
-            <h2 className="text-lg font-black text-white">Mal Hareket Giriş Paneli</h2>
-            <p className="text-xs text-slate-500 mt-1">Panel kapalıyken ekran sade kalır; açınca REF, LOT, raf adedi ve not alanlarıyla toplu stok girişi yapılır.</p>
+            <h2 className="text-lg font-black text-white">Ana Depo Ürün Giriş Paneli</h2>
+            <p className="text-xs text-slate-500 mt-1">Bu panel yalnızca ana depoya ürün alır. Hastaneye gönderim ve konsinye sevk ayrı işlem olarak açılır.</p>
           </div>
           <button type="button" onClick={()=>setQuickOpen(v=>!v)} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-black">{quickOpen?"Paneli Kapat":"Mal Hareket Girişi Aç"}</button>
         </div>
@@ -5731,10 +5785,10 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           )}
         </div>
       </div>
-      <div className="enterprise-panel rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center gap-3">
+      <div className="ops-toolbar p-4 flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="flex-1">
-          <div className="enterprise-kicker mb-1">Hareket Denetimi</div>
-          <p className="text-sm text-white font-bold">Her çıkış belgelendirilebilir, her kayıt REF + LOT + lokasyon üzerinden izlenir.</p>
+          <div className="enterprise-kicker mb-1">Operasyon Özeti</div>
+          <p className="text-sm text-white font-bold">Ana depo adedi, konsinye lokasyonu ve hareket geçmişi aynı satırda görünür.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="quality-chip">Net: <b className={totalNet>=0?"text-emerald2":"text-rose2"}>{totalNet>=0?"+":""}{totalNet}</b></span>
@@ -5743,7 +5797,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
         </div>
       </div>
 
-      <div className="card rounded-2xl p-4">
+      <div className="ops-toolbar p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
             <Input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Seçili ekranda REF, LOT, ürün, hastane veya açıklama ara..."/>
@@ -5762,8 +5816,8 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       </div>
 
       {movementMode==="stock"?(
-        <div className="card rounded-2xl overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[1fr_1fr_1.1fr_.7fr_.75fr_.8fr_auto] gap-4 px-5 py-3 border-b border-white/8 bg-navy-900/50">
+        <div className="ops-table-shell">
+          <div className="ops-table-head hidden lg:grid grid-cols-[1fr_1fr_1.1fr_.7fr_.75fr_.8fr_auto] gap-4 px-5 py-3">
             {["REF","LOT","Lokasyon","Adet","Ana Depo / Raf","SKT","Durum"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}
           </div>
           {stockListRows.length===0?(
@@ -5781,8 +5835,8 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           ))}
         </div>
       ):(
-        <div className="card rounded-2xl overflow-hidden">
-          <div className="hidden lg:grid grid-cols-[1fr_1fr_1fr_.65fr_.75fr_.9fr_1.2fr_auto] gap-4 px-5 py-3 border-b border-white/8 bg-navy-900/50">
+        <div className="ops-table-shell">
+          <div className="ops-table-head hidden lg:grid grid-cols-[1fr_1fr_1fr_.65fr_.75fr_.9fr_1.2fr_auto] gap-4 px-5 py-3">
             {["REF","LOT","Lokasyon","Adet","Ana Depo / Raf","Tarih","Hareket / Açıklama","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}
           </div>
           {filtered.length===0?(
@@ -6759,6 +6813,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
 
 
 
