@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>ARTROPLUS — Medikal Yönetim Sistemi</title>
+  <title>ARTROPLUS — Depo ve Stok Yönetim Sistemi</title>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-title" content="ARTROPLUS"/>
@@ -48,7 +48,7 @@
   <!-- jsPDF AutoTable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <!-- PWA -->
-  <meta name="description" content="ARTROPLUS — Medikal Ameliyat Takip ve ERP Sistemi"/>
+  <meta name="description" content="ARTROPLUS — Kurumsal Depo, Stok ve Ürün Hareket Yönetimi"/>
   <style>
     *{box-sizing:border-box;}
     body{font-family:'Inter',sans-serif;background:#07111f;color:#e2e8f0;margin:0;overflow-x:hidden;}
@@ -519,7 +519,24 @@
     .bg-navy-800,.bg-navy-900{background-color:#0b1729!important;}
     table thead,tr,td,th{border-color:rgba(148,163,184,.12)!important;}
     @media(max-width:768px){.lc-auth-card{border-radius:12px!important}.corp-section-hero{padding:14px!important}}
-  </style>
+    /* Corporate depot identity pass */
+    body{background:linear-gradient(180deg,#07111f 0%,#0a1728 46%,#07101d 100%)!important;}
+    body::before{background:linear-gradient(180deg,rgba(6,13,25,.96),rgba(8,18,32,.98))!important;}
+    body::after{opacity:.26;background-size:40px 40px!important;}
+    .lc-auth{background:linear-gradient(135deg,#061120 0%,#0b2036 52%,#06111f 100%)!important;}
+    .lc-auth::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(90deg,rgba(0,0,0,.45),transparent 72%);pointer-events:none;}
+    .lc-auth-card{border-top:3px solid #5aa7ff!important;}
+    .lc-sidebar{background:linear-gradient(180deg,#06111f 0%,#081827 48%,#07111f 100%)!important;}
+    .lc-sidebar .p-5:first-child{background:linear-gradient(180deg,rgba(17,31,53,.74),rgba(8,18,32,.48));border-bottom:1px solid rgba(90,167,255,.16)!important;}
+    .lc-sidebar img{height:34px!important;max-width:150px;object-fit:contain;filter:drop-shadow(0 14px 28px rgba(90,167,255,.2));}
+    .lc-logo-kicker{display:inline-flex;margin-top:12px!important;padding:5px 8px;border-radius:999px;background:rgba(90,167,255,.1);border:1px solid rgba(90,167,255,.22);color:#bfdbfe!important;font-size:10px!important;letter-spacing:.12em!important;}
+    .lc-logo-sub{font-size:11px!important;color:#8ea0b6!important;line-height:1.35;max-width:170px;}
+    .lc-nav-section{color:#6f8298!important;letter-spacing:.12em!important;padding-top:14px!important;}
+    .lc-nav-item{font-weight:750!important;}
+    .lc-nav-item.active{background:linear-gradient(90deg,rgba(37,99,235,.28),rgba(22,163,106,.08))!important;}
+    .lc-topbar{background:rgba(6,17,31,.94)!important;}
+    .corp-section-hero{background:linear-gradient(90deg,rgba(12,28,48,.98),rgba(7,18,32,.92))!important;}
+    .enterprise-panel{background:linear-gradient(180deg,rgba(12,28,48,.96),rgba(7,18,32,.98))!important;}  </style>
 </head>
 <body>
 <div id="root"></div>
@@ -541,13 +558,13 @@ const STATUS_MAP={planned:"Planlandı",done:"Tamamlandı",cancelled:"İptal",pos
 const STATUS_COLOR={planned:"badge-planned",done:"badge-done",cancelled:"badge-cancelled",postponed:"badge-postponed"};
 const DOC_COLORS=["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#f97316","#ec4899","#84cc16","#a78bfa"];
 const NAV=[
-  {id:"dashboard",icon:"⊞",label:"Yönetim Paneli"},
-  {id:"surgeries",icon:"⚕",label:"Ameliyatlar"},
-  {id:"program",icon:"◫",label:"Program"},
-  {id:"products",icon:"⬡",label:"Ürünler"},
-  {id:"stock",icon:"⬢",label:"Stok"},
-  {id:"movements",icon:"⟷",label:"Hareketler"},
-  {id:"invoices",icon:"▣",label:"Fatura / Tüketim"},
+  {id:"dashboard",icon:"⊞",label:"Operasyon Özeti"},
+  {id:"surgeries",icon:"⚕",label:"Ameliyat Planları"},
+  {id:"program",icon:"◫",label:"Program Takvimi"},
+  {id:"products",icon:"⬡",label:"Ürün Kartları"},
+  {id:"stock",icon:"⬢",label:"Stok Yönetimi"},
+  {id:"movements",icon:"⟷",label:"Ürün Hareket İşlemleri"},
+  {id:"invoices",icon:"▣",label:"Stok Çıkış"},
   {id:"notifications",icon:"⌀",label:"Bildirimler"},
   {id:"lists",icon:"≡",label:"Listeler"},
   {id:"users",icon:"⊙",label:"Kullanıcılar"},
@@ -1106,7 +1123,7 @@ function AuthScreen({onLogin}){
           <span className="lc-signature text-white"><span/><span/><span/><span/><span/></span>
           <span className="lc-wordmark lc-wordmark-light text-3xl">Artroplus</span>
         </div>
-        <p className="text-lg font-medium text-white/85">Kurumsal Yönetim Paneli</p>
+        <p className="text-lg font-medium text-white/85">Depo ve Stok Yönetim Sistemi</p>
       </div>
 
       {forgot&&(
@@ -1128,8 +1145,8 @@ function AuthScreen({onLogin}){
         </div>
 
         <div className="px-8 pt-6 text-center">
-          <h1 className="lc-wordmark lc-wordmark-dark text-2xl">Hoş Geldiniz</h1>
-          <p className="text-sm mt-1.5" style={{color:"#94a3b8"}}>Kullanıcı adı ve şifreniz ile giriş yapın</p>
+          <h1 className="lc-wordmark lc-wordmark-dark text-2xl">Kurumsal Giriş</h1>
+          <p className="text-sm mt-1.5" style={{color:"#94a3b8"}}>Depo ve stok operasyon paneline güvenli giriş yapın</p>
         </div>
 
         {isFileOrigin&&<div className="mx-8 mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700 leading-5">Uygulama file:// ile açılmış. Giriş ve şifre sıfırlama için dosyayı yerel sunucudan, örn. http://localhost:8000 üzerinden açmanız önerilir.</div>}
@@ -1158,7 +1175,38 @@ function AuthScreen({onLogin}){
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}){
-  const items=NAV.filter(n=>canAccessPage(n.id,profile));
+  const go=id=>{setPage(id);onMobileClose();};
+  const canGo=id=>canAccessPage(id,profile);
+  const depotPages=["stock","products","movements","invoices"];
+  const opsPages=["program","surgeries"];
+  const adminPages=["notifications","lists","users","tests"];
+  const depotActive=depotPages.includes(page);
+  const opsActive=opsPages.includes(page);
+  const adminActive=adminPages.includes(page);
+  const depotVisible=depotPages.some(canGo);
+  const opsVisible=opsPages.some(canGo);
+  const adminVisible=adminPages.some(canGo);
+  const NavButton=({id,label,icon,indent=false,activeIds=[id],badge})=>{
+    if(!canGo(id))return null;
+    const active=activeIds.includes(page);
+    return(
+      <button type="button" onClick={()=>go(id)}
+        className={`lc-nav-item ${indent?"lc-nav-child":""} w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium relative ${active?"active":""}`}>
+        {indent?<span className="nav-dot flex-shrink-0"/>:<span className="text-base w-5 text-center flex-shrink-0">{icon}</span>}
+        <span className="truncate">{label}</span>
+        {badge>0&&(
+          <span className="ml-auto w-5 h-5 rounded-full bg-rose2 text-white text-xs flex items-center justify-center font-bold">{badge>9?"9+":badge}</span>
+        )}
+      </button>
+    );
+  };
+  const Parent=({label,icon,active,onClick})=>(
+    <button type="button" onClick={onClick} className={`lc-nav-parent w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-extrabold ${active?"active":""}`}>
+      <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+      <span className="chev">⌄</span>
+    </button>
+  );
   return(
     <>
       {/* Mobile overlay */}
@@ -1167,24 +1215,42 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
         <div className="p-5 flex items-center justify-between" style={{borderBottom:"1px solid rgba(255,255,255,.06)"}}>
           <div className="min-w-0">
             <img src={LOGO_LIGHT_SRC} className="h-7" alt="ARTROPLUS"/>
-            <div className="lc-logo-kicker mt-2">Medikal ERP</div>
-            <div className="lc-logo-sub mt-1">Operasyon Kontrol Merkezi</div>
+            <div className="lc-logo-kicker mt-2">Kurumsal Operasyon</div>
+            <div className="lc-logo-sub mt-1">Depo, stok ve ameliyat süreçleri</div>
           </div>
           <button type="button" onClick={onMobileClose} className="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg" style={{color:"#8b93a7"}}>✕</button>
         </div>
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto"><div className="lc-nav-section">Modüller</div>
-          {items.map(n=>(
-            <button type="button" key={n.id} onClick={()=>{setPage(n.id);onMobileClose();}}
-              className={`lc-nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium relative ${page===n.id?"active":""}`}>
-              <span className="text-base w-5 text-center flex-shrink-0">{n.icon}</span>
-              <span className="truncate">{n.label}</span>
-              {n.id==="notifications"&&unread>0&&(
-                <span className="ml-auto w-5 h-5 rounded-full bg-rose2 text-white text-xs flex items-center justify-center font-bold">{unread>9?"9+":unread}</span>
-              )}
-            </button>
-          ))}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          <div className="lc-nav-group">
+            <NavButton id="dashboard" icon="⊞" label="Dashboard"/>
+          </div>
+
+          <div className="lc-nav-group">
+            {depotVisible&&<Parent label="Depo Yönetimi" icon="▣" active={depotActive} onClick={()=>go("stock")}/>} 
+            <div className="lc-nav-subtitle">Stok Yönetimi</div>
+            <NavButton id="stock" label="Stok Giriş" indent activeIds={[]}/>
+            <NavButton id="invoices" label="Stok Çıkış" indent/>
+            <NavButton id="movements" label="Ürün Hareket İşlemleri" indent/>
+            <NavButton id="stock" label="Stok Durum" indent/>
+            <NavButton id="products" label="Ürün Kartları" indent/>
+          </div>
+
+          <div className="lc-nav-group">
+            {opsVisible&&<Parent label="Operasyon Planlama" icon="◫" active={opsActive} onClick={()=>go("program")}/>} 
+            <NavButton id="program" label="Ameliyat Programı" indent/>
+            <NavButton id="surgeries" label="Ameliyat Planları" indent/>
+          </div>
+
+          <div className="lc-nav-group">
+            {adminVisible&&<Parent label="Yönetim" icon="⊙" active={adminActive} onClick={()=>go("lists")}/>} 
+            <NavButton id="notifications" label="Bildirimler" indent badge={unread}/>
+            <NavButton id="lists" label="Tanımlar ve Listeler" indent/>
+            <NavButton id="users" label="Kullanıcılar" indent/>
+            <NavButton id="tests" label="Sistem Testleri" indent/>
+          </div>
         </nav>
         <div className="lc-sidebar-foot p-3">
+          <div className="lc-sidebar-copy">2026© Artroplus</div>
           <div className="lc-user-chip flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl">
             <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
               {(profile?.full_name||"U")[0].toUpperCase()}
@@ -1203,7 +1269,6 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
     </>
   );
 }
-
 // ─── RECHARTS SETUP ───────────────────────────────────────────────────────────
 const RC=window.Recharts||{};
 const{ResponsiveContainer,LineChart:RLineChart,Line,BarChart:RBarChart,Bar,PieChart:RPieChart,Pie,Cell,AreaChart:RAreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip:RTooltip,Legend:RLegend}=RC;
@@ -1241,7 +1306,7 @@ const exportSurgeriesPDF=(surgeries,title="Ameliyat Raporu")=>{
       tableLineColor:[30,41,59],tableLineWidth:0.2,
     });
     const pages=doc.internal.getNumberOfPages();
-    for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(71,85,105);doc.text(`ARTROPLUS Medikal — Sayfa ${i}/${pages}`,pw/2,doc.internal.pageSize.getHeight()-5,{align:"center"});}
+    for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(71,85,105);doc.text(`ARTROPLUS Depo ve Stok — Sayfa ${i}/${pages}`,pw/2,doc.internal.pageSize.getHeight()-5,{align:"center"});}
     doc.save(`ameliyatlar_${new Date().toISOString().slice(0,10)}.pdf`);
     return true;
   }catch(e){console.error("PDF:",e);return false;}
@@ -4511,7 +4576,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       return;
     }
     if(honeywellMode==="receipt"){
-      toast("Barkod okundu. Ana depoya giriş için Onayla düğmesine basın","success");
+      toast("Barkod okundu. Stok giriş kaydı için onay verin","success");
       return;
     }
     const next={...emptyOp,
@@ -4796,8 +4861,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       {/* ── Başlık ──────────────────────────────────────────────── */}
       <div className="corp-section-hero flex flex-col sm:flex-row sm:items-center gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Stok Yönetimi</h1>
-          <p className="text-sm text-slate-500 mt-0.5">REF + LOT + depo bazlı profesyonel stok takibi</p>
+          <h1 className="text-xl font-bold text-white">Depo Yönetimi</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Stok giriş, stok çıkış, ürün hareketleri ve anlık stok durum kontrolü</p>
         </div>
         <div className="sm:ml-auto flex flex-wrap gap-2">
           <button type="button" onClick={printStockReport}
@@ -4862,12 +4927,12 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         {lastScan&&honeywellMode==="receipt"&&lastScan.product&&(
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-emerald2/8 border border-emerald2/20 p-3">
             <div className="flex-1 min-w-0">
-              <div className="text-xs text-emerald2 font-black">Ana depo giriş onayı</div>
+              <div className="text-xs text-emerald2 font-black">Stok giriş onayı</div>
               <div className="text-xs text-slate-400 mt-1 truncate">{lastScan.product.code||"REF yok"} / {lastScan.parsed.lot||"LOT yok"} / {lastScan.parsed.qty||1} {lastScan.product.unit||"adet"}</div>
             </div>
             <button type="button" onClick={saveHoneywellReceipt} disabled={scannerSaving}
               className="px-4 py-2.5 rounded-xl bg-emerald2/20 hover:bg-emerald2/30 text-emerald2 text-sm font-black border border-emerald2/30 disabled:opacity-50">
-              {scannerSaving?"Kaydediliyor...":"Ana Depoya Giriş Yap"}
+              {scannerSaving?"Kaydediliyor...":"Stok Giriş Kaydı Oluştur"}
             </button>
           </div>
         )}
@@ -4875,16 +4940,16 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       <div className="enterprise-panel rounded-2xl overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr_1fr_1fr]">
           <div className="p-5">
-            <div className="enterprise-kicker mb-2">Canlı Stok Kontrol Merkezi</div>
+            <div className="enterprise-kicker mb-2">Depo Yönetimi</div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-black text-white">REF + LOT operasyon paneli</h2>
+              <h2 className="text-lg font-black text-white">Stok Yönetimi ve Ürün Hareket İşlemleri</h2>
               <span className="quality-chip" style={{borderColor:auditColor+"55",color:auditColor}}>
                 <span className="enterprise-dot" style={{background:auditColor,boxShadow:`0 0 0 3px ${auditColor}22`}}></span>
                 {auditStatus}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-2 max-w-2xl">
-              Tüm stok satırları ürün adına göre değil, REF + LOT + depo + SKT üzerinden izlenir. Kritik ve tarihi yaklaşan lotlar aksiyon sırasına göre öne alınır.
+              Stok giriş, stok çıkış, lot takibi ve depo durumu tek ekrandan yönetilir. Kritik stoklar ve SKT riski olan ürünler operasyon sırasına göre öne alınır.
             </p>
             <div className="flex flex-wrap gap-2 mt-4">
               <span className="quality-chip">Toplam adet: <b className="text-white">{totalUnits}</b></span>
@@ -5219,8 +5284,14 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const [fType,setFType]=useState("");
   const [fHospital,setFHospital]=useState("");
   const [f,setF]=useState({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});
+  const [quickHospital,setQuickHospital]=useState(findCompanyShelf(hospitals)?.id||"");
+  const [quickRows,setQuickRows]=useState([{urun_id:"",lot:"",quantity:1,notes:""}]);
+  const [quickSaving,setQuickSaving]=useState(false);
 
   useEffect(()=>{load();},[]);
+  useEffect(()=>{
+    if(!quickHospital&&visibleHospitals.length)setQuickHospital(findCompanyShelf(hospitals)?.id||visibleHospitals[0].id);
+  },[visibleHospitals.length,quickHospital,hospitals]);
   const load=async()=>{
     const{data}=await SB.from("hareketler").select("*").order("created_at",{ascending:false}).limit(500);
     const defaultHospitalId=findCompanyShelf(hospitals)?.id||"company-shelf-local";
@@ -5288,6 +5359,43 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       })
     });
   };
+  const updateQuickRow=(idx,patch)=>setQuickRows(rows=>rows.map((r,i)=>i===idx?{...r,...patch}:r));
+  const addQuickRow=()=>setQuickRows(rows=>[...rows,{urun_id:"",lot:"",quantity:1,notes:""}]);
+  const removeQuickRow=idx=>setQuickRows(rows=>rows.length>1?rows.filter((_,i)=>i!==idx):rows);
+  const quickProduct=row=>urunler.find(u=>u.id===row.urun_id)||null;
+  const quickLotRows=row=>stoklar.filter(s=>s.urun_id===row.urun_id&&(!quickHospital||s.hospital_id===quickHospital));
+  const quickLotStock=row=>quickLotRows(row).find(s=>normalizeLot(s.lot)===normalizeLot(row.lot));
+  const quickReadyRows=()=>quickRows.filter(r=>r.urun_id&&(Number(r.quantity)||0)>0);
+  const saveQuickMovement=async()=>{
+    const ready=quickReadyRows();
+    if(!quickHospital)return toast("Önce depo / lokasyon seçin","warning");
+    if(!ready.length)return toast("En az bir ürün ve adet girin","warning");
+    setQuickSaving(true);
+    try{
+      for(const row of ready){
+        const qty=Math.max(1,Number(row.quantity)||1);
+        const note=["[MAL_HAREKET_GIRIS]",row.notes||""].filter(Boolean).join(" ");
+        const res=await insertMovement(movementPayload({urun_id:row.urun_id,hospital_id:quickHospital,lot:row.lot||"",type:"in",quantity:qty,notes:note,surgery_id:null}));
+        if(res.error)throw res.error;
+        const stock=findStockRow(stoklar,row.urun_id,quickHospital,row.lot||"");
+        if(stock){
+          await updateStockQuantity(stock,Number(stock.quantity||0)+qty);
+          if(row.lot)rememberLocalStockLot({...stock,lot:row.lot,quantity:Number(stock.quantity||0)+qty});
+        }else{
+          await insertStockQuantity(row.urun_id,quickHospital,qty,row.lot||"",null,null,displayLocationName(hospitals.find(h=>h.id===quickHospital))||"Ana Depo");
+          if(row.lot)rememberLocalStockLot({urun_id:row.urun_id,hospital_id:quickHospital,lot:row.lot,quantity:qty});
+        }
+      }
+      toast(`${ready.length} satır mal hareket girişi kaydedildi`,`success`);
+      setQuickRows([{urun_id:"",lot:"",quantity:1,notes:""}]);
+      loadAll();load();
+    }catch(e){
+      toast(e.message||"Mal hareket girişi kaydedilemedi","error");
+    }finally{
+      setQuickSaving(false);
+    }
+  };
+
   const exportMovementCSV=()=>{
     if(!filtered.length)return toast("Dışa aktarılacak hareket yok","warning");
     downloadCSV(`artroplus_hareketler_${todayStr}.csv`,["REF","LOT","Lokasyon","Tip","Adet","Tarih","Açıklama"],filtered.map(h=>{
@@ -5376,6 +5484,64 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           <button type="button" onClick={()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Manuel Ekle</button>
         </div>
       </div>
+      <div className="enterprise-panel rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/8 flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="enterprise-kicker mb-1">Depo Operasyon Girişi</div>
+            <h2 className="text-lg font-black text-white">Mal Hareket Giriş Paneli</h2>
+            <p className="text-xs text-slate-500 mt-1">Barkoddan gelen REF/LOT bilgisi veya manuel seçimle çok satırlı stok girişi yapılır; raf bakiyesi anında görünür.</p>
+          </div>
+          <div className="w-full lg:w-80">
+            <Label>Depo / Lokasyon</Label>
+            <Select value={quickHospital} onChange={e=>setQuickHospital(e.target.value)}>
+              <option value="">Lokasyon seçin</option>
+              {visibleHospitals.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}
+            </Select>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[920px]">
+            <div className="grid grid-cols-[1.15fr_.9fr_.7fr_.55fr_1.1fr_auto] gap-3 px-5 py-3 bg-navy-900/55 border-b border-white/8">
+              {["Ürün Kodu / REF","LOT No","Raf Adet","Adet","Not",""].map(h=><div key={h} className="text-[11px] font-black uppercase tracking-wider text-slate-500">{h}</div>)}
+            </div>
+            {quickRows.map((row,idx)=>{
+              const product=quickProduct(row);
+              const lotRows=quickLotRows(row);
+              const lotStock=quickLotStock(row);
+              const rafQty=lotStock?Number(lotStock.quantity||0):(row.urun_id?lotRows.reduce((a,s)=>a+(Number(s.quantity)||0),0):0);
+              return(
+                <div key={idx} className="grid grid-cols-[1.15fr_.9fr_.7fr_.55fr_1.1fr_auto] gap-3 px-5 py-3 border-b border-white/6 items-center last:border-b-0">
+                  <Select value={row.urun_id} onChange={e=>updateQuickRow(idx,{urun_id:e.target.value,lot:""})}>
+                    <option value="">REF seçin</option>
+                    {urunler.map(u=><option key={u.id} value={u.id}>{u.code||"REF yok"} {u.manufacturer?`- ${u.manufacturer}`:""}</option>)}
+                  </Select>
+                  <div className="flex gap-2">
+                    <Input value={row.lot} onChange={e=>updateQuickRow(idx,{lot:e.target.value})} placeholder="LOT okut / yaz" list={`quick-lots-${idx}`}/>
+                    <datalist id={`quick-lots-${idx}`}>{lotRows.map(s=><option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"}</option>)}</datalist>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-navy-950/60 px-3 py-2.5">
+                    <div className="text-[10px] text-slate-500 font-bold">RAF ADET</div>
+                    <div className={`text-sm font-black ${rafQty>0?"text-emerald2":"text-slate-400"}`}>{rafQty}</div>
+                  </div>
+                  <Input type="number" min="1" value={row.quantity} onChange={e=>updateQuickRow(idx,{quantity:e.target.value})}/>
+                  <Input value={row.notes} onChange={e=>updateQuickRow(idx,{notes:e.target.value})} placeholder={product?`${product.code||"REF"} için açıklama`:"Açıklama"}/>
+                  <button type="button" onClick={()=>removeQuickRow(idx)} className="w-10 h-10 rounded-xl bg-navy-800 hover:bg-rose2/15 text-slate-400 hover:text-rose2 border border-white/8 font-black">×</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-navy-950/35">
+          <div className="flex flex-wrap gap-2 flex-1">
+            <span className="quality-chip">Satır: <b className="text-white">{quickRows.length}</b></span>
+            <span className="quality-chip">Hazır: <b className="text-white">{quickReadyRows().length}</b></span>
+            <span className="quality-chip">Kayıt tipi: <b className="text-emerald2">Stok Giriş</b></span>
+          </div>
+          <button type="button" onClick={addQuickRow} className="px-4 py-2.5 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-200 text-sm font-bold border border-white/8">+ Satır Ekle</button>
+          <button type="button" onClick={saveQuickMovement} disabled={quickSaving} className="px-5 py-2.5 rounded-xl btn-primary text-white text-sm font-black disabled:opacity-60">{quickSaving?"Kaydediliyor...":"Mal Hareket Girişi Kaydet"}</button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="card rounded-2xl p-4">
           <p className="text-xs text-slate-500 mb-1">Toplam Giriş</p>
@@ -5547,7 +5713,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
       if(error)return toast(error.message,"error");
     }
     await SB.from("surgeries").update({status:"done"}).eq("id",selectedSurgery.id);
-    toast("Fatura / tüketim kaydı oluşturuldu ✓","success");
+    toast("Stok çıkış kaydı oluşturuldu ✓","success");
     setModal(false);
     setF(emptyInvoiceForm);
     loadAll();load();
@@ -5600,14 +5766,14 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   };
   const printInvoiceRecord=record=>{
     const printable=invoicePrintRow(record);
-    printExitDocument({title:"Fatura / Tüketim Çıkış Fişi",subtitle:"Ameliyat bazlı ürün tüketim belgesi",meta:printable.meta,rows:[printable.row]});
+    printExitDocument({title:"Stok Çıkış Fişi",subtitle:"REF + LOT bazlı stok çıkış belgesi",meta:printable.meta,rows:[printable.row]});
   };
   const printInvoiceList=()=>{
     if(!filteredRecordRows.length)return toast("Yazdırılacak kayıt yok","warning");
     const rows=filteredRecordRows.map(r=>invoicePrintRow(r).row);
     printExitDocument({
-      title:"Fatura / Tüketim Listesi",
-      subtitle:"Filtrelenmiş tüketim kayıtları",
+      title:"Stok Çıkış Listesi",
+      subtitle:"Filtrelenmiş stok çıkış kayıtları",
       meta:[{label:"Kayıt Sayısı",value:filteredRecordRows.length},{label:"Toplam Adet",value:invoiceTotalQty},{label:"Tarih",value:new Date().toLocaleString("tr-TR")},{label:"Belge Türü",value:"Toplu Çıkış"}],
       rows
     });
@@ -5616,7 +5782,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   return(
     <div className="space-y-5">
       {modal&&(
-        <Modal title="Fatura / Tüketim Çıkışı" onClose={()=>setModal(false)} size="lg"
+        <Modal title="Stok Çıkış İşlemi" onClose={()=>setModal(false)} size="lg"
           footer={<div className="flex gap-2"><button type="button" onClick={()=>setModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button type="button" onClick={saveInvoice} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Çıkış Yap</button></div>}>
           <div className="space-y-4">
             <div><Label required>Ameliyat</Label><Select value={f.surgery_id} onChange={e=>setF(p=>({...p,surgery_id:e.target.value,personnel:[]}))}><option value="">Ameliyat seçin</option>{surgeries.map(s=><option key={s.id} value={s.id}>{fmtTR(s.date)} — {s.type} — {s.hospital} — {s.doctor}</option>)}</Select></div>
@@ -5666,7 +5832,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
         </Modal>
       )}
       <div className="corp-section-hero flex flex-col sm:flex-row sm:items-center gap-3">
-        <div><h1 className="text-xl font-bold text-white">Fatura / Tüketim</h1><p className="text-sm text-slate-500 mt-0.5">Ameliyat bazlı REF + LOT ürün çıkışı ve ekip sorumluluğu</p></div>
+        <div><h1 className="text-xl font-bold text-white">Stok Çıkış</h1><p className="text-sm text-slate-500 mt-0.5">REF + LOT bazlı stok çıkış, kullanım ve sorumluluk takibi</p></div>
         <div className="sm:ml-auto flex flex-wrap gap-2">
           <button type="button" onClick={printInvoiceList} className="px-4 py-2 rounded-xl bg-brand/15 hover:bg-brand/25 text-brand-300 text-sm font-bold border border-brand/20">Yazdır</button>
           <button type="button" onClick={()=>setModal(true)} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold">+ Çıkış Yap</button>
@@ -5675,9 +5841,9 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
       <div className="enterprise-panel rounded-2xl p-4">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center">
           <div>
-            <div className="enterprise-kicker mb-1">Tüketim Denetimi</div>
-            <h3 className="text-base font-black text-white">Ameliyat bazlı ekip sorumluluğu ve ürün tüketimi</h3>
-            <p className="text-xs text-slate-500 mt-1">Fatura kayıtları hasta, ameliyat, doktor, hastane, personel, REF ve LOT ilişkisiyle izlenir.</p>
+            <div className="enterprise-kicker mb-1">Stok Çıkış Denetimi</div>
+            <h3 className="text-base font-black text-white">Ürün çıkışı, ekip sorumluluğu ve belge kontrolü</h3>
+            <p className="text-xs text-slate-500 mt-1">Stok çıkış kayıtları hasta, ameliyat, doktor, lokasyon, personel, REF ve LOT ilişkisiyle izlenir.</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {[
@@ -5701,7 +5867,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
       </div>
       <div className="card rounded-2xl overflow-hidden">
         <div className="hidden lg:grid grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] px-5 py-3 border-b border-white/8 bg-navy-900/50">{["REF","LOT","Ameliyat / Hasta","Doktor","Hastane","Personel","Adet","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}</div>
-        {filteredRecordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Fatura / tüketim kaydı bulunamadı</div>:filteredRecordRows.map(({h,urun,surgery,hospital})=>{
+        {filteredRecordRows.length===0?<div className="px-5 py-12 text-center text-slate-500 text-sm">Stok çıkış kaydı bulunamadı</div>:filteredRecordRows.map(({h,urun,surgery,hospital})=>{
             const invoiceTeam=h.notes?.match(/(?:Personel|Ekip):\s*([^—]+)/)?.[1]?.trim()||getSurgeryPersonnel(surgery).join(", ")||"Personel yok";
             return(
               <div key={h.id} className="table-row px-5 py-4 lg:grid lg:grid-cols-[1fr_1fr_1.2fr_1fr_1fr_1fr_.7fr_.7fr] gap-4">
@@ -5830,9 +5996,9 @@ function SystemTestsView({profile,onRefresh}){
         const before=readLocalMovements().length;
         const inv=await insertMovement(movementPayload({urun_id:testProductId,hospital_id:"company-shelf-local",lot:"LOT-TEST",type:"out",quantity:1,notes:`[FATURA] Hasta: Test Hasta — Ameliyat: ${marker} — Doktor: Test Doktor — Personel: Test Ekip`,surgery_id:testSurgeryId||""}));
         if(inv.error)throw inv.error;
-        if(readLocalMovements().length<=before)throw new Error("Fatura/tüketim hareketi oluşmadı");
-        pass("Fatura / tüketim çıkışı","Yerel tüketim kaydı oluştu");
-      }catch(e){fail("Fatura / tüketim",e);}
+        if(readLocalMovements().length<=before)throw new Error("Stok çıkış hareketi oluşmadı");
+        pass("Stok çıkış testi","Yerel tüketim kaydı oluştu");
+      }catch(e){fail("Stok çıkış",e);}
 
       try{
         const typeIns=await SB.from("surgery_types").insert({name:marker});
@@ -6239,13 +6405,13 @@ function App(){
     try{
       const sessionUser=session?.user||(await SB.auth.getUser()).data.user;
       const[surg,typ,hosp,doc,pers,users,notf,urn,stk]=await Promise.all([
-        SB.from("surgeries").select("*").order("date",{ascending:false}).order("time"),
+        SB.from("surgeries").select("*"),
         SB.from("surgery_types").select("*").order("name"),
         SB.from("hospitals").select("*").order("name"),
         SB.from("doctors").select("*").order("name"),
         SB.from("personel").select("*").order("name"),
         SB.from("profiles").select("*"),
-        SB.from("notifications").select("*").order("created_at",{ascending:false}).limit(50),
+        SB.from("notifications").select("*"),
         SB.from("urunler").select("*").order("ad"),
         SB.from("stok").select("*"),
       ]);
@@ -6255,7 +6421,7 @@ function App(){
       ].forEach(([label,res])=>{
         if(res?.error)console.warn(`ARTROPLUS yükleme uyarısı (${label}):`,res.error.message);
       });
-      setSurgeries(surg.data||[]);
+      setSurgeries((surg.data||[]).sort((a,b)=>String(b.date||b.created_at||"").localeCompare(String(a.date||a.created_at||""))||String(a.time||"").localeCompare(String(b.time||""))));
       setTypes(typ.data||[]);
       const dbHospitals=hosp.data||[];
       const shelf=findCompanyShelf(dbHospitals)||{id:"company-shelf-local",name:COMPANY_SHELF_NAME};
@@ -6263,7 +6429,7 @@ function App(){
       setHospitals(normalizedHospitals);
       setDoctors(doc.data||[]);
       setPersonel(buildProgramPersonnel(users.data||[],pers.data||[]));
-      setNotifs(notf.data||[]);
+      setNotifs((notf.data||[]).sort((a,b)=>String(b.created_at||b.id||"").localeCompare(String(a.created_at||a.id||""))).slice(0,50));
       setUrunler((urn.data||[]).map(normalizeProduct));
       setStoklar(mergeLocalStockLots(stk.data||[],shelf.id));
       const profileRows=users.data||[];
@@ -6279,27 +6445,34 @@ function App(){
   const addNotif=async(msg)=>{
     const{data:{user}}=await SB.auth.getUser();
     if(!user)return;
-    await SB.from("notifications").insert({user_id:user.id,message:msg,is_read:false,created_at:new Date().toISOString()});
-    setNotifs(p=>[{id:Date.now(),message:msg,is_read:false,created_at:new Date().toISOString()},...p]);
+    const createdAt=new Date().toISOString();
+    const payload={user_id:user.id,message:msg,is_read:false,created_at:createdAt};
+    const {error}=await insertWithSchemaFallback("notifications",payload,["user_id","is_read","created_at"],{select:false});
+    if(error)console.warn("ARTROPLUS bildirim uyarısı:",error.message);
+    setNotifs(p=>[{id:Date.now(),message:msg,is_read:false,created_at:createdAt},...p]);
   };
 
   const readNotif=async(id)=>{
-    await SB.from("notifications").update({is_read:true}).eq("id",id);
+    const {error}=await SB.from("notifications").update({is_read:true}).eq("id",id);
+    if(error)console.warn("ARTROPLUS bildirim okundu uyarısı:",error.message);
     setNotifs(p=>p.map(n=>n.id===id?{...n,is_read:true}:n));
   };
 
   const readAll=async()=>{
-    await SB.from("notifications").update({is_read:true}).eq("is_read",false);
+    const {error}=await SB.from("notifications").update({is_read:true}).eq("is_read",false);
+    if(error)console.warn("ARTROPLUS toplu bildirim uyarısı:",error.message);
     setNotifs(p=>p.map(n=>({...n,is_read:true})));
   };
 
   const delNotif=async(id)=>{
-    await SB.from("notifications").delete().eq("id",id);
+    const {error}=await SB.from("notifications").delete().eq("id",id);
+    if(error)console.warn("ARTROPLUS bildirim silme uyarısı:",error.message);
     setNotifs(p=>p.filter(n=>n.id!==id));
   };
 
   const delAllNotifs=async()=>{
-    await SB.from("notifications").delete().neq("id","00000000-0000-0000-0000-000000000000");
+    const ids=notifs.map(n=>n.id).filter(Boolean);
+    await Promise.all(ids.map(id=>SB.from("notifications").delete().eq("id",id)));
     setNotifs([]);
   };
 
@@ -6378,7 +6551,7 @@ function App(){
               <div>
                 <div className="lc-topbar-kicker flex items-center gap-1.5">
                   <span className="lc-signature" style={{color:"#94a3b8"}}><span/><span/><span/><span/><span/></span>
-                  ARTROPLUS KURUMSAL
+                  ARTROPLUS DEPO & STOK
                 </div>
                 <div className="lc-topbar-title text-sm font-bold lc-wordmark lc-wordmark-dark">{NAV.find(n=>n.id===page)?.label}</div>
               </div>
@@ -6416,6 +6589,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
 
 
 
