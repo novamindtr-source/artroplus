@@ -5772,7 +5772,7 @@ function SystemTestsView({profile,onRefresh}){
           SB.from("urunler").select("id,kod,ad,birim,min_stok,kategori").limit(1),
           SB.from("stok").select("id,urun_id,hastane,miktar").limit(1),
           SB.from("hareketler").select("id,urun_id,miktar,aciklama,created_at").limit(1),
-          SB.from("profiles").select("id,name,role,status,created_at").limit(1),
+          SB.from("profiles").select("*").limit(1),
         ];
         const res=await Promise.all(q);
         const bad=res.find(r=>r.error);
@@ -5854,7 +5854,7 @@ function SystemTestsView({profile,onRefresh}){
       }catch(e){warn("Bildirim ekle/sil",e.message||String(e));}
 
       try{
-        const users=await SB.from("profiles").select("id,name,role,status").limit(20);
+        const users=await SB.from("profiles").select("*").limit(20);
         if(users.error)throw users.error;
         pass("Kullanıcılar listeleme",`${(users.data||[]).length} kayıt okunabildi`);
       }catch(e){fail("Kullanıcılar listeleme",e);}
@@ -6237,21 +6237,21 @@ function App(){
   const loadAll=async()=>{
     setLoading(true);
     try{
-      const[surg,typ,hosp,doc,pers,users,notf,urn,stk,prof]=await Promise.all([
+      const sessionUser=session?.user||(await SB.auth.getUser()).data.user;
+      const[surg,typ,hosp,doc,pers,users,notf,urn,stk]=await Promise.all([
         SB.from("surgeries").select("*").order("date",{ascending:false}).order("time"),
         SB.from("surgery_types").select("*").order("name"),
         SB.from("hospitals").select("*").order("name"),
         SB.from("doctors").select("*").order("name"),
         SB.from("personel").select("*").order("name"),
-        SB.from("profiles").select("*").order("name"),
+        SB.from("profiles").select("*"),
         SB.from("notifications").select("*").order("created_at",{ascending:false}).limit(50),
         SB.from("urunler").select("*").order("ad"),
         SB.from("stok").select("*"),
-        SB.from("profiles").select("*").eq("id",(await SB.auth.getUser()).data.user?.id).single(),
       ]);
       [
         ["ameliyatlar",surg],["ameliyat tipleri",typ],["hastaneler",hosp],["doktorlar",doc],
-        ["personel",pers],["kullanıcılar",users],["bildirimler",notf],["ürünler",urn],["stok",stk],["profil",prof]
+        ["personel",pers],["kullanıcılar",users],["bildirimler",notf],["ürünler",urn],["stok",stk]
       ].forEach(([label,res])=>{
         if(res?.error)console.warn(`ARTROPLUS yükleme uyarısı (${label}):`,res.error.message);
       });
@@ -6266,8 +6266,12 @@ function App(){
       setNotifs(notf.data||[]);
       setUrunler((urn.data||[]).map(normalizeProduct));
       setStoklar(mergeLocalStockLots(stk.data||[],shelf.id));
-      const sessionUser=session?.user;
-      setProfile(prof.data?{...prof.data,full_name:prof.data.full_name||prof.data.name||prof.data.email||sessionUser?.email||"Kullanıcı"}:(sessionUser?{id:sessionUser.id,email:sessionUser.email,full_name:sessionUser.email||"Kullanıcı",role:"user",status:"active"}:null));
+      const profileRows=users.data||[];
+      const matchedProfile=profileRows.find(p=>
+        (sessionUser?.email&&String(p.email||"").toLocaleLowerCase("tr-TR")===sessionUser.email.toLocaleLowerCase("tr-TR"))||
+        [p.user_id,p.auth_id,p.uid,p.auth_user_id].filter(Boolean).some(v=>String(v)===String(sessionUser?.id))
+      );
+      setProfile(matchedProfile?{...matchedProfile,full_name:matchedProfile.full_name||matchedProfile.name||matchedProfile.email||sessionUser?.email||"Kullanıcı"}:(sessionUser?{id:sessionUser.id,email:sessionUser.email,full_name:sessionUser.email||"Kullanıcı",role:"user",status:"active"}:null));
     }catch(e){console.error(e);}
     setLoading(false);
   };
@@ -6412,6 +6416,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+
 
 
 
