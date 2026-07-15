@@ -926,7 +926,7 @@ const printExitDocument=({title="Ürün Çıkış Fişi",subtitle="",rows=[],met
 };
 const isCompanyShelfName=name=>{
   const n=(name||"").toLocaleLowerCase("tr-TR");
-  return n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
+  return n.includes("ana depo")||n.includes("ana raf")||n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
 };
 const displayLocationName=loc=>isCompanyShelfName(loc?.name||loc)?"Ana Depo":(loc?.name||loc||"");
 const LOCATION_PALETTE=["#2f80ed","#16a36a","#f59e0b","#e0568a","#7c6df2","#14b8a6","#ef6c35","#38bdf8","#a3e635","#f472b6"];
@@ -3720,7 +3720,7 @@ function parseGS1(raw){
 const COMPANY_SHELF_NAME="Şirket Rafı";
 const findCompanyShelf=(hospitals)=>hospitals.find(h=>{
   const n=(h.name||"").toLocaleLowerCase("tr-TR");
-  return n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
+  return n.includes("ana depo")||n.includes("ana raf")||n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
 });
 const ensureCompanyShelf=async(hospitals)=>{
   const existing=findCompanyShelf(hospitals);
@@ -4221,6 +4221,10 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   const [opModal,setOpModal]=useState(false);   // işlem seç
   const [adjustModal,setAdjustModal]=useState(null);
   const [af,setAf]=useState({quantity:0,notes:""});
+  const emptyManualProduct={name:"",code:"",manufacturer:"",category:"",unit:"adet",min_stock:0,lot:"",quantity:1,hospital_id:"",skt:"",notes:""};
+  const [productModal,setProductModal]=useState(false);
+  const [productForm,setProductForm]=useState(emptyManualProduct);
+  const [productSaving,setProductSaving]=useState(false);
 
   // İşlem form
   const emptyOp={op:"",urun_id:"",from_id:"",to_id:"",lot:"",quantity:1,notes:"",
@@ -4269,6 +4273,10 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     });
     return Object.values(m).sort((a,b)=>a.hospital.name.localeCompare(b.hospital.name));
   },[rows]);
+  const consignmentSummary=useMemo(()=>hospitalSummary
+    .filter(hs=>!isCompanyShelfName(displayLocationName(hs.hospital)||hs.hospital.name))
+    .map(hs=>({...hs,qty:hs.items.reduce((a,r)=>a+(Number(r.quantity)||0),0),refs:new Set(hs.items.map(r=>r.urun_id)).size}))
+    .sort((a,b)=>b.qty-a.qty||a.hospital.name.localeCompare(b.hospital.name)),[hospitalSummary]);
 
   const statusForRow=r=>{
     const qty=Number(r.quantity)||0;
@@ -4376,6 +4384,41 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
     }));
     toast("Stok satırı silindi","success");
     loadAll();loadH();
+  };
+
+  const openManualProduct=()=>{
+    const shelf=findCompanyShelf(hospitals);
+    setProductForm({...emptyManualProduct,hospital_id:shelf?.id||visibleHospitals[0]?.id||""});
+    setProductModal(true);
+  };
+  const saveManualProduct=async()=>{
+    const f=productForm;
+    if(!(f.code||f.name))return toast("REF veya ürün adı girin","warning");
+    setProductSaving(true);
+    try{
+      const normalized={name:f.name||f.code,code:f.code,unit:f.unit||"adet",min_stock:Number(f.min_stock)||0,category:f.category,description:f.notes,manufacturer:f.manufacturer};
+      let existing=await findExistingProductByForm(normalized);
+      let urunId=existing?.id;
+      if(!urunId){
+        const ins=await insertWithSchemaFallback("urunler",productPayload(normalized),[],{select:false});
+        if(ins.error)throw ins.error;
+        existing=await findExistingProductByForm(normalized);
+        urunId=existing?.id;
+      }
+      if(!urunId)throw new Error("Ürün kaydedildi fakat ID okunamadı. Sayfayı yenileyip tekrar deneyin.");
+      const qty=Math.max(0,Number(f.quantity)||0);
+      if(qty>0){
+        const target=f.hospital_id||findCompanyShelf(hospitals)?.id||visibleHospitals[0]?.id||"company-shelf-local";
+        const current=findStockRow(stoklar,urunId,target,f.lot||"");
+        if(current)await updateStockQuantity(current,Number(current.quantity||0)+qty);
+        else await insertStockQuantity(urunId,target,qty,f.lot||"",f.skt||null,null,displayLocationName(hospitals.find(h=>h.id===target))||"Ana Depo");
+        if(f.lot)rememberLocalStockLot({urun_id:urunId,hospital_id:target,lot:f.lot,skt:f.skt||null,quantity:qty});
+        await insertMovement(movementPayload({urun_id:urunId,hospital_id:target,lot:f.lot||"",type:"in",quantity:qty,notes:`Manuel ürün ekleme${f.notes?` — ${f.notes}`:""}`}));
+      }
+      toast(existing?.id?"Ürün ve stok güncellendi":"Manuel ürün eklendi","success");
+      setProductModal(false);setProductForm(emptyManualProduct);loadAll();loadH();
+    }catch(e){toast(e.message||"Ürün eklenemedi","error");}
+    finally{setProductSaving(false);}
   };
 
   // Ana işlem kaydetme
@@ -4845,6 +4888,26 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         </Modal>
       )}
 
+      {productModal&&(
+        <Modal title="Manuel Ürün Ekle" onClose={()=>setProductModal(false)} size="lg"
+          footer={<div className="flex gap-2"><button type="button" onClick={()=>setProductModal(false)} className="flex-1 py-2.5 rounded-xl bg-navy-800 text-slate-300 text-sm border border-white/8">İptal</button><button type="button" onClick={saveManualProduct} disabled={productSaving} className="flex-1 py-2.5 rounded-xl btn-primary text-white text-sm font-bold disabled:opacity-60">{productSaving?"Kaydediliyor...":"Ürünü Kaydet"}</button></div>}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><Label required>REF / Ürün Kodu</Label><Input value={productForm.code} onChange={e=>setProductForm(p=>({...p,code:e.target.value.toUpperCase()}))} placeholder="AR-xxxx / KCM-xxxx" className="font-mono"/></div>
+              <div><Label>Ürün Adı</Label><Input value={productForm.name} onChange={e=>setProductForm(p=>({...p,name:e.target.value}))} placeholder="Ürün açıklaması"/></div>
+              <div><Label>Marka</Label><Input value={productForm.manufacturer} onChange={e=>setProductForm(p=>({...p,manufacturer:e.target.value}))} placeholder="Arthrex, Smith+Nephew..."/></div>
+              <div><Label>Kategori</Label><Input value={productForm.category} onChange={e=>setProductForm(p=>({...p,category:e.target.value}))} placeholder="İmplant / sarf / set"/></div>
+              <div><Label>LOT</Label><Input value={productForm.lot} onChange={e=>setProductForm(p=>({...p,lot:e.target.value.toUpperCase()}))} className="font-mono"/></div>
+              <div><Label>SKT</Label><Input type="date" value={productForm.skt} onChange={e=>setProductForm(p=>({...p,skt:e.target.value}))}/></div>
+              <div><Label>Adet</Label><Input type="number" min="0" value={productForm.quantity} onChange={e=>setProductForm(p=>({...p,quantity:e.target.value}))}/></div>
+              <div><Label>Kritik Stok</Label><Input type="number" min="0" value={productForm.min_stock} onChange={e=>setProductForm(p=>({...p,min_stock:e.target.value}))}/></div>
+            </div>
+            <div><Label>Lokasyon / Konsinye</Label><Select value={productForm.hospital_id} onChange={e=>setProductForm(p=>({...p,hospital_id:e.target.value}))}><option value="">Ana depo / lokasyon seçin</option>{hospitals.map(h=><option key={h.id} value={h.id}>{displayLocationName(h)||h.name}</option>)}</Select></div>
+            <div><Label>Not</Label><Textarea rows="2" value={productForm.notes} onChange={e=>setProductForm(p=>({...p,notes:e.target.value}))} placeholder="Opsiyonel açıklama"/></div>
+          </div>
+        </Modal>
+      )}
+
       {/* ── Başlık ──────────────────────────────────────────────── */}
       <div className="corp-section-hero flex flex-col sm:flex-row sm:items-center gap-3">
         <div>
@@ -4852,24 +4915,22 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
           <p className="text-sm text-slate-500 mt-0.5">Stok giriş, stok çıkış, ürün hareketleri ve anlık stok durum kontrolü</p>
         </div>
         <div className="sm:ml-auto flex flex-wrap gap-2">
-          <button type="button" onClick={printStockReport}
-            className="px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-300 text-sm font-bold border border-white/8 transition-colors">
-            Yazdır
+          <button type="button" onClick={openManualProduct}
+            className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold shadow-lg flex items-center gap-2">
+            + Manuel Ürün Ekle
           </button>
-          <button type="button" onClick={exportStockCSV}
-            className="px-4 py-2 rounded-xl bg-emerald2/20 hover:bg-emerald2/30 text-emerald2 text-sm font-bold border border-emerald2/30 transition-colors">
-            CSV
+          <button type="button" onClick={()=>setActiveTab("hospital")}
+            className="px-4 py-2 rounded-xl bg-emerald2/15 hover:bg-emerald2/25 text-emerald2 text-sm font-bold border border-emerald2/25 transition-colors">
+            Konsinye Paneli
           </button>
           <button type="button" onClick={()=>{setOp(emptyOp);setOpModal(true);}}
-            className="px-4 py-2 rounded-xl bg-brand/20 hover:bg-brand/30 text-brand-300 text-sm font-bold border border-brand/30 flex items-center gap-2 transition-colors">
-            ⊕ İşlem Yap
+            className="px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-200 text-sm font-bold border border-white/10 transition-colors">
+            Yeni Hareket
           </button>
-          {alerts.length>0&&(
-            <button type="button" onClick={()=>setActiveTab("alerts")}
-              className="px-4 py-2 rounded-xl bg-amber2/20 hover:bg-amber2/30 text-amber2 text-sm font-semibold border border-amber2/30 flex items-center gap-1.5 transition-colors">
-              ⚠ {alerts.length} Uyarı
-            </button>
-          )}
+          <button type="button" onClick={exportStockCSV}
+            className="px-3 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-400 text-sm font-bold border border-white/8 transition-colors">
+            CSV
+          </button>
         </div>
       </div>
 
@@ -4973,41 +5034,42 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
         </div>
       </div>
 
-      {/* ── Stat kartları ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        {[
-          {l:"Lot Satırı",v:totalItems,c:"#3b82f6"},
-          {l:"Stok Tamam",v:totalOk,c:"#10b981"},
-          {l:"Kritik Stok",v:totalCritical,c:"#f59e0b"},
-          {l:"Tükenmiş",v:totalEmpty,c:"#f43f5e"},
-          {l:"SKT Risk",v:expiryRiskRows.length,c:"#fb7185"},
-          {l:"Kayıp (30g)",v:lossCount,c:"#94a3b8"},
-        ].map(s=>(
-          <div key={s.l} className="stat-card rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-2.5 h-2.5 rounded-full" style={{background:s.c}}></div>
-              <span className="text-2xl font-black" style={{color:s.c}}>{s.v}</span>
-            </div>
-            <div className="h-1 rounded-full bg-navy-700 overflow-hidden mb-2">
-              <div className="h-full rounded-full" style={{width:totalItems?`${Math.round(s.v/totalItems*100)}%`:"0%",background:s.c}}></div>
-            </div>
-            <p className="text-xs text-slate-500">{s.l}</p>
+      <div className="enterprise-panel rounded-2xl p-4">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="enterprise-kicker mb-1">KONSİNYE PANELİ</div>
+            <h3 className="text-base sm:text-lg font-black text-white">Hastane Bazlı Konsinye Stok</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-3xl">Aynı REF farklı hastanelerde bulunduğunda renklerle ayrılır; Fulya, Maslak ve diğer lokasyonlar tek bakışta okunur.</p>
           </div>
-        ))}
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={openManualProduct} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-black shadow-lg">+ Manuel Ürün Ekle</button>
+            <button type="button" onClick={()=>{setOp({...emptyOp,op:"shelf_to_hospital"});setOpModal(true);}} className="px-4 py-2.5 rounded-xl bg-emerald2/15 hover:bg-emerald2/25 text-emerald2 text-sm font-bold border border-emerald2/25">Konsinye Sevk</button>
+            <button type="button" onClick={()=>setScannerOpen(v=>!v)} className="px-4 py-2.5 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-200 text-sm font-bold border border-white/10">Barkod Okut</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
+          {consignmentSummary.length===0?(
+            <div className="md:col-span-2 xl:col-span-4 rounded-xl border border-dashed border-white/15 bg-navy-900/45 p-5 text-sm text-slate-400">
+              Konsinye lokasyon kaydı yok. Manuel ürün eklerken lokasyon seçebilir veya Konsinye Sevk ile hastane stoklarını oluşturabilirsiniz.
+            </div>
+          ):consignmentSummary.slice(0,8).map(hs=>(
+            <button type="button" key={hs.hospital.id||hs.hospital.name} onClick={()=>{setActiveTab("hospital");setHFilter(hs.hospital.name);}}
+              className="group rounded-xl bg-navy-900/70 hover:bg-navy-800/85 border border-white/10 p-4 text-left transition-all hover:-translate-y-0.5"
+              style={{borderColor:locationColor(hs.hospital)+"55",boxShadow:`inset 4px 0 0 ${locationColor(hs.hospital)}`}}>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={locationTinyStyle(hs.hospital)}></span>
+                <span className="font-black text-white truncate">{hs.hospital.name}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-3 text-[11px] text-slate-500">
+                <span className="rounded-lg bg-black/15 px-2 py-1">REF <b className="block text-slate-100 text-sm">{hs.refs}</b></span>
+                <span className="rounded-lg bg-black/15 px-2 py-1">LOT <b className="block text-slate-100 text-sm">{hs.items.length}</b></span>
+                <span className="rounded-lg bg-black/15 px-2 py-1">ADET <b className="block text-slate-100 text-sm">{hs.qty}</b></span>
+              </div>
+              {(hs.critical>0||hs.empty>0)&&<div className="mt-3 text-[11px] font-bold text-amber2">{hs.critical} kritik / {hs.empty} tükenmiş</div>}
+            </button>
+          ))}
+        </div>
       </div>
-
-      {/* ── İşlem kısayolları ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        {OPS.map(o=>(
-          <button type="button" key={o.id} onClick={()=>{setOp({...emptyOp,op:o.id});setOpModal(true);}}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all hover:scale-[1.01] active:scale-[.99]"
-            style={{background:o.bg,borderColor:o.color+"35"}}>
-            <span className="text-lg font-black" style={{color:o.color}}>{o.icon}</span>
-            <span className="text-xs font-semibold text-white text-left leading-tight">{o.label}</span>
-          </button>
-        ))}
-      </div>
-
       {/* ── Sekmeler ─────────────────────────────────────────────── */}
       <div className="flex border-b border-white/8">
         {tabs.map(t=>(
@@ -5030,7 +5092,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs">⌕</span>
               </div>
               <span className="enterprise-badge justify-center">{inventoryRows.length} lot satırı</span>
-              <button type="button" onClick={()=>{setOp(emptyOp);setOpModal(true);}} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Yeni Hareket</button>
+              <button type="button" onClick={openManualProduct} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-bold">Manuel Ürün Ekle</button>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
               {[
@@ -6608,6 +6670,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+
 
 
 
