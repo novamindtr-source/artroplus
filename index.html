@@ -536,7 +536,35 @@
     .lc-nav-item.active{background:linear-gradient(90deg,rgba(37,99,235,.28),rgba(22,163,106,.08))!important;}
     .lc-topbar{background:rgba(6,17,31,.94)!important;}
     .corp-section-hero{background:linear-gradient(90deg,rgba(12,28,48,.98),rgba(7,18,32,.92))!important;}
-    .enterprise-panel{background:linear-gradient(180deg,rgba(12,28,48,.96),rgba(7,18,32,.98))!important;}  </style>
+    .enterprise-panel{background:linear-gradient(180deg,rgba(12,28,48,.96),rgba(7,18,32,.98))!important;}      .lc-nav-children{display:grid;gap:2px;margin-top:5px;}
+    .lc-nav-children.closed{display:none;}
+    .lc-nav-parent .chev{transition:transform .16s ease;}
+    .lc-nav-parent.closed .chev{transform:rotate(-90deg);}
+    .lc-nav-subtoggle{margin:6px 0 3px 18px;width:calc(100% - 18px);min-height:32px;border:1px solid rgba(148,163,184,.1);background:rgba(255,255,255,.018);color:#8fa1bb;border-radius:9px;padding:7px 10px;font-size:11px;font-weight:900;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.03em;}
+    .lc-nav-subtoggle:hover{color:#e7f0ff;background:rgba(90,167,255,.075);}
+    .lc-nav-subtoggle .chev{margin-left:auto;font-size:11px;transition:transform .16s ease;}
+    .lc-nav-subtoggle.closed .chev{transform:rotate(-90deg);}
+    .location-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:6px 9px;border-radius:9px;border:1px solid rgba(148,163,184,.18);font-size:12px;font-weight:900;line-height:1;}
+    .location-dot{width:8px;height:8px;border-radius:999px;flex-shrink:0;box-shadow:0 0 0 3px rgba(255,255,255,.08);}
+    .consignment-tag{font-size:9px;font-weight:950;letter-spacing:.04em;text-transform:uppercase;opacity:.82;margin-left:2px;}
+    .movement-command-collapsed{padding:14px 16px;border:1px solid rgba(148,163,184,.15);background:linear-gradient(180deg,rgba(17,31,53,.9),rgba(8,17,32,.94));}
+    /* Final corporate polish */
+    :root{--pro-bg:#07101c;--pro-surface:#0c1728;--pro-surface-2:#101d31;--pro-line:rgba(152,170,194,.16);--pro-line-strong:rgba(152,170,194,.28);--pro-text:#eef4fb;--pro-muted:#8fa1b8;--pro-blue:#2f80ed;--pro-cyan:#38bdf8;--pro-green:#16a36a;}
+    body{background:linear-gradient(180deg,#07101c 0%,#081525 54%,#060c16 100%)!important;color:var(--pro-text)!important;font-size:14px;}
+    body::after{opacity:.16!important;background-size:44px 44px!important;}
+    .lc-sidebar{background:linear-gradient(180deg,#07101c 0%,#081525 58%,#060d18 100%)!important;border-right:1px solid var(--pro-line)!important;box-shadow:10px 0 34px rgba(0,0,0,.22)!important;}
+    .lc-topbar,.enterprise-topbar,header,.sticky.top-0{background:rgba(7,16,28,.88)!important;border-bottom:1px solid var(--pro-line)!important;box-shadow:0 10px 32px rgba(0,0,0,.12)!important;}
+    .card,.stat-card,.card-premium,.enterprise-panel,.honeywell-panel{background:linear-gradient(180deg,rgba(16,29,49,.96),rgba(9,18,32,.98))!important;border:1px solid var(--pro-line)!important;border-radius:9px!important;box-shadow:0 14px 38px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.035)!important;}
+    .corp-section-hero{background:linear-gradient(90deg,rgba(16,29,49,.96),rgba(9,18,32,.9))!important;border:1px solid var(--pro-line)!important;border-radius:9px!important;box-shadow:0 12px 34px rgba(0,0,0,.18)!important;}
+    .enterprise-kicker{color:#8fb5df!important;letter-spacing:.12em!important;font-weight:950!important;}
+    .text-slate-500{color:#8798ad!important}.text-slate-400{color:#a7b6c9!important}.text-white{color:#f3f7fc!important;}
+    .input-dark,input.input-dark,select.input-dark,textarea.input-dark{background:#071322!important;border:1px solid var(--pro-line-strong)!important;border-radius:8px!important;box-shadow:none!important;}
+    .btn-primary,.btn-premium,.bg-brand{background:linear-gradient(180deg,#2f80ed,#1e63bd)!important;border:1px solid rgba(115,176,255,.28)!important;border-radius:8px!important;box-shadow:0 8px 20px rgba(47,128,237,.2)!important;}
+    .btn-primary:hover,.btn-premium:hover,.bg-brand:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(47,128,237,.28)!important;}
+    .table-row{border-bottom-color:rgba(152,170,194,.09)!important;}.table-row:hover{background:rgba(56,189,248,.045)!important;}
+    .quality-chip,.enterprise-badge,.scanner-chip,.lot-key{border-radius:8px!important;background:rgba(7,19,34,.72)!important;border-color:var(--pro-line)!important;}
+    .lc-nav-item,.lc-nav-parent,.lc-nav-subtoggle{border-radius:8px!important;}.lc-nav-item.active,.lc-nav-parent.active{background:rgba(47,128,237,.16)!important;border-color:rgba(115,176,255,.28)!important;box-shadow:inset 3px 0 0 #5aa7ff!important;}
+    .grid{min-width:0;} h1,h2,h3{letter-spacing:0!important;}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -901,6 +929,18 @@ const isCompanyShelfName=name=>{
   return n.includes("şirket raf")||n.includes("sirket raf")||n.includes("merkez raf")||n.includes("merkez depo");
 };
 const displayLocationName=loc=>isCompanyShelfName(loc?.name||loc)?"Ana Depo":(loc?.name||loc||"");
+const LOCATION_PALETTE=["#2f80ed","#16a36a","#f59e0b","#e0568a","#7c6df2","#14b8a6","#ef6c35","#38bdf8","#a3e635","#f472b6"];
+const colorHash=text=>String(text||"Ana Depo").split("").reduce((a,ch)=>((a<<5)-a+ch.charCodeAt(0))|0,0);
+const locationColor=loc=>{
+  const name=displayLocationName(loc)||"Ana Depo";
+  if(isCompanyShelfName(name))return "#64748b";
+  return LOCATION_PALETTE[Math.abs(colorHash(name))%LOCATION_PALETTE.length];
+};
+const locationStyle=loc=>{
+  const c=locationColor(loc);
+  return {borderColor:c+"55",background:`linear-gradient(90deg,${c}24,rgba(15,23,42,.72))`,color:"#eef6ff",boxShadow:`inset 3px 0 0 ${c}`};
+};
+const locationTinyStyle=loc=>{const c=locationColor(loc);return {background:c,color:"#06111f"};};
 const selectableHospitals=hospitals=>(hospitals||[]).filter(h=>!isCompanyShelfName(h.name));
 const profileDisplayName=p=>p?.full_name||p?.name||p?.email||"Kullanıcı";
 const buildProgramPersonnel=(profiles=[],legacyPersonnel=[])=>{
@@ -1186,85 +1226,31 @@ function Sidebar({page,setPage,profile,unread,onLogout,mobileOpen,onMobileClose}
   const depotVisible=depotPages.some(canGo);
   const opsVisible=opsPages.some(canGo);
   const adminVisible=adminPages.some(canGo);
+  const [openGroups,setOpenGroups]=useState({depot:depotActive,stock:depotActive,ops:opsActive,admin:adminActive});
+  useEffect(()=>{setOpenGroups(prev=>({...prev,depot:prev.depot||depotActive,stock:prev.stock||depotActive,ops:prev.ops||opsActive,admin:prev.admin||adminActive}));},[depotActive,opsActive,adminActive]);
+  const toggleGroup=id=>setOpenGroups(prev=>({...prev,[id]:!prev[id]}));
   const NavButton=({id,label,icon,indent=false,activeIds=[id],badge})=>{
     if(!canGo(id))return null;
     const active=activeIds.includes(page);
-    return(
-      <button type="button" onClick={()=>go(id)}
-        className={`lc-nav-item ${indent?"lc-nav-child":""} w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium relative ${active?"active":""}`}>
-        {indent?<span className="nav-dot flex-shrink-0"/>:<span className="text-base w-5 text-center flex-shrink-0">{icon}</span>}
-        <span className="truncate">{label}</span>
-        {badge>0&&(
-          <span className="ml-auto w-5 h-5 rounded-full bg-rose2 text-white text-xs flex items-center justify-center font-bold">{badge>9?"9+":badge}</span>
-        )}
-      </button>
-    );
+    return(<button type="button" onClick={()=>go(id)} className={`lc-nav-item ${indent?"lc-nav-child":""} w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium relative ${active?"active":""}`}>{indent?<span className="nav-dot flex-shrink-0"/>:<span className="text-base w-5 text-center flex-shrink-0">{icon}</span>}<span className="truncate">{label}</span>{badge>0&&(<span className="ml-auto w-5 h-5 rounded-full bg-rose2 text-white text-xs flex items-center justify-center font-bold">{badge>9?"9+":badge}</span>)}</button>);
   };
-  const Parent=({label,icon,active,onClick})=>(
-    <button type="button" onClick={onClick} className={`lc-nav-parent w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-extrabold ${active?"active":""}`}>
-      <span className="text-base w-5 text-center flex-shrink-0">{icon}</span>
-      <span className="truncate">{label}</span>
-      <span className="chev">⌄</span>
-    </button>
-  );
+  const Parent=({label,icon,active,open,onClick})=>(<button type="button" onClick={onClick} className={`lc-nav-parent ${open?"":"closed"} w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-extrabold ${active?"active":""}`}><span className="text-base w-5 text-center flex-shrink-0">{icon}</span><span className="truncate">{label}</span><span className="chev">⌄</span></button>);
+  const SubToggle=({label,open,onClick})=>(<button type="button" onClick={onClick} className={`lc-nav-subtoggle ${open?"":"closed"}`}><span>•</span><span className="truncate">{label}</span><span className="chev">⌄</span></button>);
   return(
     <>
-      {/* Mobile overlay */}
       <div className={`sidebar-overlay ${mobileOpen?"show":""}`} onClick={onMobileClose}/>
       <div className={`lc-sidebar fixed left-0 top-0 h-full w-60 z-40 flex flex-col transition-transform ${mobileOpen?"":"sidebar-mobile-hidden"} lg:translate-x-0`}>
         <div className="p-5 flex items-center justify-between" style={{borderBottom:"1px solid rgba(255,255,255,.06)"}}>
-          <div className="min-w-0">
-            <img src={LOGO_LIGHT_SRC} className="h-7" alt="ARTROPLUS"/>
-            <div className="lc-logo-kicker mt-2">Kurumsal Operasyon</div>
-            <div className="lc-logo-sub mt-1">Depo, stok ve ameliyat süreçleri</div>
-          </div>
+          <div className="min-w-0"><img src={LOGO_LIGHT_SRC} className="h-7" alt="ARTROPLUS"/><div className="lc-logo-kicker mt-2">Kurumsal Operasyon</div><div className="lc-logo-sub mt-1">Depo, stok ve ameliyat süreçleri</div></div>
           <button type="button" onClick={onMobileClose} className="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg" style={{color:"#8b93a7"}}>✕</button>
         </div>
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          <div className="lc-nav-group">
-            <NavButton id="dashboard" icon="⊞" label="Dashboard"/>
-          </div>
-
-          <div className="lc-nav-group">
-            {depotVisible&&<Parent label="Depo Yönetimi" icon="▣" active={depotActive} onClick={()=>go("stock")}/>} 
-            <div className="lc-nav-subtitle">Stok Yönetimi</div>
-            <NavButton id="stock" label="Stok Giriş" indent activeIds={[]}/>
-            <NavButton id="invoices" label="Stok Çıkış" indent/>
-            <NavButton id="movements" label="Ürün Hareket İşlemleri" indent/>
-            <NavButton id="stock" label="Stok Durum" indent/>
-            <NavButton id="products" label="Ürün Kartları" indent/>
-          </div>
-
-          <div className="lc-nav-group">
-            {opsVisible&&<Parent label="Operasyon Planlama" icon="◫" active={opsActive} onClick={()=>go("program")}/>} 
-            <NavButton id="program" label="Ameliyat Programı" indent/>
-            <NavButton id="surgeries" label="Ameliyat Planları" indent/>
-          </div>
-
-          <div className="lc-nav-group">
-            {adminVisible&&<Parent label="Yönetim" icon="⊙" active={adminActive} onClick={()=>go("lists")}/>} 
-            <NavButton id="notifications" label="Bildirimler" indent badge={unread}/>
-            <NavButton id="lists" label="Tanımlar ve Listeler" indent/>
-            <NavButton id="users" label="Kullanıcılar" indent/>
-            <NavButton id="tests" label="Sistem Testleri" indent/>
-          </div>
+          <div className="lc-nav-group"><NavButton id="dashboard" icon="⊞" label="Dashboard"/></div>
+          <div className="lc-nav-group">{depotVisible&&<Parent label="Depo Yönetimi" icon="▣" active={depotActive} open={openGroups.depot} onClick={()=>toggleGroup("depot")}/>}<div className={`lc-nav-children ${openGroups.depot?"":"closed"}`}><SubToggle label="Stok Yönetimi" open={openGroups.stock} onClick={()=>toggleGroup("stock")}/><div className={`lc-nav-children ${openGroups.stock?"":"closed"}`}><NavButton id="stock" label="Stok Giriş" indent activeIds={[]}/><NavButton id="invoices" label="Stok Çıkış" indent/><NavButton id="movements" label="Ürün Hareket İşlemleri" indent/><NavButton id="stock" label="Stok Durum" indent/><NavButton id="products" label="Ürün Kartları" indent/></div></div></div>
+          <div className="lc-nav-group">{opsVisible&&<Parent label="Operasyon Planlama" icon="◫" active={opsActive} open={openGroups.ops} onClick={()=>toggleGroup("ops")}/>}<div className={`lc-nav-children ${openGroups.ops?"":"closed"}`}><NavButton id="program" label="Ameliyat Programı" indent/><NavButton id="surgeries" label="Ameliyat Planları" indent/></div></div>
+          <div className="lc-nav-group">{adminVisible&&<Parent label="Yönetim" icon="⊙" active={adminActive} open={openGroups.admin} onClick={()=>toggleGroup("admin")}/>}<div className={`lc-nav-children ${openGroups.admin?"":"closed"}`}><NavButton id="notifications" label="Bildirimler" indent badge={unread}/><NavButton id="lists" label="Tanımlar ve Listeler" indent/><NavButton id="users" label="Kullanıcılar" indent/><NavButton id="tests" label="Sistem Testleri" indent/></div></div>
         </nav>
-        <div className="lc-sidebar-foot p-3">
-          <div className="lc-sidebar-copy">2026© Artroplus</div>
-          <div className="lc-user-chip flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl">
-            <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-              {(profile?.full_name||"U")[0].toUpperCase()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-semibold truncate" style={{color:"#e5e9f2"}}>{profile?.full_name||"Kullanıcı"}</div>
-              <div className="text-[10px] capitalize" style={{color:"#5b6478"}}>{isManager(profile)?"Yetkili kullanıcı":"Operasyon kullanıcısı"}</div>
-            </div>
-          </div>
-          <button type="button" onClick={onLogout} className="lc-nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm">
-            <span className="text-base w-5 text-center">⏻</span>
-            <span>Çıkış</span>
-          </button>
-        </div>
+        <div className="lc-sidebar-foot p-3"><div className="lc-sidebar-copy">2026© Artroplus</div><div className="lc-user-chip flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl"><div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white font-bold text-xs flex-shrink-0">{(profile?.full_name||"U")[0].toUpperCase()}</div><div className="min-w-0 flex-1"><div className="text-xs font-semibold truncate" style={{color:"#e5e9f2"}}>{profile?.full_name||"Kullanıcı"}</div><div className="text-[10px] capitalize" style={{color:"#5b6478"}}>{isManager(profile)?"Yetkili kullanıcı":"Operasyon kullanıcısı"}</div></div></div><button type="button" onClick={onLogout} className="lc-nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm"><span className="text-base w-5 text-center">⏻</span><span>Çıkış</span></button></div>
       </div>
     </>
   );
@@ -4229,6 +4215,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
   const [hFilter,setHFilter]=useState("");
   const [stockFilter,setStockFilter]=useState("all");
   const [histFilter,setHistFilter]=useState("");
+  const [scannerOpen,setScannerOpen]=useState(false);
 
   // Modals
   const [opModal,setOpModal]=useState(false);   // işlem seç
@@ -4887,6 +4874,16 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
       </div>
 
       <div className="honeywell-panel rounded-2xl p-4 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="enterprise-kicker mb-1">Barkod Operasyonu</div>
+            <h2 className="text-lg font-black text-white">Honeywell Barkod Paneli</h2>
+            <p className="text-xs text-slate-500 mt-1">Panel kapalıyken depo ekranı sade kalır; okutma gerektiğinde açılır.</p>
+          </div>
+          <button type="button" onClick={()=>setScannerOpen(v=>!v)} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-black">{scannerOpen?"Barkod Panelini Kapat":"Barkod Panelini Aç"}</button>
+        </div>
+        {scannerOpen&&(
+        <>
         <div className="flex flex-col xl:flex-row xl:items-center gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -4935,6 +4932,8 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
               {scannerSaving?"Kaydediliyor...":"Stok Giriş Kaydı Oluştur"}
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
       <div className="enterprise-panel rounded-2xl overflow-hidden">
@@ -5065,7 +5064,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                     <div className="text-[10px] text-slate-600 font-mono truncate">Kayıt: {String(r.id||r.urun_id||"").slice(0,18)}</div>
                   </div>
                   <div><span className="lot-key">{r.lot||"LOT yok"}</span></div>
-                  <div className="text-sm text-slate-300 truncate">{displayLocationName(r.hospital)||r.hospital.name||"Depo yok"}</div>
+                  <div><span className="location-chip" style={locationStyle(r.hospital)}><span className="location-dot" style={locationTinyStyle(r.hospital)}></span><span className="truncate">{displayLocationName(r.hospital)||r.hospital.name||"Depo yok"}</span>{!isCompanyShelfName(displayLocationName(r.hospital)||r.hospital.name)&&<span className="consignment-tag">Konsinye</span>}</span></div>
                   <div className="text-sm font-black" style={{color:st.color}}>{r.quantity||0}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit}</span></div>
                   <div className="text-sm text-slate-400 font-mono">
                     <span>{r.skt||"SKT yok"}</span>
@@ -5117,7 +5116,7 @@ function StokView({urunler,stoklar,hospitals,loadAll}){
                   <div className="text-[10px] text-slate-600">SKT {r.skt||"yok"}</div>
                 </div>
                 <div><span className="lot-key">{r.lot||"LOT yok"}</span></div>
-                <div className="text-sm text-slate-300 truncate">{displayLocationName(r.hospital)||r.hospital.name||"Depo yok"}</div>
+                <div><span className="location-chip" style={locationStyle(r.hospital)}><span className="location-dot" style={locationTinyStyle(r.hospital)}></span><span className="truncate">{displayLocationName(r.hospital)||r.hospital.name||"Depo yok"}</span>{!isCompanyShelfName(displayLocationName(r.hospital)||r.hospital.name)&&<span className="consignment-tag">Konsinye</span>}</span></div>
                 <div className="text-sm font-black" style={{color:r.color}}>{r.quantity||0}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit}</span></div>
                 <div><span className="px-2.5 py-1 rounded-full text-xs font-bold border" style={{background:r.color+"18",borderColor:r.color+"35",color:r.color}}>{r.reason}</span></div>
                 <div className="flex flex-wrap gap-1.5">
@@ -5287,6 +5286,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const [quickHospital,setQuickHospital]=useState(findCompanyShelf(hospitals)?.id||"");
   const [quickRows,setQuickRows]=useState([{urun_id:"",lot:"",quantity:1,notes:""}]);
   const [quickSaving,setQuickSaving]=useState(false);
+  const [quickOpen,setQuickOpen]=useState(false);
 
   useEffect(()=>{load();},[]);
   useEffect(()=>{
@@ -5485,13 +5485,18 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
         </div>
       </div>
       <div className="enterprise-panel rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/8 flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="movement-command-collapsed flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="enterprise-kicker mb-1">Depo Operasyon Girişi</div>
             <h2 className="text-lg font-black text-white">Mal Hareket Giriş Paneli</h2>
-            <p className="text-xs text-slate-500 mt-1">Barkoddan gelen REF/LOT bilgisi veya manuel seçimle çok satırlı stok girişi yapılır; raf bakiyesi anında görünür.</p>
+            <p className="text-xs text-slate-500 mt-1">Panel kapalıyken ekran sade kalır; açınca REF, LOT, raf adedi ve not alanlarıyla toplu stok girişi yapılır.</p>
           </div>
-          <div className="w-full lg:w-80">
+          <button type="button" onClick={()=>setQuickOpen(v=>!v)} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-black">{quickOpen?"Paneli Kapat":"Mal Hareket Girişi Aç"}</button>
+        </div>
+        {quickOpen&&(
+        <>
+        <div className="px-5 py-4 border-b border-white/8">
+          <div className="max-w-sm">
             <Label>Depo / Lokasyon</Label>
             <Select value={quickHospital} onChange={e=>setQuickHospital(e.target.value)}>
               <option value="">Lokasyon seçin</option>
@@ -5540,6 +5545,8 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           <button type="button" onClick={addQuickRow} className="px-4 py-2.5 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-200 text-sm font-bold border border-white/8">+ Satır Ekle</button>
           <button type="button" onClick={saveQuickMovement} disabled={quickSaving} className="px-5 py-2.5 rounded-xl btn-primary text-white text-sm font-black disabled:opacity-60">{quickSaving?"Kaydediliyor...":"Mal Hareket Girişi Kaydet"}</button>
         </div>
+        </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -5607,7 +5614,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
                 <div className="lg:hidden text-xs text-slate-500 font-mono truncate">{h.lot?`LOT ${h.lot}`:"LOT yok"} · {displayLocationName(hosp)||"Lokasyon yok"}</div>
               </div>
               <div className="hidden lg:block text-sm font-mono font-bold text-brand-300 truncate">{h.lot||"LOT yok"}</div>
-              <div className="hidden lg:block text-sm text-slate-300 truncate">{displayLocationName(hosp)||"Lokasyon yok"}</div>
+              <div className="hidden lg:block"><span className="location-chip" style={locationStyle(hosp)}><span className="location-dot" style={locationTinyStyle(hosp)}></span><span className="truncate">{displayLocationName(hosp)||"Lokasyon yok"}</span>{!isCompanyShelfName(displayLocationName(hosp))&&<span className="consignment-tag">Konsinye</span>}</span></div>
               <div className={`text-sm font-black ${meta?"":isIn?"text-emerald2":"text-rose2"}`} style={meta?{color:meta.color}:null}>
                 {isIn?"+":"-"}{h.quantity}<span className="text-xs font-normal text-slate-500 ml-1">{urun?.unit}</span>
               </div>
@@ -6391,6 +6398,7 @@ function App(){
   const [urunler,setUrunler]=useState([]);
   const [stoklar,setStoklar]=useState([]);
   const [loading,setLoading]=useState(true);
+  const disabledTables=useRef(new Set());
 
   useEffect(()=>{
     SB.auth.getSession().then(({data:{session}})=>{setSession(session);if(!session)setLoading(false);});
@@ -6404,23 +6412,34 @@ function App(){
     setLoading(true);
     try{
       const sessionUser=session?.user||(await SB.auth.getUser()).data.user;
+      const loadTable=async(key,query)=>{
+        if(disabledTables.current.has(key))return {data:[],error:null,skipped:true};
+        try{
+          const res=await query();
+          if(res?.error){
+            console.warn(`ARTROPLUS yükleme uyarısı (${key}):`,res.error.message);
+            if(String(res.error.code||res.status||"")==="400"||/schema cache|column|bad request|does not exist/i.test(res.error.message||""))disabledTables.current.add(key);
+            return {data:[],error:res.error};
+          }
+          return res;
+        }catch(e){
+          console.warn(`ARTROPLUS yükleme uyarısı (${key}):`,e.message||String(e));
+          disabledTables.current.add(key);
+          return {data:[],error:e};
+        }
+      };
       const[surg,typ,hosp,doc,pers,users,notf,urn,stk]=await Promise.all([
-        SB.from("surgeries").select("*"),
-        SB.from("surgery_types").select("*").order("name"),
-        SB.from("hospitals").select("*").order("name"),
-        SB.from("doctors").select("*").order("name"),
-        SB.from("personel").select("*").order("name"),
-        SB.from("profiles").select("*"),
-        SB.from("notifications").select("*"),
-        SB.from("urunler").select("*").order("ad"),
-        SB.from("stok").select("*"),
+        loadTable("surgeries",()=>SB.from("surgeries").select("*")),
+        loadTable("surgery_types",()=>SB.from("surgery_types").select("*").order("name")),
+        loadTable("hospitals",()=>SB.from("hospitals").select("*").order("name")),
+        loadTable("doctors",()=>SB.from("doctors").select("*").order("name")),
+        loadTable("personel",()=>SB.from("personel").select("*").order("name")),
+        loadTable("profiles",()=>SB.from("profiles").select("*")),
+        loadTable("notifications",()=>SB.from("notifications").select("*")),
+        loadTable("urunler",()=>SB.from("urunler").select("*").order("ad")),
+        loadTable("stok",()=>SB.from("stok").select("*")),
       ]);
-      [
-        ["ameliyatlar",surg],["ameliyat tipleri",typ],["hastaneler",hosp],["doktorlar",doc],
-        ["personel",pers],["kullanıcılar",users],["bildirimler",notf],["ürünler",urn],["stok",stk]
-      ].forEach(([label,res])=>{
-        if(res?.error)console.warn(`ARTROPLUS yükleme uyarısı (${label}):`,res.error.message);
-      });
+
       setSurgeries((surg.data||[]).sort((a,b)=>String(b.date||b.created_at||"").localeCompare(String(a.date||a.created_at||""))||String(a.time||"").localeCompare(String(b.time||""))));
       setTypes(typ.data||[]);
       const dbHospitals=hosp.data||[];
@@ -6589,6 +6608,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
 
 
 
