@@ -5365,6 +5365,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const [search,setSearch]=useState("");
   const [fType,setFType]=useState("");
   const [fHospital,setFHospital]=useState("");
+  const [movementMode,setMovementMode]=useState("all");
   const [f,setF]=useState({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});
   const [quickHospital,setQuickHospital]=useState(findCompanyShelf(hospitals)?.id||"");
   const [quickRows,setQuickRows]=useState([{urun_id:"",lot:"",quantity:1,notes:""}]);
@@ -5385,16 +5386,27 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
     setHareketler(mergeLocalMovements(data||[],defaultHospitalId));
   };
 
+  const movementMatchesSearch=(h,urun,hosp)=>{
+    const q=search.trim().toLocaleLowerCase("tr-TR");
+    if(!q)return true;
+    return [urun?.code,urun?.name,urun?.manufacturer,h.lot,displayLocationName(hosp),h.notes,h.type==="in"?"giriş":"çıkış"]
+      .filter(Boolean).join(" ").toLocaleLowerCase("tr-TR").includes(q);
+  };
   const filtered=hareketler.filter(h=>{
     const urun=urunler.find(u=>u.id===h.urun_id);
     const hosp=hospitals.find(x=>x.id===h.hospital_id);
+    if(movementMode==="movement_in"&&h.type!=="in")return false;
+    if(movementMode==="movement_out"&&h.type!=="out")return false;
+    if((movementMode==="ana_to_hospital"||movementMode==="consignment")&&!String(h.notes||"").includes(MOV_TAGS.SHELF_TO_HOSPITAL))return false;
+    if(movementMode==="return"&&!String(h.notes||"").includes(MOV_TAGS.RETURN))return false;
     if(fType&&h.type!==fType)return false;
     if(fHospital&&h.hospital_id!==fHospital)return false;
-    if(search){const q=search.toLowerCase();return urun?.code?.toLowerCase().includes(q)||h.lot?.toLowerCase().includes(q)||displayLocationName(hosp).toLowerCase().includes(q)||h.notes?.toLowerCase().includes(q);}
-    return true;
+    return movementMatchesSearch(h,urun,hosp);
   });
   const movementHospitalById=id=>hospitals.find(h=>h.id===id);
   const isMovementCompanyId=id=>id==="company-shelf-local"||isCompanyShelfName(displayLocationName(movementHospitalById(id))||movementHospitalById(id)?.name||id);
+  const depotStockRowsFor=(urunId,lot="")=>stoklar.filter(s=>s.urun_id===urunId&&isMovementCompanyId(s.hospital_id)&&(!lot||normalizeLot(s.lot)===normalizeLot(lot)));
+  const depotQtyFor=(urunId,lot="")=>depotStockRowsFor(urunId,lot).reduce((a,s)=>a+(Number(s.quantity)||0),0);
 
   const save=async(formData)=>{
     const d=formData||f;
@@ -5439,6 +5451,36 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const resetTotalOverrides=()=>{localStorage.removeItem("artroplus_movement_total_overrides_v1");setTotalOverrides({});setEditingTotals(false);toast("Toplamlar gerçek hareket kayıtlarına döndü","success");};
   const selectedMovementProduct=urunler.find(u=>u.id===f.urun_id);
   const selectedMovementLots=stoklar.filter(s=>s.urun_id===f.urun_id&&(!f.hospital_id||s.hospital_id===f.hospital_id));
+  const stockListRows=stoklar.map(s=>({
+    ...s,
+    urun:urunler.find(u=>u.id===s.urun_id)||{},
+    hospital:hospitals.find(h=>h.id===s.hospital_id)||{id:s.hospital_id,name:"Lokasyon yok"}
+  })).filter(r=>{
+    if(fHospital&&r.hospital_id!==fHospital)return false;
+    const q=search.trim().toLocaleLowerCase("tr-TR");
+    if(!q)return true;
+    return [r.urun.code,r.urun.name,r.urun.manufacturer,r.lot,displayLocationName(r.hospital),r.skt,r.quantity,depotQtyFor(r.urun_id,r.lot)]
+      .filter(v=>v!==undefined&&v!==null).join(" ").toLocaleLowerCase("tr-TR").includes(q);
+  }).sort((a,b)=>String(a.urun.code||"").localeCompare(String(b.urun.code||""),"tr")||String(a.lot||"").localeCompare(String(b.lot||""),"tr"));
+  const modeStats={
+    all:hareketler.length,
+    ana_to_hospital:hareketler.filter(h=>String(h.notes||"").includes(MOV_TAGS.SHELF_TO_HOSPITAL)).length,
+    consignment:hareketler.filter(h=>String(h.notes||"").includes(MOV_TAGS.SHELF_TO_HOSPITAL)).length,
+    return:hareketler.filter(h=>String(h.notes||"").includes(MOV_TAGS.RETURN)).length,
+    movement_in:hareketler.filter(h=>h.type==="in").length,
+    movement_out:hareketler.filter(h=>h.type==="out").length,
+    stock:stockListRows.length
+  };
+  const movementModes=[
+    {id:"all",label:"Tüm Hareketler",hint:"Giriş, çıkış ve sevk kayıtları",count:modeStats.all},
+    {id:"ana_to_hospital",label:"Ana Depo → Hastane",hint:"Ana depodan hastaneye sevk",count:modeStats.ana_to_hospital,action:()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:"Ana Depo → Hastane"});setModal(true);}},
+    {id:"consignment",label:"Konsinye Sevk",hint:"Hastane konsinye hareketleri",count:modeStats.consignment,action:()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:"Konsinye sevk"});setModal(true);}},
+    {id:"return",label:"Geri Alım",hint:"Hastaneden depoya dönüş",count:modeStats.return,action:()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"in",quantity:1,notes:"Geri alım"});setModal(true);}},
+    {id:"movement_in",label:"Ürün Hareket Giriş",hint:"Depo giriş kayıtları",count:modeStats.movement_in,action:()=>{setF({urun_id:"",hospital_id:findCompanyShelf(hospitals)?.id||"",surgery_id:"",lot:"",type:"in",quantity:1,notes:""});setModal(true);}},
+    {id:"movement_out",label:"Ürün Hareket Çıkış",hint:"Çıkış ve tüketim kayıtları",count:modeStats.movement_out,action:()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});setModal(true);}},
+    {id:"stock",label:"Stok Listesi",hint:"REF + LOT + lokasyon stokları",count:modeStats.stock}
+  ];
+  const activeMode=movementModes.find(m=>m.id===movementMode)||movementModes[0];
   const printMovementList=()=>{
     if(!filtered.length)return toast("Yazdırılacak hareket yok","warning");
     printExitDocument({
@@ -5463,7 +5505,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
   const addQuickRow=()=>setQuickRows(rows=>[...rows,{urun_id:"",lot:"",quantity:1,notes:""}]);
   const removeQuickRow=idx=>setQuickRows(rows=>rows.length>1?rows.filter((_,i)=>i!==idx):rows);
   const quickProduct=row=>urunler.find(u=>u.id===row.urun_id)||null;
-  const quickLotRows=row=>stoklar.filter(s=>s.urun_id===row.urun_id&&(!quickHospital||s.hospital_id===quickHospital));
+  const quickLotRows=row=>depotStockRowsFor(row.urun_id);
   const quickLotStock=row=>quickLotRows(row).find(s=>normalizeLot(s.lot)===normalizeLot(row.lot));
   const quickReadyRows=()=>quickRows.filter(r=>r.urun_id&&(Number(r.quantity)||0)>0);
   const saveQuickMovement=async()=>{
@@ -5540,7 +5582,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="quality-chip">REF: <b className="text-white font-mono">{selectedMovementProduct.code||"REF yok"}</b></span>
                   <span className="quality-chip">Kayıtlı LOT: <b className="text-white">{selectedMovementLots.length}</b></span>
-                  <span className="quality-chip">Toplam: <b className="text-white">{selectedMovementLots.reduce((a,s)=>a+(Number(s.quantity)||0),0)}</b></span>
+                  <span className="quality-chip">Toplam: <b className="text-white">{selectedMovementLots.reduce((a,s)=>a+(Number(s.quantity)||0),0)}</b></span><span className="quality-chip">Ana Depo / Raf: <b className="text-emerald2">{depotQtyFor(selectedMovementProduct.id,f.lot)}</b></span>
                 </div>
               </div>
             )}
@@ -5585,6 +5627,25 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
           <button type="button" onClick={()=>{setF({urun_id:"",hospital_id:"",surgery_id:"",lot:"",type:"out",quantity:1,notes:""});setModal(true);}} className="px-4 py-2 rounded-xl btn-primary text-white text-sm font-bold flex items-center gap-1.5">+ Manuel Ekle</button>
         </div>
       </div>
+      <div className="enterprise-panel rounded-2xl p-4 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-center">
+          <div>
+            <div className="enterprise-kicker mb-1">Ürün Hareket İşlemleri</div>
+            <h2 className="text-lg font-black text-white">{activeMode.label}</h2>
+            <p className="text-xs text-slate-500 mt-1">{activeMode.hint}. Arama alanı bu seçili ekrana göre REF, LOT, hastane, açıklama ve stok bilgisinde arar.</p>
+          </div>
+          {activeMode.action&&<button type="button" onClick={activeMode.action} className="px-4 py-2.5 rounded-xl btn-primary text-white text-sm font-black">+ İşlem Aç</button>}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+          {movementModes.map(m=>(
+            <button type="button" key={m.id} onClick={()=>{setMovementMode(m.id);setFType(m.id==="movement_in"?"in":m.id==="movement_out"?"out":"");}}
+              className={`rounded-xl border px-3 py-3 text-left transition-all ${movementMode===m.id?"bg-brand/20 border-brand/35 text-white":"bg-navy-900/55 border-white/8 text-slate-400 hover:text-white hover:border-brand/25"}`}>
+              <div className="text-xs font-black leading-tight">{m.label}</div>
+              <div className="mt-2 flex items-center justify-between gap-2"><span className="text-[10px] text-slate-500 truncate">{m.hint}</span><b className="text-xs text-brand-300">{m.count}</b></div>
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="enterprise-panel rounded-2xl overflow-hidden">
         <div className="movement-command-collapsed flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="flex-1 min-w-0">
@@ -5608,7 +5669,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
         <div className="overflow-x-auto">
           <div className="min-w-[920px]">
             <div className="grid grid-cols-[1.15fr_.9fr_.7fr_.55fr_1.1fr_auto] gap-3 px-5 py-3 bg-navy-900/55 border-b border-white/8">
-              {["Ürün Kodu / REF","LOT No","Raf Adet","Adet","Not",""].map(h=><div key={h} className="text-[11px] font-black uppercase tracking-wider text-slate-500">{h}</div>)}
+              {["Ürün Kodu / REF","LOT No","Ana Depo / Raf","Adet","Not",""].map(h=><div key={h} className="text-[11px] font-black uppercase tracking-wider text-slate-500">{h}</div>)}
             </div>
             {quickRows.map((row,idx)=>{
               const product=quickProduct(row);
@@ -5626,7 +5687,7 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
                     <datalist id={`quick-lots-${idx}`}>{lotRows.map(s=><option key={s.id||s.lot} value={s.lot||""}>{s.lot||"LOT yok"}</option>)}</datalist>
                   </div>
                   <div className="rounded-xl border border-white/8 bg-navy-950/60 px-3 py-2.5">
-                    <div className="text-[10px] text-slate-500 font-bold">RAF ADET</div>
+                    <div className="text-[10px] text-slate-500 font-bold">ANA DEPO / RAF</div>
                     <div className={`text-sm font-black ${rafQty>0?"text-emerald2":"text-slate-400"}`}>{rafQty}</div>
                   </div>
                   <Input type="number" min="1" value={row.quantity} onChange={e=>updateQuickRow(idx,{quantity:e.target.value})}/>
@@ -5685,8 +5746,8 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
       <div className="card rounded-2xl p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
-            <Input value={search} onChange={e=>setSearch(e.target.value)} placeholder="REF, LOT, hastane veya açıklama ara..."/>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 text-xs">?</span>
+            <Input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Seçili ekranda REF, LOT, ürün, hastane veya açıklama ara..."/>
+            {search&&<button type="button" onClick={()=>setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-white">Temizle</button>}
           </div>
           <Select value={fType} onChange={e=>setFType(e.target.value)}>
             <option value="">Tüm hareketler</option>
@@ -5700,72 +5761,55 @@ function HareketlerView({urunler,stoklar,surgeries,hospitals,loadAll}){
         </div>
       </div>
 
-      <div className="card rounded-2xl overflow-hidden">
-        <div className="hidden lg:grid grid-cols-[1fr_1fr_1fr_.65fr_.9fr_1.2fr_auto] gap-4 px-5 py-3 border-b border-white/8 bg-navy-900/50">
-          {["REF","LOT","Lokasyon","Adet","Tarih","Hareket / Açıklama","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}
-        </div>
-        {filtered.length===0?(
-          <div className="py-12 text-center text-slate-500 text-sm">Hareket bulunamadı</div>
-        ):filtered.map(h=>{
-          const urun=urunler.find(u=>u.id===h.urun_id);
-          const hosp=hospitals.find(x=>x.id===h.hospital_id);
-          const tag=getMovTag(h.notes);
-          const meta=tag?MOV_META[tag]:null;
-          const isIn=h.type==="in";
-          const d=new Date(h.created_at);
-          const cleanNote=tag?h.notes.replace(tag,"").trim():h.notes;
-          return(
-            <div key={h.id} className="table-row px-5 py-3 lg:grid lg:grid-cols-[1fr_1fr_1fr_.65fr_.9fr_1.2fr_auto] gap-4 items-center border-b border-white/5 last:border-b-0">
-              <div className="min-w-0">
-                <div className="text-sm font-mono font-bold text-white truncate">{urun?.code||"REF yok"}</div>
-                <div className="lg:hidden text-xs text-slate-500 font-mono truncate">{h.lot?`LOT ${h.lot}`:"LOT yok"} · {displayLocationName(hosp)||"Lokasyon yok"}</div>
-              </div>
-              <div className="hidden lg:block text-sm font-mono font-bold text-brand-300 truncate">{h.lot||"LOT yok"}</div>
-              <div className="hidden lg:block"><span className="location-chip" style={locationStyle(hosp)}><span className="location-dot" style={locationTinyStyle(hosp)}></span><span className="truncate">{displayLocationName(hosp)||"Lokasyon yok"}</span>{!isCompanyShelfName(displayLocationName(hosp))&&<span className="consignment-tag">Konsinye</span>}</span></div>
-              <div className={`text-sm font-black ${meta?"":isIn?"text-emerald2":"text-rose2"}`} style={meta?{color:meta.color}:null}>
-                {isIn?"+":"-"}{h.quantity}<span className="text-xs font-normal text-slate-500 ml-1">{urun?.unit}</span>
-              </div>
-              <div className="text-xs text-slate-500">
-                <div>{d.toLocaleDateString("tr-TR")}</div>
-                <div className="text-slate-600">{d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</div>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${meta?"":isIn?"bg-emerald2/15 text-emerald2":"bg-rose2/15 text-rose2"}`}
-                    style={meta?{background:meta.bg,color:meta.color}:null}>
-                    {meta?meta.label:(isIn?"Giriş":"Çıkış")}
-                  </span>
-                  {h.local&&<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-navy-800 text-slate-500 border border-white/8">Yerel</span>}
-                </div>
-                <div className="text-xs text-slate-500 truncate">{cleanNote||"Açıklama yok"}</div>
-              </div>
-              <div className="text-right">
-                {!isIn&&(
-                  <button type="button" onClick={()=>printExitDocument({
-                    title:"Stok Çıkış Fişi",
-                    subtitle:"Mal hareketi çıkış belgesi",
-                    meta:[
-                      {label:"Lokasyon",value:displayLocationName(hosp)||"—"},
-                      {label:"Tarih",value:d.toLocaleString("tr-TR")},
-                      {label:"Hareket",value:meta?.label||"Stok Çıkışı"},
-                    ],
-                    rows:[{
-                      ref:urun?.code,
-                      lot:h.lot,
-                      product:"",
-                      context:cleanNote||"Stok çıkışı",
-                      personnel:noteField(h.notes,"Personel")||noteField(h.notes,"Ekip")||"—",
-                      quantity:h.quantity,
-                    }]
-                  })} className="mt-2 px-2.5 py-1 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">
-                    Yazdır
-                  </button>
-                )}
-              </div>
+      {movementMode==="stock"?(
+        <div className="card rounded-2xl overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[1fr_1fr_1.1fr_.7fr_.75fr_.8fr_auto] gap-4 px-5 py-3 border-b border-white/8 bg-navy-900/50">
+            {["REF","LOT","Lokasyon","Adet","Ana Depo / Raf","SKT","Durum"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}
+          </div>
+          {stockListRows.length===0?(
+            <div className="py-12 text-center text-slate-500 text-sm">Stok kaydı bulunamadı</div>
+          ):stockListRows.map(r=>(
+            <div key={r.id||`${r.urun_id}-${r.hospital_id}-${r.lot}`} className="table-row px-5 py-3 lg:grid lg:grid-cols-[1fr_1fr_1.1fr_.7fr_.75fr_.8fr_auto] gap-4 items-center border-b border-white/5 last:border-b-0">
+              <div className="min-w-0"><div className="text-sm font-mono font-bold text-white truncate">{r.urun.code||"REF yok"}</div><div className="text-xs text-slate-500 truncate lg:hidden">{displayLocationName(r.hospital)||"Lokasyon yok"}</div></div>
+              <div><span className="lot-key">{r.lot||"LOT yok"}</span></div>
+              <div className="hidden lg:block"><span className="location-chip" style={locationStyle(r.hospital)}><span className="location-dot" style={locationTinyStyle(r.hospital)}></span><span className="truncate">{displayLocationName(r.hospital)||"Lokasyon yok"}</span>{!isCompanyShelfName(displayLocationName(r.hospital))&&<span className="consignment-tag">Konsinye</span>}</span></div>
+              <div className="text-sm font-black text-white">{r.quantity||0}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit||"adet"}</span></div>
+              <div className="text-sm font-black text-emerald2">{depotQtyFor(r.urun_id,r.lot)}<span className="text-xs font-normal text-slate-500 ml-1">{r.urun.unit||"adet"}</span></div>
+              <div className="text-sm text-slate-400 font-mono">{r.skt||"SKT yok"}</div>
+              <div><span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${Number(r.quantity||0)>0?"bg-emerald2/15 text-emerald2 border-emerald2/25":"bg-rose2/15 text-rose2 border-rose2/25"}`}>{Number(r.quantity||0)>0?"Stokta":"Tükenmiş"}</span></div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ):(
+        <div className="card rounded-2xl overflow-hidden">
+          <div className="hidden lg:grid grid-cols-[1fr_1fr_1fr_.65fr_.75fr_.9fr_1.2fr_auto] gap-4 px-5 py-3 border-b border-white/8 bg-navy-900/50">
+            {["REF","LOT","Lokasyon","Adet","Ana Depo / Raf","Tarih","Hareket / Açıklama","Belge"].map(h=><div key={h} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</div>)}
+          </div>
+          {filtered.length===0?(
+            <div className="py-12 text-center text-slate-500 text-sm">Hareket bulunamadı</div>
+          ):filtered.map(h=>{
+            const urun=urunler.find(u=>u.id===h.urun_id);
+            const hosp=hospitals.find(x=>x.id===h.hospital_id);
+            const tag=getMovTag(h.notes);
+            const meta=tag?MOV_META[tag]:null;
+            const isIn=h.type==="in";
+            const d=new Date(h.created_at);
+            const cleanNote=tag?h.notes.replace(tag,"").trim():h.notes;
+            return(
+              <div key={h.id} className="table-row px-5 py-3 lg:grid lg:grid-cols-[1fr_1fr_1fr_.65fr_.75fr_.9fr_1.2fr_auto] gap-4 items-center border-b border-white/5 last:border-b-0">
+                <div className="min-w-0"><div className="text-sm font-mono font-bold text-white truncate">{urun?.code||"REF yok"}</div><div className="lg:hidden text-xs text-slate-500 font-mono truncate">{h.lot?`LOT ${h.lot}`:"LOT yok"} · {displayLocationName(hosp)||"Lokasyon yok"}</div></div>
+                <div className="hidden lg:block text-sm font-mono font-bold text-brand-300 truncate">{h.lot||"LOT yok"}</div>
+                <div className="hidden lg:block"><span className="location-chip" style={locationStyle(hosp)}><span className="location-dot" style={locationTinyStyle(hosp)}></span><span className="truncate">{displayLocationName(hosp)||"Lokasyon yok"}</span>{!isCompanyShelfName(displayLocationName(hosp))&&<span className="consignment-tag">Konsinye</span>}</span></div>
+                <div className={`text-sm font-black ${meta?"":isIn?"text-emerald2":"text-rose2"}`} style={meta?{color:meta.color}:null}>{isIn?"+":"-"}{h.quantity}<span className="text-xs font-normal text-slate-500 ml-1">{urun?.unit}</span></div>
+                <div className="text-sm font-black text-emerald2">{depotQtyFor(h.urun_id,h.lot)}<span className="text-xs font-normal text-slate-500 ml-1">{urun?.unit||"adet"}</span></div>
+                <div className="text-xs text-slate-500"><div>{d.toLocaleDateString("tr-TR")}</div><div className="text-slate-600">{d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</div></div>
+                <div className="min-w-0"><span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold border" style={{background:(meta?.bg)||(isIn?"rgba(16,185,129,.12)":"rgba(244,63,94,.12)"),borderColor:(meta?.color|| (isIn?"#10b981":"#f43f5e"))+"35",color:meta?.color||(isIn?"#10b981":"#f43f5e")}}>{meta?.icon|| (isIn?"↓":"↑")} {meta?.label|| (isIn?"Giriş":"Çıkış")}</span><div className="text-xs text-slate-500 mt-1 truncate">{cleanNote||"—"}</div></div>
+                <div className="flex flex-wrap gap-1.5">{!isIn&&(<button type="button" onClick={()=>printExitDocument({title:"Stok Çıkış Fişi",subtitle:"",meta:[{label:"Lokasyon",value:displayLocationName(hosp)||"—"},{label:"Tarih",value:d.toLocaleString("tr-TR")},{label:"Hareket",value:meta?.label||"Stok Çıkışı"}],rows:[{ref:urun?.code,lot:h.lot,product:"",context:cleanNote||"Stok çıkışı",personnel:noteField(h.notes,"Personel")||"",quantity:h.quantity}]})} className="px-2.5 py-1.5 rounded-lg bg-brand/15 hover:bg-brand/25 text-brand-300 text-xs font-bold border border-brand/20">Fiş</button>)}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -5880,7 +5924,7 @@ function FaturalarView({surgeries,urunler,stoklar,hospitals,personel=[],loadAll}
   };
   const printInvoiceRecord=record=>{
     const printable=invoicePrintRow(record);
-    printExitDocument({title:"Stok Çıkış Fişi",subtitle:"REF + LOT bazlı stok çıkış belgesi",meta:printable.meta,rows:[printable.row]});
+    printExitDocument({title:"Stok Çıkış Fişi",subtitle:"",meta:printable.meta,rows:[printable.row]});
   };
   const printInvoiceList=()=>{
     if(!filteredRecordRows.length)return toast("Yazdırılacak kayıt yok","warning");
