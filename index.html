@@ -46,8 +46,10 @@
   </main>
 </div>
 <div class="modal-bg" id="modal"></div><div class="toast" id="toast"></div>
-<script src="sync-config.js"></script>
-<script src="src/sync-adapter.js"></script>
+<script>
+window.ARTROPLUS_SYNC_CONFIG = window.ARTROPLUS_SYNC_CONFIG || { enabled:false, supabaseUrl:"", supabaseAnonKey:"", organizationId:"artroplus" };
+window.ArtroplusSync = window.ArtroplusSync || { status:{ enabled:false, ready:false, lastSync:"", error:"" }, pushSnapshot:async()=>false, pullSnapshot:async()=>false };
+</script>
 <script>
 (()=>{const KEY="artroplus_enterprise_v2";const C=["#1769e0","#0f9f6e","#d98b05","#7256d9","#0794b8","#d94452"];let page="dashboard",query="",mode="all",locFilter="",searchTimer=null,calDate=new Date(),assignDate="";
 const uid=()=>Math.random().toString(36).slice(2,9);const today=()=>new Date().toISOString().slice(0,10);assignDate=today();
@@ -143,6 +145,7 @@ document.getElementById("q").oninput=e=>scheduleSearch(e.target.value);document.
 </script>
 </body>
 </html>
+
 
 
 
