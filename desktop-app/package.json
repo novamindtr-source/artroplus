@@ -1,6 +1,6 @@
 {
   "name": "artroplus-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ARTROPLUS Kurumsal Operasyon Platformu - Masaüstü Uygulaması",
   "main": "main.js",
   "author": "Artroplus",
@@ -11,7 +11,11 @@
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
-    "dist:all": "electron-builder --win --mac --linux"
+    "dist:all": "electron-builder --win --mac --linux",
+    "publish:win": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -20,6 +24,11 @@
   "build": {
     "appId": "com.artroplus.desktop",
     "productName": "Artroplus",
+    "publish": {
+      "provider": "github",
+      "owner": "novamindtr-source",
+      "repo": "artroplus-desktop-releases"
+    },
     "directories": {
       "output": "release",
       "buildResources": "build"
