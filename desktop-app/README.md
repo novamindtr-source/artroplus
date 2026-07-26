@@ -36,9 +36,13 @@ uygulamasına dönüştürmek üzere hazırlanmış Electron projesidir.
 
 ## Notlar
 
-- Uygulama, `app/index.html` dosyasını kendi penceresinde açar; tüm veriler
-  bilgisayarındaki tarayıcı deposunda (localStorage) saklanır, internet gerekmez.
-- Uygulamayı güncellemek istediğinde, `app/index.html` dosyasının yeni halini bu
-  klasördeki `app/index.html` ile değiştirip 4. adımı tekrar çalıştırman yeterli.
+- Uygulama açıldığında canlı siteyi (artroplusanel.com) kendi penceresinde
+  gösterir. Bu sayede **otomatik güncellenir** — sitede yapılan her güncelleme
+  bir sonraki açılışta otomatik olarak görünür, ayrıca bir işlem yapmana
+  gerek yoktur.
+- İnternet yoksa uygulama otomatik olarak bu klasördeki `app/index.html`
+  yedek kopyasını açar (internetsiz de çalışmaya devam eder, ama o kopya
+  ancak sen manuel güncellersen yeni özellikleri gösterir).
+- Tüm veriler bilgisayarındaki tarayıcı deposunda (localStorage) saklanır.
 - Bulut senkronizasyonunu (Supabase) aktifleştirmek istersen `app/sync-config.js`
   dosyasını düzenle.

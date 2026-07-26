@@ -41,7 +41,9 @@ function createWindow() {
     ])
   );
 
-  mainWindow.loadFile(path.join(__dirname, "app", "index.html"));
+  mainWindow.loadURL("https://artroplusanel.com").catch(() => {
+    mainWindow.loadFile(path.join(__dirname, "app", "index.html"));
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
