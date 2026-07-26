@@ -1,34 +1,65 @@
 const { app, BrowserWindow, Menu, shell, dialog } = require("electron");
 const path = require("path");
-const { autoUpdater } = require("electron-updater");
+const https = require("https");
 
 let mainWindow;
 
-function setupAutoUpdate() {
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+const VERSION_CHECK_URL = "https://artroplusanel.com/desktop-version.json";
 
-  autoUpdater.on("update-downloaded", () => {
-    dialog
-      .showMessageBox(mainWindow, {
+function compareVersions(a, b) {
+  const pa = String(a).split(".").map(Number);
+  const pb = String(b).split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { timeout: 8000 }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error("HTTP " + res.statusCode));
+      }
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on("error", reject);
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+  });
+}
+
+// Sadece kontrol eder ve bildirir; hiçbir dosya otomatik indirilip
+// çalıştırılmaz. Kullanıcı "İndir" derse tarayıcıda kendi indirdiği
+// sayfaya (artroplusanel.com üzerinde, sizin kontrolünüzde) yönlendirilir.
+async function checkForUpdateNotifyOnly() {
+  try {
+    const info = await fetchJson(VERSION_CHECK_URL);
+    const current = app.getVersion();
+    if (info && info.version && compareVersions(info.version, current) > 0) {
+      const result = await dialog.showMessageBox(mainWindow, {
         type: "info",
-        title: "Güncelleme Hazır",
-        message: "Yeni bir Artroplus sürümü indirildi. Şimdi yeniden başlatıp kuralım mı?",
-        buttons: ["Şimdi Yeniden Başlat", "Daha Sonra"],
+        title: "Yeni Sürüm Mevcut",
+        message: `Yeni bir Artroplus sürümü (${info.version}) yayınlandı. Şu an ${current} sürümünü kullanıyorsunuz.`,
+        detail: "İndirme sayfası tarayıcınızda açılacak; kurulum dosyasını indirip her zamanki gibi kurabilirsiniz.",
+        buttons: ["İndirme Sayfasını Aç", "Daha Sonra"],
         defaultId: 0,
         cancelId: 1,
-      })
-      .then((result) => {
-        if (result.response === 0) autoUpdater.quitAndInstall();
       });
-  });
-
-  autoUpdater.on("error", (err) => {
-    console.error("Güncelleme kontrolü başarısız:", err);
-  });
-
-  autoUpdater.checkForUpdates();
-  setInterval(() => autoUpdater.checkForUpdates(), 4 * 60 * 60 * 1000);
+      if (result.response === 0 && info.url) shell.openExternal(info.url);
+    }
+  } catch (e) {
+    console.warn("Güncelleme kontrolü başarısız (önemli değil, uygulama normal çalışır):", e.message);
+  }
 }
 
 function createWindow() {
@@ -51,13 +82,7 @@ function createWindow() {
         label: "Artroplus",
         submenu: [
           { role: "reload", label: "Yenile" },
-          {
-            label: "Güncellemeleri Kontrol Et",
-            click: () => {
-              if (app.isPackaged) autoUpdater.checkForUpdates();
-              else dialog.showMessageBox(mainWindow, { message: "Güncelleme kontrolü sadece kurulu (paketlenmiş) uygulamada çalışır." });
-            },
-          },
+          { label: "Güncellemeleri Kontrol Et", click: () => checkForUpdateNotifyOnly() },
           { role: "toggleDevTools", label: "Geliştirici Araçları" },
           { type: "separator" },
           { role: "quit", label: "Çıkış" },
@@ -86,7 +111,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
-  if (app.isPackaged) setupAutoUpdate();
+  if (app.isPackaged) checkForUpdateNotifyOnly();
 });
 
 app.on("window-all-closed", () => {

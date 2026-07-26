@@ -34,32 +34,37 @@ uygulamasına dönüştürmek üzere hazırlanmış Electron projesidir.
 
 6. Kurulum dosyasını çalıştırıp Artroplus'u normal bir masaüstü programı gibi kur.
 
-## Otomatik Güncelleme
+## Güncelleme Bildirimi (sıfır riskli tasarım)
 
-Uygulama artık gerçek bir masaüstü programı gibi çalışır: veriler ve arayüz
+Uygulama gerçek bir masaüstü programı gibi çalışır: veriler ve arayüz
 `app/index.html` içinde, bilgisayarda yerel olarak saklanır, internet
-olmadan da açılır. Ayrıca **electron-updater** ile gerçek oto-güncelleme
-alt yapısı hazır — program açılışta (ve her 4 saatte bir) yeni sürüm olup
-olmadığını arka planda kontrol eder, bulursa indirir ve kullanıcıya sorup
-kurar.
+olmadan da açılır.
 
-Bunun çalışması için yeni sürümlerin bir yerde "yayınlanmış" (published)
-olması gerekiyor. `package.json` içinde bunun için GitHub üzerinde
-**`novamindtr-source/artroplus-desktop-releases`** adında küçük, sadece
-kurulum dosyalarını barındıracak (kaynak kodu içermeyen) **herkese açık**
-bir depo kullanacak şekilde ayarladım — ama bu depoyu henüz oluşturmadım,
-sizin onayınızı bekliyorum (aşağıya bakın).
+Güncelleme kontrolü **bilinçli olarak "sadece bildirim" şeklinde** kuruldu,
+otomatik indirme/kurulum YAPMAZ — hiçbir üçüncü parti güncelleme paketi
+(electron-updater vb.) kullanılmıyor, ek bir GitHub deposu gerekmiyor, ve
+uygulama hiçbir zaman kendi kendine bir dosyayı indirip çalıştırmıyor. Bu,
+"bir yerden otomatik indirilen kodun sessizce çalıştırılması" riskini
+tamamen ortadan kaldırır:
 
-Yeni bir sürüm yayınlamak istediğinizde (Windows'ta):
+1. Program açılışta, sizin kendi sitenizdeki (artroplusanel.com) küçük bir
+   `desktop-version.json` dosyasını okur (sadece okur, `{"version":"1.0.2","url":"..."}`
+   gibi düz metin).
+2. Kayıtlı sürüm, kendi sürümünden yeniyse bir bildirim penceresi açar.
+3. Kullanıcı "İndirme Sayfasını Aç" derse, tarayıcıda sizin kontrolünüzdeki
+   indirme sayfası açılır — kurulum dosyasını indirip çalıştırmak tamamen
+   kullanıcının elindedir, program adına otomatik hiçbir şey yapılmaz.
 
-```
-npm run publish:win
-```
+Yeni bir sürüm duyurmak istediğinizde, kendi site barındırmanıza (mevcut
+artroplusanel.com alanına) şunları eklemeniz yeterli:
+- Yeni `.exe` kurulum dosyası (herhangi bir klasöre)
+- `desktop-version.json` adında küçük bir dosya, örnek içerik:
+  ```json
+  { "version": "1.0.2", "url": "https://artroplusanel.com/downloads/Artroplus-Setup-1.0.2.exe" }
+  ```
 
-Bu komut hem `.exe` kurulum dosyasını üretir hem de doğrudan o depoya
-yükler; kullanıcıların hiçbir şey yapmasına gerek kalmaz, programları
-kendiliğinden güncellenir. `package.json` içindeki `"version"` alanını her
-yayından önce bir artırmayı unutmayın (örn. 1.0.1 → 1.0.2).
+`package.json` içindeki `"version"` alanını her yeni derlemede artırmayı
+unutmayın (örn. 1.0.1 → 1.0.2) ki karşılaştırma doğru çalışsın.
 
 ## Diğer Notlar
 
