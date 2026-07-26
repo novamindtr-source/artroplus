@@ -63,6 +63,7 @@
         if (res.error) throw res.error;
         status.lastSync = new Date().toISOString();
         status.error = "";
+        status.hasNewer = false;
         return true;
       } catch (e) {
         status.error = e.message || String(e);
@@ -82,6 +83,7 @@
         localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(res.data.data));
         status.lastSync = new Date().toISOString();
         status.error = "";
+        status.hasNewer = false;
         return true;
       } catch (e) {
         status.error = e.message || String(e);
@@ -89,8 +91,25 @@
       }
     }
 
+    async function checkNewer() {
+      try {
+        var res = await client
+          .from("snapshots")
+          .select("updated_at")
+          .eq("organization_id", organizationId)
+          .maybeSingle();
+        if (res.error) throw res.error;
+        var remoteTime = res.data && res.data.updated_at ? res.data.updated_at : "";
+        status.hasNewer = !!(remoteTime && status.lastSync && new Date(remoteTime) > new Date(status.lastSync));
+        status.remoteUpdatedAt = remoteTime;
+        return status.hasNewer;
+      } catch (e) {
+        return false;
+      }
+    }
+
     window.ArtroplusCloud = { signIn: signIn, signOut: signOut, currentProfile: currentProfile };
-    window.ArtroplusSync = { status: status, pushSnapshot: pushSnapshot, pullSnapshot: pullSnapshot };
+    window.ArtroplusSync = { status: status, pushSnapshot: pushSnapshot, pullSnapshot: pullSnapshot, checkNewer: checkNewer };
   }
 
   loadSupabaseSdk()
