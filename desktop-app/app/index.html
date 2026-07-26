@@ -6,10 +6,24 @@
   <title>Artroplus | Kurumsal Operasyon Platformu</title>
   <style>
     :root{--bg:#eaf1f8;--card:#fff;--ink:#102033;--muted:#667589;--line:#dbe4ef;--nav:#071321;--blue:#1769e0;--green:#0f9f6e;--amber:#d98b05;--red:#d94452;--violet:#7256d9;--cyan:#0794b8;--shadow:0 18px 44px rgba(22,34,51,.11);--r:14px}
-    html.dark-mode{filter:invert(1) hue-rotate(180deg)}
-    html.dark-mode img{filter:invert(1) hue-rotate(180deg)}
-    html.dark-mode .side{filter:invert(1) hue-rotate(180deg)}
-    html.dark-mode .side img{filter:none}
+    html.dark-mode{--bg:#0b1220;--card:#151f2e;--ink:#e7edf5;--muted:#8fa0b5;--line:#2a3a4d}
+    html.dark-mode body{background:#0b1220;color:#e7edf5}
+    html.dark-mode .top{background:#0f1826;border-bottom-color:#22334a}
+    html.dark-mode .panel,html.dark-mode .modal,html.dark-mode .notice,html.dark-mode .risk,html.dark-mode .scan-card,html.dark-mode .focus-card,html.dark-mode .info-grid div,html.dark-mode .patient-print-info div,html.dark-mode .op-rail,html.dark-mode .doc-panel,html.dark-mode .csv-preview-wrap,html.dark-mode .login-card,html.dark-mode .lot-picker,html.dark-mode .lot-row,html.dark-mode .csv-card,html.dark-mode .panel-lite,html.dark-mode .panel-lite .stat,html.dark-mode .op-btn,html.dark-mode .recent-item,html.dark-mode .hospital-list,html.dark-mode .hospital-btn,html.dark-mode .stock-pick-panel,html.dark-mode .pick-head,html.dark-mode .pick-row,html.dark-mode .mh,html.dark-mode .mf,html.dark-mode .soft-alert,html.dark-mode .muted-day,html.dark-mode .today-day,html.dark-mode .calendar-grid,html.dark-mode .calendar-grid .day,html.dark-mode .calendar,html.dark-mode .operation-calendar,html.dark-mode .day-add,html.dark-mode .check-pill,html.dark-mode .doc{background:#151f2e;border-color:#2a3a4d;color:#e7edf5}
+    html.dark-mode .ph,html.dark-mode .toolbar,html.dark-mode .mb,html.dark-mode .pick-head-row,html.dark-mode .hospital-list{background:#0f1826;border-color:#2a3a4d}
+    html.dark-mode .field,html.dark-mode select,html.dark-mode input,html.dark-mode textarea,html.dark-mode .search input,html.dark-mode .file-clean{background:#0f1826;border-color:#2a3a4d;color:#e7edf5}
+    html.dark-mode .btn,html.dark-mode .btn.ghost{background:#151f2e;border-color:#2a3a4d;color:#e7edf5}
+    html.dark-mode .btn.soft{background:#16283f;border-color:#2b4763;color:#7fb2ff}
+    html.dark-mode .pill{background:#151f2e;border-color:#2a3a4d;color:#cbd5e1}
+    html.dark-mode table{background:#151f2e}
+    html.dark-mode th{background:#0b1220!important;color:#e7edf5}
+    html.dark-mode td,html.dark-mode th{border-color:#243247}
+    html.dark-mode tbody tr:nth-child(even){background:#111a28}
+    html.dark-mode tbody tr:hover{background:#182437}
+    html.dark-mode .hero{background:#0b1220;color:#e7edf5}
+    html.dark-mode .empty{color:#6b7d94}
+    html.dark-mode .quick{background:#151f2e;border-color:#2a3a4d}
+    html.dark-mode .quick:hover{background:#182437}
     #themeToggleBtn{font-size:15px;line-height:1;padding:9px 12px}
     *{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#eaf1f8;color:var(--ink)}button,input,select,textarea{font:inherit}button{cursor:pointer}
     .app{min-height:100vh;display:grid;grid-template-columns:276px 1fr;transition:grid-template-columns .18s ease}.app.side-collapsed{grid-template-columns:72px 1fr}.side{background:linear-gradient(180deg,var(--nav),#06101c);color:#d8e6f7;padding:18px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;transition:padding .18s ease}.side-collapse-btn{position:absolute;top:22px;right:-13px;width:26px;height:26px;border-radius:50%;background:#fff;color:var(--blue);border:1px solid var(--line);box-shadow:0 2px 6px rgba(0,0,0,.2);display:grid;place-items:center;font-weight:950;z-index:5;line-height:1}.side.collapsed{padding:18px 10px}.side.collapsed .brand{padding:8px 0 20px;justify-content:center}.side.collapsed .brand-logo{width:36px}.side.collapsed .nav-title,.side.collapsed .chev,.side.collapsed .children{display:none}.side.collapsed .nav,.side.collapsed .parent,.side.collapsed .child{justify-content:center;padding:12px 0;gap:0;font-size:0}.side.collapsed .ico{font-size:18px}.side.collapsed .ucard{justify-content:center;padding:10px 4px}.side.collapsed #userName,.side.collapsed #userRole,.side.collapsed .logout-mini{display:none}.brand{display:flex;align-items:center;padding:8px 8px 20px;position:relative}.brand-logo{width:180px;max-width:100%;height:auto;border-radius:8px;background:white;padding:5px;box-shadow:0 1px 8px rgba(0,0,0,.18)}.mark{width:42px;height:42px;border-radius:12px;background:#fff;color:var(--blue);display:grid;place-items:center;font-weight:950}.btitle{font-weight:950}.bsub{font-size:10px;color:#7f92aa;font-weight:900;letter-spacing:.09em;text-transform:uppercase;margin-top:4px}
