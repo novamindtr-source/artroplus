@@ -331,11 +331,11 @@ function importCsvModal(kind){if(isViewOnlyRole())return toast("Sadece Görünt�
     });
   }else if(kind=="stock"){
     parsed.rows.forEach((row,i)=>{
-      let ref=cleanRef(pick(row,["REF","Ref","UrunKodu","Ürün Kodu","Urun Kodu","Kod"])),lot=String(pick(row,["LOT","Lot","LotNo"])).toUpperCase().trim(),qty=+(pick(row,["Adet","Qty","Miktar"])||0),exp=pick(row,["SKT","SonKullanma","Son Kullanma","Exp"]);
+      let ref=cleanRef(pick(row,["REF","Ref","UrunKodu","Ürün Kodu","Urun Kodu","Kod"])),lot=String(pick(row,["LOT","Lot","LotNo"])).toUpperCase().trim(),qty=+(pick(row,["Adet","Qty","Miktar"])||0),exp=pick(row,["SKT","SonKullanma","Son Kullanma","Exp"]),locName=pick(row,["Lokasyon","Location"]).trim();
       if(!ref)return err.push(`${i+2}. satır: REF yok`);
       if(!lot)return err.push(`${i+2}. satır: LOT yok`);
       if(!qty||qty<1)return err.push(`${i+2}. satır: adet hatalı`);
-      actions.push(()=>{let pr=ensureProductByCsv(row);addStock(pr.id,"ana",lot,qty,exp);db.moves.push({id:uid(),date:new Date().toISOString(),by:currentUser()?.email||"",byName:currentUser()?.fullName||"",type:"receipt",productId:pr.id,locationId:"ana",lot,qty,note:"CSV ana depo stok girişi",docNo:++db.printSeq})});ok++;
+      actions.push(()=>{let pr=ensureProductByCsv(row);let target=locName&&db.hospitals.find(h=>h.type=="company"&&txt(h.name)==txt(locName));let locId=target?target.id:"ana";addStock(pr.id,locId,lot,qty,exp);db.moves.push({id:uid(),date:new Date().toISOString(),by:currentUser()?.email||"",byName:currentUser()?.fullName||"",type:"receipt",productId:pr.id,locationId:locId,lot,qty,note:target?`CSV ${target.name} stok girişi`:"CSV ana depo stok girişi",docNo:++db.printSeq})});ok++;
     });
   }else{
     parsed.rows.forEach((row,i)=>{
